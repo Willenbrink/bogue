@@ -437,7 +437,7 @@ let update_room ll container o =
        probably because their geometry is not updated correctly). The problem is
        that the scrollbar is on the right, so it is naturally rendered *after*
        the room... too bad *)
-          Layout.(set_rooms ~sync:false container [superpose [room'; resident active_bg']]);
+          Layout.(set_rooms ~sync:false container [superpose [room'; resident (Widget.Any active_bg')]]);
           Layout.fix_content container;
           Layout.set_height container h;
           (* Sync.push (fun () -> Layout.detach room; Layout.kill room); *) (* ne
@@ -516,7 +516,7 @@ let create ~w ~h ~length ?(first=0) ~generate ?height_fn
   let active_bg = Widget.empty ~w ~h:(Layout.height room) () in
   let container = Layout.(tower ~name:"long_list container"
                             ~sep:0 ~hmargin:0 ~vmargin:0
-                            [superpose [room; resident ~name:"active_bg" active_bg]]) in
+                            [superpose [room; resident ~name:"active_bg" (Widget.Any active_bg)]]) in
   Layout.fix_content container;
   Layout.set_size container (w,h);
   Layout.set_clip container; (* this allows the mouse wheel to change the
@@ -562,12 +562,13 @@ let create ~w ~h ~length ?(first=0) ~generate ?height_fn
         ~var steps in
     let on_click sl _ _ =
       clicked_value := Slider.clicked_value (Widget.get_slider sl) in
+    let on_click _ _ _ = () in
     let c = Widget.connect_main slider slider on_click Trigger.buttons_down in
     Widget.add_connection slider c;
     let on_release _ _ _ =
       clicked_value := None in
     let c2 = Widget.connect_main slider slider on_release Trigger.buttons_up in
     Widget.add_connection slider c2;
-    let bar = Layout.(resident ~background:(Solid Draw.scrollbar_color) slider) in
+    let bar = Layout.(resident ~background:(Solid Draw.scrollbar_color) (Widget.Any slider)) in
     Layout.(flat ~name:"long_list" ~sep:0 ~hmargin:0 ~vmargin:0 [container; bar])
   end

@@ -15,7 +15,7 @@ module Trigger =  B_trigger
 
 let str = Printf.sprintf
 
-let table : (Widget.t list) Var.t = Var.create  [];;
+let table : (Widget.any list) Var.t = Var.create  [];;
 
 let is_empty () =
   Var.get table = [];;
@@ -32,11 +32,11 @@ let mem w =
 
 let push w =
   if mem w then
-    printd debug_event "Widget #%u is already in the Update.table" w.Widget.wid
+    printd debug_event "Widget #%u is already in the Update.table" (Widget.id w)
   else begin
     Var.protect table;
     Var.unsafe_set table (w::(Var.get table));
-    Trigger.push_update w.Widget.wid;
+    Trigger.push_update (Widget.id w);
     Var.release table
   end;;
 
@@ -44,11 +44,11 @@ let push_all () =
   List.iter
     (fun w -> Trigger.push_update (Widget.id w)) (Var.get table);;
 
-let execute_one e w =
-  if w.Widget.wid = Trigger.get_update_wid e
+let execute_one e (Widget.Any w) =
+  if w#wid = Trigger.get_update_wid e
   then (
     Widget.wake_up_all e w;
-    Trigger.push_redraw (Widget.id w) (* OK ?? *)
+    Trigger.push_redraw (w#wid) (* OK ?? *)
   );;
 
 let execute e =
@@ -57,7 +57,7 @@ let execute e =
   | list -> (
       Var.protect table;
       let wid = Trigger.get_update_wid e in
-      let list_e, other = List.partition (fun w -> w.Widget.wid = wid) list in
+      let list_e, other = List.partition (fun (Widget.Any w) -> w#wid = wid) list in
       printd debug_memory "Udpate Table: remaining size=%i" (List.length other);
       (* we keep the widgets that do not correspond to the event e *)
       Var.unsafe_set table other;

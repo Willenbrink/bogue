@@ -92,7 +92,7 @@ type room_content =
   (* in principle, rooms in a house with the same layer should have
      non-intersecting geometries (this can be violated, eg. with
      Layout.superpose). Popups are drawn on a different layer *)
-  | Resident of Widget.t
+  | Resident of Widget.any
 
 and room = {
   id : int; (* unique identifier *)
@@ -361,7 +361,7 @@ let create
   (* we update the resident room_id field *)
   (* we update the content's house field *)
   let () = match content with
-    | Resident w -> w.Widget.room_id <- Some id
+    | Resident (Any w) -> w#set_room_id (Some id)
     | Rooms list -> if set_house
                     then List.iter (fun r -> r.house <- Some room) list in
   (*Gc.finalise free room;*)
@@ -428,7 +428,7 @@ let rec iter f room =
 (* iter through widgets *)
 let rec iter_widgets f room =
   match room.content with
-  | Resident w -> f w
+  | Resident (Any w) -> f (w :> Widget.tc_anon)
   | Rooms list -> List.iter (iter_widgets f) list
 
 (* iter the direct children *)
@@ -441,7 +441,7 @@ let iter_rooms f house =
 (* find the room containing a widget given by the wid (or None if the room has
    disappeared in the air)*)
 let of_wid wid =
-  let w = Widget.of_id wid in
+  let Any w = Widget.of_id wid in
   let id = Widget.get_room_id w in
   of_id_opt id
 
@@ -670,7 +670,7 @@ let fix_content house =
 let resize_content room =
   match room.content with
     | Rooms list -> List.iter resize list
-    | Resident w -> Widget.resize w (get_size room)
+    | Resident (Any w) -> Widget.resize w (get_size room)
 
 (* l must be the top house *)
 let adjust_window_size l =
@@ -1031,14 +1031,14 @@ let next_keyboard room =
    recreated. *)
 let unload_widget_textures room =
   unload_background room;
-  iter_widgets Widget.unload_texture room
+  iter_widgets (fun o -> o#unload_texture) room
 
 (* same, but for all rooms + widgets *)
 let unload_textures room =
   let f r =
     unload_background r;
     match r.content with
-    | Resident w -> Widget.unload_texture w
+    | Resident (Any w) -> w#unload_texture
     | _ -> () in
   iter f room
 
@@ -1108,7 +1108,7 @@ let kill_all_NO room =
          let rec loop r =
            remove_wtable r;
            match r.content with
-           | Resident w -> Widget.free w
+           | Resident (Any w) -> Widget.free w
            | Rooms list -> List.iter loop list
          in
          loop room)
@@ -1125,7 +1125,7 @@ let kill_rooms_NO house =
            delete_background r;
            remove_wtable r;
            match r.content with
-           | Resident w -> Widget.free w
+           | Resident (Any w) -> Widget.free w
            | Rooms list -> List.iter loop list
          in
          List.iter loop list)
@@ -1154,7 +1154,7 @@ let global_translate room dx dy =
 let rec fit_content ?(sep = Theme.room_margin/2) l =
   if l.adjust = Nothing || l.clip then ()
   else let w,h = match l.content with
-      | Resident widget -> Widget.default_size widget
+      | Resident (Any widget) -> Widget.default_size widget
       (* | Rooms [r] -> r.geometry.w, r.geometry.h *)
       | Rooms list ->
         let x0 = l.current_geom.x in
@@ -1198,7 +1198,7 @@ let set_keyboard_focus r =
         r.keyboard_focus <- Some true;
         match r.content with
         | Rooms _ -> ()
-        | Resident w -> Widget.set_keyboard_focus w
+        | Resident (Any w) -> Widget.set_keyboard_focus w
       end
     )
 
@@ -1206,7 +1206,7 @@ let rec remove_keyboard_focus r =
   do_option r.keyboard_focus (fun b -> if b then r.keyboard_focus <- Some false);
   match r.content with
     | Rooms list -> List.iter remove_keyboard_focus list
-    | Resident w -> Widget.remove_keyboard_focus w
+    | Resident (Any w) -> Widget.remove_keyboard_focus w
 
 let claim_focus r =
   if has_resident r then Trigger.push_mouse_focus r.id
@@ -1245,7 +1245,7 @@ let v_align ~align layout y0 h =
 (* x,y specification will be overwritten if the room is then included in a flat
    or tower, which is essentially always the case... *)
 let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?draggable ?canvas ?layer
-    ?keyboard_focus widget =
+    ?keyboard_focus (Widget.Any widget) =
   let (w',h') = Widget.default_size widget in
   let w = default w w' in
   let h = default h h' in
@@ -1255,23 +1255,23 @@ let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?draggable ?canvas ?layer
     | None -> Widget.guess_unset_keyboard_focus widget in
   let geometry = geometry ~x ~y ~w ~h () in
   create ?name ?background ?keyboard_focus ?draggable ?layer ?canvas
-    geometry (Resident widget)
+    geometry (Resident (Any widget))
 let of_widget = resident
 
 (* Set the given widget as the new resident of the given room. If w,h are not
    specified, the size of the room will be updated by the size of the widget. *)
 let change_resident ?w ?h room widget =
   match room.content with
-  | Resident resid ->
+  | Resident (Any resid) ->
      printd debug_board "Replacing room %s's widget by widget #%d"
-       (sprint_id room) (Widget.id widget);
+       (sprint_id room) (widget#wid);
      let (w',h') = Widget.default_size widget in
      let w = default w w' in
      let h = default h h' in
-     room.content <- Resident widget;
-     widget.Widget.room_id <- Some room.id;
+     room.content <- Resident (Any widget);
+     widget#set_room_id (Some room.id);
      room.keyboard_focus <- Widget.guess_unset_keyboard_focus widget;
-     resid.Widget.room_id <- None;
+     resid#set_room_id None;
      set_size room (w,h)
   | _ -> printd debug_event "[change_resident]: but target room has no resident!"
 
@@ -1505,7 +1505,7 @@ let copy ~src ~dst =
   dst.clip <- src.clip;
   dst.background <- src.background;
   begin match src.content with
-  | Resident r as c -> r.Widget.room_id <- Some dst.id; dst.content <- c
+  | Resident (Any r) as c -> r#set_room_id (Some dst.id); dst.content <- c
   | Rooms rooms -> set_rooms dst rooms
   end;
   dst.keyboard_focus <- src.keyboard_focus;
@@ -1736,7 +1736,7 @@ let save_to_event_OLD event room =
    (since all widgets must be in the same window) *)
 let rec ask_update room =
   match room.content with
-  | Resident w -> Widget.update w
+  | Resident (Any w) -> Widget.update w
   | Rooms list -> List.iter ask_update list
 
 (** animations: *)
@@ -2118,7 +2118,7 @@ let make_clip ?w ?(scrollbar = true) ?(scrollbar_inside = false) ?(scrollbar_wid
      react to the mouse wheel event. Of course, if the room was full of widgets,
      this is superfluous... *)
   let container = tower ~margins:0 ~clip:true
-                    [superpose [room; resident active_bg]] in
+                    [superpose [room; resident (Any active_bg)]] in
   (* The container should be a room with a unique subroom (and the active
      background); the subroom can then be scrolled with respect to the container
    *)
@@ -2132,7 +2132,7 @@ let make_clip ?w ?(scrollbar = true) ?(scrollbar_inside = false) ?(scrollbar_wid
            container is modified after creation, for instance when the user
            resizes the window. *)
         let bar = resident ~background:(Solid Draw.(lighter scrollbar_color))
-                    (Widget.empty ~w:10 ~h:10 ()) in
+                    (Widget.Any (Widget.empty ~w:10 ~h:10 ())) in
         (* The scrollbar is a slider. Its Tvar takes the voffset value into the
            slider value, between 0 and (height room - height container). 0
            corresponds to the bottom position of the slider, so this means the
@@ -2414,7 +2414,7 @@ let display ?pos0 room =
                    blit_to_layer { rect with clip; transform = t }
                  end;
                List.iter (display_loop x y voffset clip transform) h
-            | Resident w ->
+            | Resident (Any w) ->
                let blits = Widget.display (get_canvas r) (get_layer r) w
                              Draw.({x; y; w = g.w; h = g.h; voffset}) in
                let blits = match bg with
@@ -2463,7 +2463,7 @@ let set_cursor roomo =
     | None -> go (Draw.create_system_cursor Sdl.System_cursor.arrow)
     | Some room -> match room.content with
       | Rooms _ -> go (Draw.create_system_cursor Sdl.System_cursor.arrow)
-      | Resident w -> Widget.get_cursor w in
+      | Resident (Any w) -> Widget.get_cursor w in
   Sdl.set_cursor (Some cursor)
 
 (* comme display sauf qu'on ne trace que si nécessaire *)
@@ -2480,7 +2480,7 @@ let update_old room =
       room.current_geom <- current_geom ~x ~y ~w:g.w ~h:g.h ();
       match room.content with
       | Rooms h -> List.iter (update_loop x y g.voffset clip) h
-      | Resident w -> if not (Widget.is_fresh w) then begin
+      | Resident (Any w) -> if not (Widget.is_fresh w) then begin
           (* if !draw_boxes then Draw.box (renderer room) ~bg:(200,10,20,50) x y g.w g.h; *)
           (* TODO background , transform *)
           let blits = Widget.display (get_canvas room) (get_layer room) w
@@ -2500,7 +2500,7 @@ let rec is_fresh room =
     | r::h -> if not (is_fresh r) then false
       else loop h in
     loop list
-  | Resident w -> Widget.is_fresh w
+  | Resident (Any w) -> Widget.is_fresh w
 
 let room_has_anim room =
   Avar.has_anim room.geometry.transform.alpha ||

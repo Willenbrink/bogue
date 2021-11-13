@@ -77,7 +77,7 @@ let make_title (c : column) =
   let layout =
     if c.compare = None
     then (* first encapsulate in order to then left-align *)
-      Layout.flat_of_w ~sep:0 [label]
+      Layout.flat_of_w ~sep:0 [Widget.Any label]
     else begin (* add icon for sorting *)
       let sort_indicator = Widget.icon ~fg:icon_color "sort" in
       let sw,_ = Widget.default_size sort_indicator in
@@ -85,15 +85,15 @@ let make_title (c : column) =
       let w' = w - sw - lw in
       if w' >= 0
       then (* we can add sort_indicator *)
-        Layout.flat_of_w ~sep:0 ~align:(Draw.Max) [label;
-                                                   Widget.empty ~w:w' ~h:lh ();
-                                                   sort_indicator]
-      else Layout.flat_of_w ~sep:0 [label]
+        Layout.flat_of_w ~sep:0 ~align:(Draw.Max) [Widget.Any label;
+                                                   Widget.Any (Widget.empty ~w:w' ~h:lh ());
+                                                   Widget.Any (sort_indicator)]
+      else Layout.flat_of_w ~sep:0 [Widget.Any label]
     end in
   Layout.set_width layout w; (* not necessary in the case of sort_indicator *)
   let (_,h) = Widget.default_size label in
   let click_area = Widget.empty ~w ~h () in
-  let title = Layout.(superpose [resident click_area; layout]) in
+  let title = Layout.(superpose [resident (Widget.Any click_area); layout]) in
   title;;
 
 (* extracts the click_area widget from the title layout *)
@@ -166,7 +166,7 @@ let make_long_list ~w ~h t  =
     let background = get_background t i ii in
     let left_margin = Widget.empty ~w:title_margin ~h:t.row_height () in
     let click_area = Widget.empty ~w ~h:t.row_height () in
-    let ca = Layout.resident ~name:(sprintf "click_area %u(%u)" i ii) click_area in
+    let ca = Layout.resident ~name:(sprintf "click_area %u(%u)" i ii) (Widget.Any click_area) in
     let row =
       Array.mapi (fun j c ->
           let width = Layout.width t.titles.(j) in
@@ -174,7 +174,7 @@ let make_long_list ~w ~h t  =
           let r = Layout.flat ~sep:0 ~hmargin:0 ~vmargin:0 ~name [c.rows i] in
           Layout.set_width r (width  + title_margin); r) t.data
       |> Array.to_list
-      |> cons (Layout.resident left_margin)
+      |> cons (Layout.resident (Widget.Any left_margin))
       |> (Layout.flat ~sep:0 ~hmargin:0 ~vmargin:0 ?background) in
     let enter _ = (Layout.set_background ca (Some row_hl)
                   (* Layout.fade_in ca ~duration:150 *)) in
@@ -237,12 +237,13 @@ let set_indicator t j =
   else begin
       let sort = t.data.(j).sort in
       do_option (get_indicator t.titles.(j)) (fun indicator ->
-          let label = Widget.get_label indicator in
-          Label.set label (match sort with
-                           | None -> Theme.fa_symbol "sort"
-                           (* terminology in font_a is reversed *)
-                           | Some Ascending -> Theme.fa_symbol "sort-desc"
-                           | Some Descending -> Theme.fa_symbol "sort-asc"))
+          (* let label = Widget.get_label indicator in
+           * Label.set label (match sort with
+           *                  | None -> Theme.fa_symbol "sort"
+           *                  (\* terminology in font_a is reversed *\)
+           *                  | Some Ascending -> Theme.fa_symbol "sort-desc"
+           *                  | Some Descending -> Theme.fa_symbol "sort-asc") *)
+        ())
     end;;
 
 
@@ -292,7 +293,7 @@ let change_order t j sort =
 let connect_title t j =
   if t.data.(j).compare = None then ()
   else begin
-    let widget = get_area t.titles.(j) in
+    let Widget.Any widget = get_area t.titles.(j) in
     let click _ =
       let sort = match t.data.(j).sort with
         | None -> Ascending
@@ -356,7 +357,7 @@ let of_array ?w ~h ?widths ?row_height ?name headers a =
              |> Array.mapi (fun j title ->
                  { title;
                    length = ni;
-                   rows = (fun i -> Layout.resident (Widget.label a.(i).(j)));
+                   rows = (fun i -> Layout.resident (Widget.Any (Widget.label a.(i).(j))));
                    compare = Some (fun i1 i2 -> compare a.(i1).(j) a.(i2).(j));
                    width = widths.(j) })
              |> Array.to_list in

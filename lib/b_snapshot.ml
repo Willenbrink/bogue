@@ -53,6 +53,6 @@ let update widget room =
 let create ?border room =
   let w,h = Layout.get_size room in
   let box = Widget.box ~w ~h ?border () in
-  let c = Widget.connect_main box box (fun w _ _ -> update w room) [Trigger.startup] in
-  Widget.add_connection box c;
+  (* let c = Widget.connect_main box box (fun w _ _ -> update w room) [Trigger.startup] in
+   * Widget.add_connection box c; *)
   box;;

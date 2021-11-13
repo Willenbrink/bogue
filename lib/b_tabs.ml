@@ -41,6 +41,7 @@ let create_one ?slide title room dest_room =
         W.update w; (* or refresh only layout ? *)
       end
   in
+  let onpress _ _ _ = () in
   let c = W.connect_main l l onpress Trigger.buttons_down in
   W.add_connection l c;
   l
@@ -74,10 +75,11 @@ let create (*?(circular = true)*) ?slide ?(adjust = Layout.Fit) ?(expand = true)
        * end; *)
       let labels = List.map (fun (title, layout) ->
                        create_one ?slide title layout dest_room) list in
-      let reset_other_labels w _ _ =
-        List.iter (fun b ->
-            if not (W.equal w b) then Button.reset (W.get_button b)) labels;
-      (* + refresh ? *) in
+      (* let reset_other_labels w _ _ =
+       *   List.iter (fun b ->
+       *       if not (W.equal w b) then Button.reset (W.get_button b)) labels;
+       * (\* + refresh ? *\) in *)
+      let reset_other_labels _ _ _ = () in
       List.iter (fun l ->
           let c =  W.connect_main l l reset_other_labels Trigger.buttons_down in
           W.add_connection l c) labels;
@@ -85,7 +87,7 @@ let create (*?(circular = true)*) ?slide ?(adjust = Layout.Fit) ?(expand = true)
       let first_l = List.hd labels in
       Button.press (W.get_button first_l);
 
-      let menu = Layout.flat_of_w ?canvas ~sep:0 labels in
+      let menu = Layout.flat_of_w ?canvas ~sep:0 (List.map (fun x -> W.Any x) labels) in
       if expand (* we set the same width to all labels... do better? *)
       then begin
           let w = Layout.width dest_room in (* TODO utiliser relayout *)

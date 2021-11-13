@@ -57,8 +57,8 @@ let make_board () =
   let label = W.label ~size:40 "Hello !" in
   let background = L.color_bg (Draw.(transp (find_color "olivedrab"))) in
   let w = width - 2*margin in
-  let layout = L.tower ~margins:margin [L.resident ~background ~w input;
-                                        L.resident ~w ~h:200 label] in
+  let layout = L.tower ~margins:margin [L.resident ~background ~w (Widget.Any input);
+                                        L.resident ~w ~h:200 (Widget.Any label)] in
 
   let before_display () =
     let text = W.get_text input in

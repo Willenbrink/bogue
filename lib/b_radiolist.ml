@@ -19,7 +19,7 @@ module Update = B_update
 
 type widgets = {
   index : (int option) Var.t; (* the index of selected entry *)
-  data : (W.t * W.t) array
+  data : (W.any * W.any) array
 }
 
 type t = {
@@ -49,8 +49,8 @@ let get_button widgets =
 let make_label ?(click_on_label=true) entry =
   let l = W.label entry in
   if click_on_label
-  then l.W.cursor <- Some (go (Draw.create_system_cursor Sdl.System_cursor.hand));
-  l;;
+  then l#set_cursor (Some (go (Draw.create_system_cursor Sdl.System_cursor.hand)));
+  l
 
 let make_button () =
   let style = Check.Circle in
@@ -62,8 +62,8 @@ let select_action widgets i b _=
   if not (W.get_state b)
   then begin
       W.set_check_state b true;
-      do_option (get_button widgets) (fun old_b ->
-          W.set_check_state old_b false);
+      (* do_option (get_button widgets) (fun old_b ->
+       *     W.set_check_state old_b false); *)
       Var.set widgets.index (Some i);
       (*Update.push b*)
     end;;
@@ -72,20 +72,22 @@ let make_connections widgets =
   for i = 0 to Array.length widgets.data - 1 do
     let (b,w) = widgets.data.(i) in
     let action = select_action widgets i in
-    let c = W.connect_main b w (fun b w _ -> action b w) Trigger.buttons_down in
-    let c' = W.connect_main w b (fun w b _ -> action b w) Trigger.buttons_down in
-    W.add_connection b c;
-    W.add_connection w c'
+    (* let c = W.connect_main b w (fun b w _ -> action b w) Trigger.buttons_down in
+     * let c' = W.connect_main w b (fun w b _ -> action b w) Trigger.buttons_down in *)
+    (* W.add_connection b c;
+     * W.add_connection w c' *)
+    ()
   done;;
 
 let make_widgets ?selected ?(click_on_label=true) entries =
   let data = Array.map (fun entry ->
-      (make_button (), make_label ~click_on_label entry)) entries in
-  do_option selected (fun i ->
-      let (b,_) = data.(i) in
-      W.set_check_state b true);
+      W.(Any (make_button ()), Any (make_label ~click_on_label entry))) entries in
+  (* do_option selected (fun i ->
+   *     let (b,_) = data.(i) in
+   *     W.set_check_state b true); *)
   let widgets = { index = Var.create selected; data } in
-  make_connections widgets; widgets;;
+  (* make_connections widgets; *)
+  widgets;;
 
 (* create a vertical (ie. standard) layout *)
 let vertical ?(name = "radiolist") ?(click_on_label=true) ?selected entries =
@@ -104,7 +106,7 @@ let get_index t =
    with the var_changed event. *)
 let set_index t i =
   let (b,w) = t.widgets.data.(i) in
-  select_action t.widgets i b w;
+  (* select_action t.widgets i b w; *)
   (* This will wake up the widget b even if it doesn't have mouse focus *)
   Update.push b;;
 (* another possibility, if using Update sounds like a bad idea, is to directly

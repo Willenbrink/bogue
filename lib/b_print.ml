@@ -6,7 +6,7 @@ module Chain = B_chain
 module Draw = B_draw
 module Label = B_label
 
-let kind k =
+let kind (type a) (k : a Widget.kind) =
   let open Widget in
   match k with
   | Empty _ -> "Empty"
@@ -21,7 +21,7 @@ let kind k =
 
 let widget w =
   let open Widget in
-  sprintf "wid: #%u, kind: %s" w.wid (kind w.kind);;
+  sprintf "wid: #%u, kind: %s" w#wid (kind w#kind);;
 
 let color (r,g,b,a) =
   sprintf "(r=%u, g=%u, b=%u, a=%u)" r g b a;;
@@ -33,7 +33,7 @@ let geometry g =
 let content c =
   match c with
   | L.Rooms list -> sprintf "Rooms (%u)" (List.length list) (* do not call recursively all rooms, because we have a circular type *)
-  | L.Resident w -> sprintf "Resident (%s)" (widget w);;
+  | L.Resident (Any w) -> sprintf "Resident (%s)" (widget w);;
 
 let house h =
   sprintf "%s" (L.sprint_id h);;
@@ -87,7 +87,7 @@ let rec layout_down ?(indent = "") r =
   String.concat "" list
 
 and full_content ?(indent = "") = function
-  | L.Resident w -> sprintf "Resident (%s)" (widget w)
+  | L.Resident (Any w) -> sprintf "Resident (%s)" (widget w)
   | L.Rooms list -> "Rooms:" ^ (String.concat "," (List.map (layout_down ~indent) list));;
 
 

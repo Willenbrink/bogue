@@ -61,8 +61,8 @@ let filter_screen ?color ?layer ?keyboard_focus layout =
   let w,h = Layout.(width layout, height layout) in
   printd debug_graphics "Create filter screen (%d,%d)" w h;
   let b = match color with
-    | None -> Widget.empty ~w ~h ()
-    | Some color -> Widget.box ~w ~h ~background:(Style.Solid color)() in
+    | None -> Widget.Any (Widget.empty ~w ~h ())
+    | Some color -> Widget.Any (Widget.box ~w ~h ~background:(Style.Solid color)()) in
   let screen = (* Layout.(flat_of_w ~sep:0 layout.canvas [b]) in *)
     Layout.(resident ~name:"filter" ?canvas:layout.canvas b) in
   (* Layout.(screen.geometry <- {screen.geometry with w; h}); *)
@@ -133,7 +133,7 @@ let slide_in ~dst content buttons =
 
 let one_button ?w ?h ~button ~dst content =
   let close_btn = Widget.button ~border_radius:3 button in
-  let popup, screen = slide_in ~dst content (Layout.resident ?w ?h close_btn) in
+  let popup, screen = slide_in ~dst content (Layout.resident ?w ?h (Widget.Any close_btn)) in
   let close _ =
     Layout.hide popup;
     Layout.hide screen;
@@ -144,7 +144,7 @@ let one_button ?w ?h ~button ~dst content =
 (* TODO the ?w and ?h define the size of the text_display (not automatically
    detected). It should also include the size of the close button *)
 let info ?w ?h ?(button="Close") text dst =
-  let td = Widget.text_display ?w ?h text
+  let td = Widget.Any (Widget.text_display ?w ?h text)
            |> Layout.resident in
   one_button ?w ?h ~button ~dst td
 
@@ -153,7 +153,7 @@ let two_buttons ?w ?h ~label1 ~label2 ~action1 ~action2
     content dst =
   let btn1 = Widget.button ~border_radius:3 label1 in
   let btn2 = Widget.button ~border_radius:3 label2 in
-  let buttons = Layout.(flat ~vmargin:0 ~sep:(2*Theme.room_margin) [resident ?w ?h btn1; resident ?w ?h btn2]) in
+  let buttons = Layout.(flat ~vmargin:0 ~sep:(2*Theme.room_margin) [resident ?w ?h (Widget.Any btn1); resident ?w ?h (Widget.Any btn2)]) in
   let popup, screen = slide_in ~dst content buttons in
   let close () =
     (*Layout.hide popup;*)
@@ -170,7 +170,7 @@ let two_buttons ?w ?h ~label1 ~label2 ~action1 ~action2
   Widget.on_release ~release:do2 btn2
 
 let yesno ?w ?h ?(yes="Yes") ?(no="No") ~yes_action ~no_action text dst =
-  let td = Widget.text_display ?w ?h text
+  let td = Widget.Any (Widget.text_display ?w ?h text)
            |> Layout.resident in
   two_buttons ?w ?h ~label1:yes ~label2:no ~action1:yes_action ~action2:no_action
     td dst
@@ -201,7 +201,7 @@ let tooltip ?background ?(position = Below) text ~target widget layout =
   let background = default background
       (Layout.Box (Box.create ~background:(Style.Solid Draw.(opaque (pale grey)))
                      ~border ())) in
-  let tooltip = Layout.tower_of_w ~sep:3 ~background [t] in
+  let tooltip = Layout.tower_of_w ~sep:3 ~background [Widget.Any t] in
   attach_on_top layout tooltip;
   tooltip.Layout.show <- false;
 

@@ -1,0 +1,5 @@
+(library
+ (name utils)
+ (libraries str tsdl tsdl-image tsdl-ttf)
+   (wrapped false)
+)

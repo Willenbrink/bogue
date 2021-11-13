@@ -1,0 +1,6 @@
+(library
+ (name lib)
+ (libraries str tsdl tsdl-image tsdl-ttf
+            widget)
+  (wrapped false)
+)

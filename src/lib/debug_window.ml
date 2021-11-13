@@ -22,7 +22,7 @@ let create () =
   let dbg_boxes = L.flat_of_w ~align:Draw.Center W.[Any b; Any l] in
 
   let action w _ _ =
-    W.draw_boxes := W.get_state w in
+    W.draw_boxes := w#get_state in
   let action _ _ _ = () in
   let c_boxes = W.connect b b action [Sdl.Event.mouse_button_down; Sdl.Event.finger_down] in
 
@@ -32,7 +32,7 @@ let create () =
 
   let title = W.label "Debug Variables" in
   let action code w _ _ =
-    set code (W.get_state w)
+    set code (w#get_state)
   in
   let action _ _ _ _ = () in
   let rec loop vars rooms connections =
@@ -49,7 +49,7 @@ let create () =
 
   let panel = L.tower ~sep:0 ((L.flat_of_w ~sep:10 [W.Any title]) :: rooms) in
   let action w _ _ =
-    let ok = W.get_state w in
+    let ok = w#get_state in
     debug := ok;
     if ok
     then (L.show panel; L.fade_in panel)

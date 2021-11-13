@@ -2,55 +2,42 @@ open Printf
 
 module L = Layout
 
-let kind (type a) (k : a Widget.kind) =
-  let open Widget in
-  match k with
-  | Empty _ -> "Empty"
-  | Box _ -> "Box"
-  | Button _ -> "Button"
-  | Check _ -> "Check"
-  | TextDisplay _ -> "TextDisplay"
-  | Label l -> "Label [" ^ Utils.xterm_red ^ (Label.text l) ^ Utils.xterm_nc ^ "]"
-  | Image _ -> "Image"
-  | Slider _ -> "Slider"
-  | TextInput _ -> "TextInput"
-
 let widget w =
   let open Widget in
-  sprintf "wid: #%u, kind: %s" w#wid (kind w#kind);;
+  sprintf "wid: #%u, kind: %s" w#wid (w#typ)
 
 let color (r,g,b,a) =
-  sprintf "(r=%u, g=%u, b=%u, a=%u)" r g b a;;
+  sprintf "(r=%u, g=%u, b=%u, a=%u)" r g b a
 
 let geometry g =
   let open L in
-  sprintf "(x=%d, y=%d, w=%d, h=%d, vo=%d)"  g.x g.y g.w g.h g.voffset;;
+  sprintf "(x=%d, y=%d, w=%d, h=%d, vo=%d)"  g.x g.y g.w g.h g.voffset
 
 let content c =
   match c with
   | L.Rooms list -> sprintf "Rooms (%u)" (List.length list) (* do not call recursively all rooms, because we have a circular type *)
-  | L.Resident (Any w) -> sprintf "Resident (%s)" (widget w);;
+  | L.Resident (Any w) -> sprintf "Resident (%s)" (widget w)
 
 let house h =
-  sprintf "%s" (L.sprint_id h);;
+  sprintf "%s" (L.sprint_id h)
 
 let canvas c =
-  sprintf "Window id=%u" (Draw.window_id c);;
+  sprintf "Window id=%u" (Draw.window_id c)
 
 let option f o =
   match o with
   | Some x -> "Some " ^ (f x)
-  | None -> "None";;
+  | None -> "None"
 
 let bool b =
-  sprintf "%b" b;;
+  sprintf "%b" b
 
 let anim _ =
-  "Anim";; (* TODO*)
+  "Anim" (* TODO*)
 
 let background = function
   | L.Solid c -> color c
-  | L.Box _ -> "Box";;
+  | L.Box _ -> "Box"
 
 let rec layout_up ?(indent = "") r =
 let list = [
@@ -65,7 +52,7 @@ let list = [
   sprintf "%s┃ keyboard_focus: %s\n" indent (option bool r.L.keyboard_focus);
   sprintf "%s┃ house: %s\n" indent (option (layout_up ~indent:(indent^"┃  ")) r.L.house);
   sprintf "%s┗━" indent ] in
-  String.concat "" list;;
+  String.concat "" list
 
 let rec layout_down ?(indent = "") r =
   let list = [

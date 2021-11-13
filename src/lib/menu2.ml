@@ -341,8 +341,7 @@ module Engine = struct
     Layout.add_room ~dst:entry.layout coat;
     (* we don't use Popup.add_screen to avoid creating too many layers. *)
     let Any widget = Layout.widget coat in
-    widget#set_cursor
-      (Some (go (Draw.create_system_cursor Sdl.System_cursor.hand)));
+    widget#set_cursor Cursor.Hand;
 
     let action _ _ _ = button_down screen entry in
     let c = Widget.connect_main widget widget action Trigger.buttons_down in

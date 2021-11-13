@@ -5,7 +5,6 @@ open Tsdl
 open Utils
 
 type _ kind =
-  | Empty : Empty.t -> Empty.t kind
   | Box : Box.t -> Box.t kind
   | Button : Button.t -> Button.t kind
   | Check : Check.t -> Check.t kind
@@ -14,6 +13,7 @@ type _ kind =
   | Image : Image.t -> Image.t kind
   | Slider : Slider.t -> Slider.t kind
   | TextInput : Text_input.t -> Text_input.t kind
+  | Other : 'a kind
 
 (** what to do when the same action (= same connection id) is already running ? *)
 type action_priority =
@@ -60,17 +60,26 @@ and 'a t = <
   (* not really used anymore. TODO: check if this flag is still used *)
   room_id : int option; (* will be filled by the room id when inserted in that room *)
   set_room_id : int option -> unit;
-  cursor : Sdl.cursor option; (* use this to override the default mouse cursor *)
-  set_cursor : Sdl.cursor option -> unit;
+  cursor : Cursor.t;
+  set_cursor : Cursor.t -> unit;
   unload_texture : unit;
+  size : int * int;
+  resize : int * int -> unit;
+  get_text : string;
+  set_text : string -> unit;
+  get_state : bool;
+  display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list;
+  typ : string;
 >
 and any = Any : 'a t -> any
 
-class virtual tc_anon =
+class virtual tc_anon size =
     object
       val mutable wid_ = fresh_wid ()
       method wid = wid_
       method set_wid wid = wid_ <- wid
+
+      method virtual typ : string
 
       val mutable actives_ : active list Var.t = Var.create []
       method actives = actives_
@@ -85,45 +94,166 @@ class virtual tc_anon =
       method room_id = room_id_
       method set_room_id rid = room_id_ <- rid
 
-      val mutable cursor_ : Sdl.cursor option = None
+      val virtual mutable cursor_ : Cursor.t
       method cursor = cursor_
       method set_cursor c = cursor_ <- c
 
-      method virtual unload_texture : unit
+      val mutable size_ : int * int = size
+      method size = size_
+      method resize : int * int -> unit = failwith "Unimplemented"
+
+      method unload_texture = ()
+      method display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list = failwith "Unimplemented"
+      method get_text : string = failwith "Unimplemented"
+      method set_text : string -> unit = failwith "Unimplemented"
+      method get_state : bool = failwith "Unimplemented"
+
     end
 
 class type ['a] tc' =
   object
     inherit tc_anon
     method kind : 'a kind
+    method typ : string
 
-    method unload_texture : unit
+    val mutable cursor_ : Cursor.t
   end
-
-(* unload all textures but the widget remains usable. (Rendering will recreate
-   all textures) *)
-let unload_texture (type a) (w : a tc') =
-  printd debug_memory "Unloading texture for widget #%u" w#wid;
-  match w#kind with
-  | Empty b -> Empty.unload b
-  | Box b -> Box.unload b
-  | Check b -> Check.unload b
-  | Button b -> Button.unload b
-  | TextDisplay t -> Text_display.unload t
-  | Image img -> Image.unload img
-  | Label l -> Label.unload l
-  | Slider s -> Slider.unload s
-  | TextInput ti -> Text_input.unload ti
 
 class ['a] tc kind : ['a] tc' =
-  object (self)
-    inherit tc_anon
-    method kind : 'a kind = kind
+  let typ (type a) (w : a tc') =
+    match w#kind with
+    | Box _ -> "Box"
+    | Button _ -> "Button"
+    | Check _ -> "Check"
+    | TextDisplay _ -> "TextDisplay"
+    | Label l -> "Label [" ^ Utils.xterm_red ^ (Label.text l) ^ Utils.xterm_nc ^ "]"
+    | Image _ -> "Image"
+    | Slider _ -> "Slider"
+    | TextInput _ -> "TextInput"
+  in
+  let display (type a) (w : a t) canvas layer geom =
+    Var.set w#fresh true;
+    let geom = Draw.scale_geom geom in
+    match w#kind with
+    (* | Empty e -> printd debug_board "empty box";
+     *   Empty.display canvas layer e geom *)
+    | Box b -> printd debug_board "draw box";
+      Box.display canvas layer b geom
+    | Check b -> printd debug_board "check button: %b" (Check.state b);
+      Check.display canvas layer b geom
+    | Button b -> printd debug_board "button [%s]" (Button.text b);
+      Button.display canvas layer b geom
+    | TextDisplay td -> printd debug_board "text display: %s" (Text_display.text td);
+      Text_display.display canvas layer td geom
+    | Image img -> printd debug_board "image: %s" (Var.get img.Image.file);
+      Image.display canvas layer img geom
+    | Label l -> printd debug_board "label: %s" (Label.text l);
+      Label.display canvas layer l geom
+    | Slider s -> printd debug_board "slider: %d" (Slider.value s);
+      Slider.display canvas layer s geom
+    | TextInput ti -> printd debug_board "Input: %s" (Text_input.text ti);
+      Text_input.display canvas layer ti geom
+  in
 
-    method unload_texture = unload_texture (self :> 'a tc')
+  (* unload all textures but the widget remains usable. (Rendering will recreate
+     all textures) *)
+  let unload_texture (type a) (w : a tc') =
+    printd debug_memory "Unloading texture for widget #%u" w#wid;
+    match w#kind with
+    | Box b -> Box.unload b
+    | Check b -> Check.unload b
+    | Button b -> Button.unload b
+    | TextDisplay t -> Text_display.unload t
+    | Image img -> Image.unload img
+    | Label l -> Label.unload l
+    | Slider s -> Slider.unload s
+    | TextInput ti -> Text_input.unload ti
+  in
+  let resize (type a) (w : a tc') size =
+    match w#kind with
+    | Box b -> Box.resize size b
+    | Button b -> Button.resize size b
+    | Check c -> Check.resize size c
+    | Label l -> Label.resize size l
+    | TextDisplay t -> Text_display.resize size t
+    | Image i -> Image.resize size i
+    | Slider s -> Slider.resize size s
+    | TextInput ti -> Text_input.resize size ti
+  in
+  (* let default_size (type a) (w : a tc') =
+   *   match w#kind with
+   *   | Empty e -> Empty.size e
+   *   | Check b -> Check.size b
+   *   | Box b -> Box.size b
+   *   | TextDisplay td -> Text_display.size td
+   *   | Label l -> let x,y = Label.size l in (x+2,y+2)
+   *   | Image img -> Image.size img
+   *   | Button b -> Button.size b
+   *   | Slider s -> Slider.size s
+   *   | TextInput ti -> Text_input.size ti *)
+
+  let get_cursor (type a) (w : a kind) =
+      match w with
+       | Box _
+       | Label _
+       | TextDisplay _
+       | Image _ -> Cursor.Arrow
+       | Button _
+       | Check _
+       | Slider _ -> Cursor.Hand
+       | TextInput _ -> Cursor.Ibeam
+  in
+  let get_text (type a) (w : a tc') =
+    match w#kind with
+    | Button b -> Button.text b
+    | TextDisplay td -> Text_display.text td
+    | Label l -> Label.text l
+    | TextInput ti -> Text_input.text ti
+    | _ -> (printd debug_error "This type of widget does not have a text function";
+            "")
+  in
+  let set_text (type a) (w : a tc') text =
+    match w#kind with
+    | Button b -> Button.set_label b text
+    | TextDisplay td -> let pa = Text_display.paragraphs_of_string text in
+      Text_display.update td pa
+    | Label l -> Label.set l text
+    | TextInput ti -> let k = Utf8.split text in
+      Text_input.set ti k
+    | _ -> printd debug_error "Cannot set text to this type of widget"
+  in
+  let get_state (type a) (w : a tc') =
+    match w#kind with
+    | Button b -> Button.state b
+    | Check c -> Check.state c
+    | _ -> (printd debug_error "This type of widget does not have a state function";
+            false)
+  in
+  object (self)
+    inherit tc_anon (0,0) (* TODO *)
+    method kind : 'a kind = kind
+    val mutable cursor_ = get_cursor kind
+    method typ = typ (self :> 'a tc')
+
+    method! resize = resize (self :> 'a tc')
+    method! unload_texture = unload_texture (self :> 'a tc')
+    method! get_state = get_state (self :> 'a tc')
+    method! get_text = get_text (self :> 'a tc')
+    method! set_text text = set_text (self :> 'a tc') text
+    method! display canvas layer geom = display (self :> 'a tc') canvas layer geom
   end
 
+(* an empty widget. Does not draw anything, but can be used to get mouse focus *)
+class empty size : [unit] tc' =
+  object (self)
+    inherit tc_anon size
+    method kind = Other
+    method typ = "Empty"
+    val mutable cursor_ = Cursor.Arrow
 
+    method! resize x = size_ <- x
+    method! unload_texture = ()
+    end
 
 let draw_boxes = ref false;;
 (* for debugging: draws a red rect rectangle around each widget layout, (fill
@@ -149,22 +279,6 @@ end
 module WHash = Weak.Make(Hash);;
 let widgets_wtable = WHash.create 100;;
 
-(* When to use this ??? *)
-(* in particular, when this function is called, the widget w in principle has
-   already been removed from widgets_wtable *)
-let free (type a) (w : a tc) =
-  printd debug_memory "Freeing widget #%u" w#wid;
-  match w#kind with
-  | Empty e -> Empty.free e
-  | Box b -> Box.free b
-  | Check b -> Check.free b
-  | Button b -> Button.free b
-  | TextDisplay t -> Text_display.free t
-  | Image img -> Image.free img
-  | Label l -> Label.free l
-  | Slider s -> Slider.free s
-  | TextInput ti -> Text_input.free ti
-
 let is_fresh w = Var.get w#fresh;;
 
 (* let canvas w = match w.canvas with *)
@@ -177,18 +291,9 @@ let is_fresh w = Var.get w#fresh;;
 (* let set_canvas canvas w = *)
 (*   w.canvas <- Some canvas;; *)
 
-let create_empty kind =
-  let w = new tc kind in
-  WHash.add widgets_wtable (Any w);
-  (*Gc.finalise free w;*) (* TODO: NOT A GOOD IDEA as this will ask to destroy
-                             textures that maybe were already destroyed when the
-                             window was closed *)
-  (* However if we don't do this there is a risk that some textures are never
-     freed (as long as the renderer is not destroyed) *)
-  w
-
 let dummy_widget wid =
-  let dummy = create_empty (Empty (Empty.create (0,0))) in
+  let dummy = new empty (0,0) in
+  WHash.add widgets_wtable (Any dummy);
   dummy#set_wid wid;
   dummy
 
@@ -197,69 +302,6 @@ let of_id wid : any =
   try WHash.find widgets_wtable (Any (dummy_widget wid)) with
   | Not_found -> (printd debug_error "Cannot find widget with wid=%d" wid;
                   raise Not_found);;
-
-let default_size (type a) (w : a t) =
-  match w#kind with
-  | Empty e -> Empty.size e
-  | Check b -> Check.size b
-  | Box b -> Box.size b
-  | TextDisplay td -> Text_display.size td
-  | Label l -> let x,y = Label.size l in (x+2,y+2)
-  | Image img -> Image.size img
-  | Button b -> Button.size b
-  | Slider s -> Slider.size s
-  | TextInput ti -> Text_input.size ti
-
-let size = default_size
-
-let resize (type a) (w : a t) size =
-  match w#kind with
-  | Empty e -> Empty.resize size e
-  | Box b -> Box.resize size b
-  | Button b -> Button.resize size b
-  | Check c -> Check.resize size c
-  | Label l -> Label.resize size l
-  | TextDisplay t -> Text_display.resize size t
-  | Image i -> Image.resize size i
-  | Slider s -> Slider.resize size s
-  | TextInput ti -> Text_input.resize size ti
-
-let get_cursor (type a) (w : a t) =
-  default w#cursor
-    (match w#kind with
-     | Empty _
-     | Box _
-     | Label _
-     | TextDisplay _
-     | Image _ -> go (Draw.create_system_cursor Sdl.System_cursor.arrow)
-     | Button _
-     | Check _
-     | Slider _ -> go (Draw.create_system_cursor Sdl.System_cursor.hand)
-     | TextInput _ -> go (Draw.create_system_cursor Sdl.System_cursor.ibeam)
-    );;
-
-let display canvas layer (type a) (w : a t) geom =
-  Var.set w#fresh true;
-  let geom = Draw.scale_geom geom in
-  match w#kind with
-  | Empty e -> printd debug_board "empty box";
-    Empty.display canvas layer e geom
-  | Box b -> printd debug_board "draw box";
-    Box.display canvas layer b geom
-  | Check b -> printd debug_board "check button: %b" (Check.state b);
-    Check.display canvas layer b geom
-  | Button b -> printd debug_board "button [%s]" (Button.text b);
-    Button.display canvas layer b geom
-  | TextDisplay td -> printd debug_board "text display: %s" (Text_display.text td);
-    Text_display.display canvas layer td geom
-  | Image img -> printd debug_board "image: %s" (Var.get img.Image.file);
-    Image.display canvas layer img geom
-  | Label l -> printd debug_board "label: %s" (Label.text l);
-    Label.display canvas layer l geom
-  | Slider s -> printd debug_board "slider: %d" (Slider.value s);
-    Slider.display canvas layer s geom
-  | TextInput ti -> printd debug_board "Input: %s" (Text_input.text ti);
-    Text_input.display canvas layer ti geom
 
 (** ask for refresh *)
 (* Warning: this is frequently called by other threads *)
@@ -364,6 +406,11 @@ let get_text_input w =
     | _ -> failwith "Expecting a text input";;
 
 (** creation of simple widgets *)
+let create_empty kind =
+  let w = new tc kind in
+  WHash.add widgets_wtable (Any w);
+  w
+
 let check_box ?state ?style () =
   let b = create_empty  (Check (Check.create ?state ?style ())) in
   (* let action = fun (Any w) _ _ -> Check.action (get_check w) in *)
@@ -379,9 +426,6 @@ let check_box ?state ?style () =
 
 let set_check_state b s =
   Check.set (get_check b) s;;
-
-let empty ~w ~h () =
-  create_empty (Empty (Empty.create (w,h)));;
 
 let text_display ?w ?h text =
   create_empty (TextDisplay (Text_display.create_from_string ?w ?h text));;
@@ -514,36 +558,6 @@ let text_input ?(text = "") ?prompt ?size ?filter ?max_size () =
    * add_connection w c2; *)
   w;;
 (* TODO *)
-
-
-(* Some generic functions or 'methods' that can make sense for one or several
-   types of widgets *)
-
-let get_text (type a) (w : a t) =
-  match w#kind with
-  | Button b -> Button.text b
-  | TextDisplay td -> Text_display.text td
-  | Label l -> Label.text l
-  | TextInput ti -> Text_input.text ti
-  | _ -> (printd debug_error "This type of widget does not have a text function";
-          "");;
-
-let set_text (type a) (w : a t) text =
-  match w#kind with
-  | Button b -> Button.set_label b text
-  | TextDisplay td -> let pa = Text_display.paragraphs_of_string text in
-    Text_display.update td pa
-  | Label l -> Label.set l text
-  | TextInput ti -> let k = Utf8.split text in
-    Text_input.set ti k
-  | _ -> printd debug_error "Cannot set text to this type of widget";;
-
-let get_state (type a) (w : a t) =
-  match w#kind with
-  | Button b -> Button.state b
-  | Check c -> Check.state c
-  | _ -> (printd debug_error "This type of widget does not have a state function";
-          false);;
 
 
 (** creation of combined widgets *)

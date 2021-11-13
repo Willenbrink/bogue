@@ -61,8 +61,8 @@ let make_board () =
                                         L.resident ~w ~h:200 (Widget.Any label)] in
 
   let before_display () =
-    let text = W.get_text input in
-    W.set_text label ("Hello " ^ text ^ "!") in
+    let text = input#get_text in
+    label#set_text ("Hello " ^ text ^ "!") in
 
   Bogue.make [] [layout], before_display
   

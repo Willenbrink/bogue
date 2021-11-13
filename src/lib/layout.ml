@@ -656,7 +656,7 @@ let fix_content house =
 let resize_content room =
   match room.content with
     | Rooms list -> List.iter resize list
-    | Resident (Any w) -> Widget.resize w (get_size room)
+    | Resident (Any w) -> w#resize (get_size room)
 
 (* l must be the top house *)
 let adjust_window_size l =
@@ -1073,51 +1073,6 @@ let free l =
               then printd debug_warning "Room %s is now orphan" (sprint_id r))) list
   end
 
-(* kill functions below are quite dangerous, beware *)
-
-(* use this when the layout + all children is not used anymore *)
-(* In fact don't use this, use kill_rooms instead. Because very often a layout
-   is created with subrooms that don't all necessarily have a name. Thus, if you
-   want to kill a layout, you may forget that its direct house has no name, so
-   it will likely stay in the table for ever. It's difficult for the user to
-   keep track of this. One could use ocaml's Ephemeron instead ?*)
-(* note that rooms we be reclaimed though their id, for instance via of_wid, or
-   even more devily stored in an event... At this point it DOES cause some fatal
-   errors that I don't know how to locate... *)
-let kill_all_NO room =
-  match room.house with
-  | Some h -> printd debug_error "Cannot kill layout #%u because it still \
-                                  belongs to a house #%u" room.id h.id;
-  | None -> (* we defer it to the main loop *)
-     Sync.push (fun () ->
-         delete_backgrounds room;
-         let rec loop r =
-           remove_wtable r;
-           match r.content with
-           | Resident (Any w) -> Widget.free w
-           | Rooms list -> List.iter loop list
-         in
-         loop room)
-
-(* kill all rooms (and theirs subrooms) of this house *)
-(* defered to the main loop *)
-(* don't use this. See WARNING in "kill" above *)
-let kill_rooms_NO house =
-  match house.content with
-  | Resident _ -> printd debug_error "House #%u does not have rooms to kill..." house.id
-  | Rooms list ->
-     Sync.push (fun () ->
-         let rec loop r =
-           delete_background r;
-           remove_wtable r;
-           match r.content with
-           | Resident (Any w) -> Widget.free w
-           | Rooms list -> List.iter loop list
-         in
-         List.iter loop list)
-
-
-
 (**********)
 
 (* Use this to shift all current_geometries before inserting a room inside a
@@ -1140,7 +1095,7 @@ let global_translate room dx dy =
 let rec fit_content ?(sep = Theme.room_margin/2) l =
   if l.adjust = Nothing || l.clip then ()
   else let w,h = match l.content with
-      | Resident (Any widget) -> Widget.default_size widget
+      | Resident (Any widget) -> widget#size
       (* | Rooms [r] -> r.geometry.w, r.geometry.h *)
       | Rooms list ->
         let x0 = l.current_geom.x in
@@ -1232,7 +1187,7 @@ let v_align ~align layout y0 h =
    or tower, which is essentially always the case... *)
 let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?draggable ?canvas ?layer
     ?keyboard_focus (Widget.Any widget) =
-  let (w',h') = Widget.default_size widget in
+  let (w',h') = widget#size in
   let w = default w w' in
   let h = default h h' in
   let keyboard_focus = match keyboard_focus with
@@ -1251,7 +1206,7 @@ let change_resident ?w ?h room widget =
   | Resident (Any resid) ->
      printd debug_board "Replacing room %s's widget by widget #%d"
        (sprint_id room) (widget#wid);
-     let (w',h') = Widget.default_size widget in
+     let (w',h') = widget#size in
      let w = default w w' in
      let h = default h h' in
      room.content <- Resident (Any widget);
@@ -1468,11 +1423,6 @@ let set_rooms layout ?(sync=true) rooms =
    happen yet, hence the current_geometry is not updated. Morover there is no
    way to know the 'sep' optional argument *)
 (* TODO the example/ls example should be reviewed then ... *)
-
-(* like set_rooms but in addition the old ones are killed *)
-let replace_rooms_NO layout rooms =
-  kill_rooms_NO layout;
-  set_rooms layout rooms
 
 (* copy the 'relocatable content' of src into dst.  Of course, this should be
    avoided when writing in functional style, but can be handy sometimes *)
@@ -2098,7 +2048,7 @@ let make_clip ?w ?(scrollbar = true) ?(scrollbar_inside = false) ?(scrollbar_wid
   let w = default w (width room) in
   let y0 = gety room in
   sety room 0;
-  let active_bg = Widget.empty ~w:(width room) ~h:(height room) () in
+  let active_bg = new Widget.empty (width room,height room) in
   (* We add an invisible box to make the whole area selectable by the mouse
      focus. Otherwise, only the parts of the room that contain a widget will
      react to the mouse wheel event. Of course, if the room was full of widgets,
@@ -2118,7 +2068,7 @@ let make_clip ?w ?(scrollbar = true) ?(scrollbar_inside = false) ?(scrollbar_wid
            container is modified after creation, for instance when the user
            resizes the window. *)
         let bar = resident ~background:(Solid Draw.(lighter scrollbar_color))
-                    (Widget.Any (Widget.empty ~w:10 ~h:10 ())) in
+                    (Widget.Any (new Widget.empty (10,10))) in
         (* The scrollbar is a slider. Its Tvar takes the voffset value into the
            slider value, between 0 and (height room - height container). 0
            corresponds to the bottom position of the slider, so this means the
@@ -2401,7 +2351,7 @@ let display ?pos0 room =
                  end;
                List.iter (display_loop x y voffset clip transform) h
             | Resident (Any w) ->
-               let blits = Widget.display (get_canvas r) (get_layer r) w
+               let blits = w#display (get_canvas r) (get_layer r)
                              Draw.({x; y; w = g.w; h = g.h; voffset}) in
                let blits = match bg with
                  | None -> blits
@@ -2449,7 +2399,7 @@ let set_cursor roomo =
     | None -> go (Draw.create_system_cursor Sdl.System_cursor.arrow)
     | Some room -> match room.content with
       | Rooms _ -> go (Draw.create_system_cursor Sdl.System_cursor.arrow)
-      | Resident (Any w) -> Widget.get_cursor w in
+      | Resident (Any w) -> Cursor.get w#cursor in
   Sdl.set_cursor (Some cursor)
 
 (* comme display sauf qu'on ne trace que si nécessaire *)
@@ -2469,7 +2419,7 @@ let update_old room =
       | Resident (Any w) -> if not (Widget.is_fresh w) then begin
           (* if !draw_boxes then Draw.box (renderer room) ~bg:(200,10,20,50) x y g.w g.h; *)
           (* TODO background , transform *)
-          let blits = Widget.display (get_canvas room) (get_layer room) w
+          let blits = w#display (get_canvas room) (get_layer room)
               {Draw.x = x; y; w = g.w; h = g.h; voffset = g.voffset} in
           List.iter (fun blit -> Draw.(blit_to_layer { blit with clip })) blits
         end

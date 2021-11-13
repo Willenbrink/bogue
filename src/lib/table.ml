@@ -61,7 +61,7 @@ let make_title (c : column) =
   let label = Widget.label c.title in
   (* if no width is specified, we compute the max width of the first entries of
      the column *)
-  let lw,_ = Widget.default_size label in
+  let lw,_ = label#size in
   let w = match c.width with
     | Some w -> w
     | None -> (imax lw (max_width c)) in
@@ -71,19 +71,19 @@ let make_title (c : column) =
       Layout.flat_of_w ~sep:0 [Widget.Any label]
     else begin (* add icon for sorting *)
       let sort_indicator = Widget.icon ~fg:icon_color "sort" in
-      let sw,_ = Widget.default_size sort_indicator in
-      let lw,lh = Widget.default_size label in
+      let sw,_ = sort_indicator#size in
+      let lw,lh = label#size in
       let w' = w - sw - lw in
       if w' >= 0
       then (* we can add sort_indicator *)
         Layout.flat_of_w ~sep:0 ~align:(Draw.Max) [Widget.Any label;
-                                                   Widget.Any (Widget.empty ~w:w' ~h:lh ());
+                                                   Widget.Any (new Widget.empty (w',lh));
                                                    Widget.Any (sort_indicator)]
       else Layout.flat_of_w ~sep:0 [Widget.Any label]
     end in
   Layout.set_width layout w; (* not necessary in the case of sort_indicator *)
-  let (_,h) = Widget.default_size label in
-  let click_area = Widget.empty ~w ~h () in
+  let (_,h) = label#size in
+  let click_area = new Widget.empty (w,h) in
   let title = Layout.(superpose [resident (Widget.Any click_area); layout]) in
   title;;
 
@@ -155,8 +155,8 @@ let make_long_list ~w ~h t  =
   let generate = fun ii ->
     let i = t.order.(ii) in
     let background = get_background t i ii in
-    let left_margin = Widget.empty ~w:title_margin ~h:t.row_height () in
-    let click_area = Widget.empty ~w ~h:t.row_height () in
+    let left_margin = new Widget.empty (title_margin,t.row_height) in
+    let click_area = new Widget.empty (w,t.row_height) in
     let ca = Layout.resident ~name:(sprintf "click_area %u(%u)" i ii) (Widget.Any click_area) in
     let row =
       Array.mapi (fun j c ->

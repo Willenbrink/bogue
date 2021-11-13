@@ -414,7 +414,7 @@ let update_room ll container o =
           in
           printd debug_graphics "Room for Long_list is replaced with new range [%d,%d]" ll.first ll.last;
           (* finally we replace the old room by the new one *)
-          let active_bg' = Widget.empty ~w:(Layout.width container) ~h:(Layout.height room') () in
+          let active_bg' = new Widget.empty (Layout.width container, Layout.height room') in
           (* TODO we could also keed the old active_bg and just change its size... *)
           (* remark don't use kill_rooms on room or container, because it would also
        kill the entries that are kept in the ll.array. *)
@@ -502,7 +502,7 @@ let create ~w ~h ~length ?(first=0) ~generate ?height_fn
   printd debug_memory "Long list of height %d was initialized with %d entries (%d..%d) ouf of %d and height=%d, rendered_height=%d, approx. total height is %d"
     h (i_final+1-first) first i_final ll.length (Layout.height room) ll.rendered_height ll_height;
   (* cf comments in Layout.clip *)
-  let active_bg = Widget.empty ~w ~h:(Layout.height room) () in
+  let active_bg = new Widget.empty (w,Layout.height room) in
   let container = Layout.(tower ~name:"long_list container"
                             ~sep:0 ~hmargin:0 ~vmargin:0
                             [superpose [room; resident ~name:"active_bg" (Widget.Any active_bg)]]) in

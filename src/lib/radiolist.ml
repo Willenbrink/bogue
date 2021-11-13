@@ -43,7 +43,7 @@ let get_button widgets =
 let make_label ?(click_on_label=true) entry =
   let l = W.label entry in
   if click_on_label
-  then l#set_cursor (Some (go (Draw.create_system_cursor Sdl.System_cursor.hand)));
+  then l#set_cursor Cursor.Hand;
   l
 
 let make_button () =
@@ -53,7 +53,7 @@ let make_button () =
 (* mettre "b w" n'est pas vraiment nécessaire car on peut faire "let (b,w) =
    widgets.data.(i)", mais bon... *)
 let select_action widgets i b _=
-  if not (W.get_state b)
+  if not (b#get_state)
   then begin
       W.set_check_state b true;
       (* do_option (get_button widgets) (fun old_b ->

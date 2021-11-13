@@ -101,7 +101,7 @@ let create ?dst ?name ?(action = fun _ -> ()) ?fg
 
   let tmp_dst = default dst
                   (* Just a horizontal line *)
-                  (let line = Widget.empty ~w ~h:1 () in
+                  (let line = new Widget.empty (w,1) in
                    (* let background = Layout.Solid(Draw.(transp grey)) in *)
                    (* DEBUG *)
                    Layout.flat_of_w ~sep:0 (* ~background *) [Widget.Any line]) in

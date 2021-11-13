@@ -52,7 +52,7 @@ let filter_screen ?color ?layer ?keyboard_focus layout =
   let w,h = Layout.(width layout, height layout) in
   printd debug_graphics "Create filter screen (%d,%d)" w h;
   let b = match color with
-    | None -> Widget.Any (Widget.empty ~w ~h ())
+    | None -> Widget.Any (new Widget.empty (w,h))
     | Some color -> Widget.Any (Widget.box ~w ~h ~background:(Style.Solid color)()) in
   let screen = (* Layout.(flat_of_w ~sep:0 layout.canvas [b]) in *)
     Layout.(resident ~name:"filter" ?canvas:layout.canvas b) in

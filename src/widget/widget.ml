@@ -5,7 +5,7 @@ open Tsdl
 open Utils
 include Base
 
-class type virtual t = tc_anon
+class type virtual t = w
 
 let draw_boxes = ref false;;
 (* for debugging: draws a red rect rectangle around each widget layout, (fill

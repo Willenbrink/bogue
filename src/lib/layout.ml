@@ -414,7 +414,7 @@ let rec iter f room =
 (* iter through widgets *)
 let rec iter_widgets f room =
   match room.content with
-  | Resident (Any w) -> f (w :> Widget.tc_anon)
+  | Resident (Any w) -> f (w :> Widget.t)
   | Rooms list -> List.iter (iter_widgets f) list
 
 (* iter the direct children *)
@@ -2088,7 +2088,7 @@ let make_clip ?w ?(scrollbar = true) ?(scrollbar_inside = false) ?(scrollbar_wid
         ~thickness:scrollbar_width
         ~tick_size:(h * h / (height room))
         ~var ~m:(imax 0 (height room - h)) () in
-      change_resident bar (wsli :> Base.tc_anon);
+      change_resident bar (wsli :> Widget.t);
       if h >= (height room) then hide ~duration:0 bar;
       let r = if scrollbar_inside
         then (setx bar (w - width bar);

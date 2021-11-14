@@ -4,4 +4,6 @@ open Base
 class t size =
   object (self)
     inherit w size "Empty" Cursor.Arrow
+
+    method display _ _ _ = []
   end

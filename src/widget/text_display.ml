@@ -30,7 +30,7 @@ let default_font = Label.File Theme.text_font
    assumption. This should be ok if the user may only concatenate entity lists,
    not split them. *)
 let last_style words =
-List.fold_left (fun style entity -> match entity with
+  List.fold_left (fun style entity -> match entity with
       | Style s when s = Ttf.Style.normal -> s (* not necessary, since normal ==
                                                   0 *)
       | Style s -> Ttf.Style.(s + style)
@@ -127,44 +127,110 @@ let unsplit_words words =
 
 let unsplit pars = String.concat "\n" (List.map unsplit_words pars)
 
+let render_word ?fg font word =
+  printd debug_graphics "render word:%s" word;
+  let color = Draw.create_color (default fg (10,11,12,255)) in
+  let surf = Draw.ttf_render font word color in
+  go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_none);
+  surf
+
 class t ?size ?(font_size = Theme.text_font_size) ?(font = default_font) paragraphs =
   let size = default size (0,font_size) (* TODO missing calculation *) in
   object (self)
-      inherit w size "TextDisplay" Cursor.Arrow
-      initializer Draw.ttf_init ()
+    inherit w size "TextDisplay" Cursor.Arrow
+    initializer Draw.ttf_init ()
 
-      val _paragraphs = Var.create (List.rev ([Style Ttf.Style.normal] :: (List.rev paragraphs))) (* we add normal style at the end *)
-      val render = Var.create None
-      val font = Var.create font
+    val _paragraphs = Var.create (List.rev ([Style Ttf.Style.normal] :: (List.rev paragraphs))) (* we add normal style at the end *)
+    val render = Var.create None
+    val font = Var.create font
 
-      method paragraphs = Var.get _paragraphs
-      method text = unsplit self#paragraphs
+    method paragraphs = Var.get _paragraphs
+    method text = unsplit self#paragraphs
 
-(** change the content of the text on the fly *)
-      method set_text x =
-        let x = paragraphs_of_string x in
-        Var.protect render;
-        let texo = Var.get render in
-        Var.unsafe_set render None;
-        do_option texo Draw.forget_texture;
-        Var.set _paragraphs x;
-        Var.release render
+    (** change the content of the text on the fly *)
+    method set_text x =
+      let x = paragraphs_of_string x in
+      Var.protect render;
+      let texo = Var.get render in
+      Var.unsafe_set render None;
+      do_option texo Draw.forget_texture;
+      Var.set _paragraphs x;
+      Var.release render
 
-      method resize x =
-        self#unload;
-        _size <- x
+    method resize x =
+      self#unload;
+      _size <- x
 
-      method unload =
-        match Var.get render with
-        | None -> ()
-        | Some tex -> begin
-            Draw.forget_texture tex;
-            Var.set render None
+    method unload =
+      match Var.get render with
+      | None -> ()
+      | Some tex -> begin
+          Draw.forget_texture tex;
+          Var.set render None
+        end
+
+    method get_font = Label.get_font_var font (Theme.scale_int font_size)
+
+    method display canvas layer g =
+      let open Draw in
+      Var.protect render;
+      let tex = match Var.get render with
+        | Some t -> t
+        | None ->
+          begin
+            let font = self#get_font in
+            let fg = opaque text_color in
+            let lineskip = Ttf.font_line_skip font in
+            let space = fst (Label.physical_size_text font " ") in (* idem *)
+            let target_surf = create_surface ~renderer:canvas.renderer g.w g.h in
+
+            let rec loop list dx dy =
+              if dy > g.h then ()
+              else match list with
+                | [] -> ();
+                | []::rest -> loop rest 0 (dy + lineskip)
+                | (entity::rest_line)::rest ->
+                  match entity with
+                  | Word w ->
+                    let surf = render_word ~fg font w in
+                    let rect = Sdl.get_clip_rect surf in
+                    let tw,th = Sdl.Rect.(w rect, h rect) in
+                    if dx <> 0 && dx+tw >= g.w then begin
+                      free_surface surf;
+                      (* this word will hence be rendered twice. This could be
+                         optimized of course. *)
+                      loop list 0 (dy + lineskip);
+                    end
+                    (* =we go to new line *)
+                    else (go (Sdl.blit_surface ~src:surf (Some rect) ~dst:target_surf
+                                (Some (Sdl.Rect.create ~x:dx ~y:dy ~w:tw ~h:th)));
+                          free_surface surf;
+                          loop (rest_line::rest) (dx + tw) dy)
+                  | Space ->
+                    let space = if Ttf.Style.(test (Ttf.get_font_style font) italic)
+                      then (round (float space *. 0.6)) else space in
+                    loop (rest_line::rest) (dx + space) dy
+                  (* TODO Space should be rendered in case of underline or
+                     strikethrough. But not when we break at the end of the line, of
+                     course *)
+                  | Style s ->
+                    let current_style = Ttf.get_font_style font in
+                    let new_style = if s =  Ttf.Style.normal
+                      then s else Ttf.Style.(s + current_style) in
+                    ttf_set_font_style font new_style;
+                    loop (rest_line::rest) dx dy
+            in
+            loop (paragraphs) 0 0;
+            let tex = create_texture_from_surface canvas.renderer target_surf in
+            free_surface target_surf;
+            Var.unsafe_set render (Some tex); tex
           end
+      in
+      Var.release render;
+      let dst = geom_to_rect g in
+      [make_blit ~voffset:g.voffset ~dst canvas layer tex]
 
-
-
-    end
+  end
 
 (*
 let create_from_string ?(size = Theme.text_font_size) ?w ?h ?(font = default_font) text =
@@ -281,73 +347,5 @@ let update_verbatim t text =
   replace ~by:dummy t
 
 (************* display ***********)
-
-let render_word ?fg font word =
-  printd debug_graphics "render word:%s" word;
-  let color = Draw.create_color (default fg (10,11,12,255)) in
-  let surf = Draw.ttf_render font word color in
-  go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_none);
-  surf
-
-let get_font td = Label.get_font_var td.font (Theme.scale_int td.size)
-
-let display canvas layer td g =
-  let open Draw in
-  Var.protect td.render;
-  let tex = match Var.get td.render with
-    | Some t -> t
-    | None ->
-      begin
-        let font = get_font td in
-        let fg = opaque text_color in
-        let lineskip = Ttf.font_line_skip font in
-        let space = fst (Label.physical_size_text font " ") in (* idem *)
-        let target_surf = create_surface ~renderer:canvas.renderer g.w g.h in
-
-        let rec loop list dx dy =
-          if dy > g.h then ()
-          else match list with
-            | [] -> ();
-            | []::rest -> loop rest 0 (dy + lineskip)
-            | (entity::rest_line)::rest ->
-              match entity with
-              | Word w ->
-                let surf = render_word ~fg font w in
-                let rect = Sdl.get_clip_rect surf in
-                let tw,th = Sdl.Rect.(w rect, h rect) in
-                if dx <> 0 && dx+tw >= g.w then begin
-                  free_surface surf;
-                  (* this word will hence be rendered twice. This could be
-                     optimized of course. *)
-                  loop list 0 (dy + lineskip);
-                end
-                (* =we go to new line *)
-                else (go (Sdl.blit_surface ~src:surf (Some rect) ~dst:target_surf
-                            (Some (Sdl.Rect.create ~x:dx ~y:dy ~w:tw ~h:th)));
-                      free_surface surf;
-                      loop (rest_line::rest) (dx + tw) dy)
-              | Space ->
-                let space = if Ttf.Style.(test (Ttf.get_font_style font) italic)
-                  then (round (float space *. 0.6)) else space in
-                loop (rest_line::rest) (dx + space) dy
-              (* TODO Space should be rendered in case of underline or
-                 strikethrough. But not when we break at the end of the line, of
-                 course *)
-              | Style s ->
-                let current_style = Ttf.get_font_style font in
-                let new_style = if s =  Ttf.Style.normal
-                  then s else Ttf.Style.(s + current_style) in
-                ttf_set_font_style font new_style;
-                loop (rest_line::rest) dx dy
-        in
-        loop (paragraphs td) 0 0;
-        let tex = create_texture_from_surface canvas.renderer target_surf in
-        free_surface target_surf;
-        Var.unsafe_set td.render (Some tex); tex
-      end
-  in
-  Var.release td.render;
-  let dst = geom_to_rect g in
-  [make_blit ~voffset:g.voffset ~dst canvas layer tex]
 
  * *)

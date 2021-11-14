@@ -11,8 +11,8 @@ let debug =
   let d = try
       match Sys.getenv "BOGUE_DEBUG" |> String.capitalize_ascii with
       | "YES"
-        | "1"
-        | "TRUE" -> true
+      | "1"
+      | "TRUE" -> true
       | _ -> false
     with Not_found -> false (* set to false for production *)
        | e -> raise e in
@@ -34,14 +34,14 @@ let debug_custom = 256
 
 let debug_code =
   ref (debug_error
-    (* + debug_warning *)
-    (* + debug_graphics *)
-    (* + debug_thread *)
-    (* + debug_io *)
-    (* + debug_board *)
-    (* + debug_memory *)
-    (* + debug_event
-     * + debug_custom *))
+       + debug_warning
+       (* + debug_graphics *)
+       (* + debug_thread *)
+       + debug_io
+       + debug_board
+       + debug_memory
+       + debug_event
+       + debug_custom)
 
 (* debug_code := !debug_code lor debug_thread;; *)
 
@@ -61,23 +61,23 @@ let debug_vars =
 let debug_to_string =
   let debug_array = Array.of_list debug_vars in
   fun c ->
-  let rec loop i n list =
-    if i = 0 || n = 16 then list
-    else let code = i land 1 in
-         if code = 0 then loop (i lsr 1) (n+1) list
-         else let s = if n > 0 && n < 10
-                      then fst debug_array.(n-1)
-                               (* if n = 1 then "Thread" *)
-                               (* else if n = 2 then "Warning" *)
-                               (* else if n = 3 then "Graphics" *)
-                               (* else if n = 4 then "ERROR" *)
-                               (* else if n = 5 then "I/O" *)
-                               (* else if n = 6 then "Memory" *)
-                               (* else if n = 7 then "Board" *)
-                               (* else if n = 8 then "Event" *)
-                      else "Unknown" in
-              loop (i lsr 1) (n+1) (s::list) in
-  String.concat "; " (loop c 1 [])
+    let rec loop i n list =
+      if i = 0 || n = 16 then list
+      else let code = i land 1 in
+        if code = 0 then loop (i lsr 1) (n+1) list
+        else let s = if n > 0 && n < 10
+               then fst debug_array.(n-1)
+               (* if n = 1 then "Thread" *)
+               (* else if n = 2 then "Warning" *)
+               (* else if n = 3 then "Graphics" *)
+               (* else if n = 4 then "ERROR" *)
+               (* else if n = 5 then "I/O" *)
+               (* else if n = 6 then "Memory" *)
+               (* else if n = 7 then "Board" *)
+               (* else if n = 8 then "Event" *)
+               else "Unknown" in
+          loop (i lsr 1) (n+1) (s::list) in
+    String.concat "; " (loop c 1 [])
 
 (** should we put this in a Var ? *)
 (* TODO: use this to reduce the number of lock if there is no thread *)
@@ -93,9 +93,9 @@ let print s = Printf.ksprintf print_endline s
 let print_debug_old s =
   Printf.ksprintf
     (fun s ->
-      if !debug
-      then print_endline
-             (xterm_blue ^ "[" ^ (string_of_int (Int32.to_int (Sdl.get_ticks ()) mod 60000)) ^ "] : " ^ xterm_nc ^ s)) s
+       if !debug
+       then print_endline
+           (xterm_blue ^ "[" ^ (string_of_int (Int32.to_int (Sdl.get_ticks ()) mod 60000)) ^ "] : " ^ xterm_nc ^ s)) s
 let debug_select_old code s =
   if !debug && (code land !debug_code <> 0)
   then print_endline (xterm_red ^ (debug_to_string code) ^ xterm_nc ^ ": " ^ s)
@@ -104,30 +104,31 @@ let iksprintf _f = Printf.ikfprintf (fun () -> ()) ()
 
 let printd code =
   let debug = !debug && (code land !debug_code <> 0) in
+  let debug = (code land !debug_code <> 0) in (* TODO remove *)
   let printf = Printf.(if debug then ksprintf else iksprintf) in
   printf (fun s ->
       output_string !log_channel
         (xterm_blue ^
-           "[" ^ (string_of_int (Int32.to_int (Sdl.get_ticks ()) mod 60000)) ^ "]" ^
-             xterm_light_grey ^ "[" ^
-               (string_of_int (Thread.id (Thread.self ()))) ^ "]" ^ xterm_nc ^ " :\t " ^
-                 xterm_nc ^ xterm_red ^ (debug_to_string code) ^ xterm_nc ^ ": "
-                 ^ s ^ "\n");
+         "[" ^ (string_of_int (Int32.to_int (Sdl.get_ticks ()) mod 60000)) ^ "]" ^
+         xterm_light_grey ^ "[" ^
+         (string_of_int (Thread.id (Thread.self ()))) ^ "]" ^ xterm_nc ^ " :\t " ^
+         xterm_nc ^ xterm_red ^ (debug_to_string code) ^ xterm_nc ^ ": "
+         ^ s ^ "\n");
       if !log_channel = stdout then flush !log_channel)
 
 (* check if string s starts with string sub *)
 let startswith s sub =
   String.length sub = 0 || begin
-      String.length s >= String.length sub &&
-        String.sub s 0 (String.length sub) = sub
-    end
+    String.length s >= String.length sub &&
+    String.sub s 0 (String.length sub) = sub
+  end
 
 (* create function for generating integers, starting from 1 *)
 let fresh_int () =
   let id = ref 0 in
   fun () ->
-  if !id < max_int then (incr id; !id)
-  else failwith "Too many ids created!"
+    if !id < max_int then (incr id; !id)
+    else failwith "Too many ids created!"
 
 (* round float to nearest integer: *)
 let round x =
@@ -161,11 +162,11 @@ let go : 'a Tsdl.Sdl.result -> 'a = function
     function f does not return None *)
 let rec list_check f l =
   match l with
-    | [] -> None
-    | x::rest -> begin
+  | [] -> None
+  | x::rest -> begin
       match f x with
-        | None -> list_check f rest
-        | s -> s
+      | None -> list_check f rest
+      | s -> s
     end
 
 (* Return the first element of the list satisfying p, and its index *)
@@ -205,20 +206,20 @@ let split_list list x =
 (* checks if 'a' contained in the list, with 'equal' function *)
 let rec mem equal a list =
   match list with
-    | [] -> false
-    | b::rest -> equal a b || mem equal a rest
+  | [] -> false
+  | b::rest -> equal a b || mem equal a rest
 
 (* checks if all elements are different (using the 'equal' function) *)
 (* not used, use "repeated" below instead *)
 let rec injective equal list =
   match list with
-    | [] -> true
-    | a::rest -> if mem equal a rest then false else injective equal rest
+  | [] -> true
+  | a::rest -> if mem equal a rest then false else injective equal rest
 
 let rec repeated equal list =
-   match list with
-    | [] -> None
-    | a::rest -> if mem equal a rest then Some a else repeated equal rest
+  match list with
+  | [] -> None
+  | a::rest -> if mem equal a rest then Some a else repeated equal rest
 
 (* max of a list *)
 (* in case of equal elements, the *first* one is selected *)
@@ -291,17 +292,17 @@ let memo f =
   let store = Hashtbl.create 100 in
   fun x -> try Hashtbl.find store x with
     | Not_found -> let result = f x in
-                   Hashtbl.add store x result;
-                   printd debug_memory "##Size of Hashtbl : %u" (Hashtbl.length store);
-                   result
+      Hashtbl.add store x result;
+      printd debug_memory "##Size of Hashtbl : %u" (Hashtbl.length store);
+      result
 
 let memo2 f =
   let store = Hashtbl.create 100 in
   fun x y -> try Hashtbl.find store (x,y) with
     | Not_found -> let result = f x y in
-                   Hashtbl.add store (x,y) result;
-                   printd debug_memory "##Size of Hashtbl2 : %u" (Hashtbl.length store);
-                   result
+      Hashtbl.add store (x,y) result;
+      printd debug_memory "##Size of Hashtbl2 : %u" (Hashtbl.length store);
+      result
 
 let memo3 f =
   let store3 = Hashtbl.create 100 in
@@ -319,22 +320,22 @@ let list_sum list =
 (* let find_file list_list = *)
 
 let which command =
-(* BETTER: (specially for portability to WIN/MAC) use
-   https://opam.ocaml.org/packages/fileutils/ *)
+  (* BETTER: (specially for portability to WIN/MAC) use
+     https://opam.ocaml.org/packages/fileutils/ *)
   try
     let s = Unix.open_process_in ("which " ^ command) in
     let res = try
         Some (input_line s)
       with
       | _ -> None in begin
-        match Unix.close_process_in s with
-        | Unix.WEXITED 0 -> res
-        | Unix.WEXITED 1 -> None (* in principle this is redundant since `res`
-                                    is already None at this point *)
-        | _ -> printd (debug_error + debug_io)
-                 "The `which` command exited with error.";
-               None
-      end
+      match Unix.close_process_in s with
+      | Unix.WEXITED 0 -> res
+      | Unix.WEXITED 1 -> None (* in principle this is redundant since `res`
+                                  is already None at this point *)
+      | _ -> printd (debug_error + debug_io)
+               "The `which` command exited with error.";
+        None
+    end
   with
   | _ -> printd (debug_error + debug_io) "Cannot use the `which` command.";
-         None
+    None

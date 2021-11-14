@@ -50,9 +50,9 @@ and 'a t = <
   unload : unit;
   size : int * int;
   resize : int * int -> unit;
-  get_text : string;
-  set_text : string -> unit;
-  get_state : bool;
+  (* get_text : string;
+   * set_text : string -> unit;
+   * get_state : bool; *)
   display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list;
   typ : string;
 >
@@ -60,13 +60,21 @@ and any = Any : 'a t -> any
 
 let any (type a) (w : 'a t) = Any w
 
-class virtual tc_anon size =
+class virtual w size typ cursor =
   object
-    val mutable wid_ = fresh_wid ()
-    method wid = wid_
-    method set_wid wid = wid_ <- wid
+    val mutable _wid = fresh_wid ()
+    method wid = _wid
+    method set_wid x = _wid <- x
 
-    method virtual typ : string
+    method typ : string = typ
+
+    val mutable _size : int * int = size
+    method size = _size
+    method resize x = _size <- x
+
+    val mutable _cursor : Cursor.t = cursor
+    method cursor = _cursor
+    method set_cursor x = _cursor <- x
 
     val mutable actives_ : active list Var.t = Var.create []
     method actives = actives_
@@ -81,31 +89,14 @@ class virtual tc_anon size =
     method room_id = room_id_
     method set_room_id rid = room_id_ <- rid
 
-    val virtual mutable cursor_ : Cursor.t
-    method cursor = cursor_
-    method set_cursor c = cursor_ <- c
-
-    val mutable _size : int * int = size
-    method size = _size
-    method resize x = _size <- x
-    (* method resize : int * int -> unit = failwith "Unimplemented" *)
-
     (* unload all textures but the widget remains usable. (Rendering will recreate
        all textures) *)
     method unload = ()
-    method display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list = failwith "Unimplemented"
-    method get_text : string = failwith "Unimplemented"
-    method set_text : string -> unit = failwith "Unimplemented"
-    method get_state : bool = failwith "Unimplemented"
+    method virtual display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list
+    (* method virtual get_text : string = failwith "Unimplemented"
+     * method virtual set_text : string -> unit = failwith "Unimplemented"
+     * method virtual get_state : bool = failwith "Unimplemented" *)
 
-  end
-
-class type tc' =
-  object
-    inherit tc_anon
-    method typ : string
-
-    val mutable cursor_ : Cursor.t
   end
 
 (*
@@ -115,10 +106,3 @@ class ['a] tc kind : ['a] tc' =
    *   | Label l -> let x,y = Label.size l in (x+2,y+2)
    * *)
   *)
-
-class virtual w size typ cursor : tc' =
-  object (self)
-    inherit tc_anon size
-    method typ = typ
-    val mutable cursor_ = cursor
-  end

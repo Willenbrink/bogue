@@ -14,14 +14,14 @@
 
 (* TODO: we have trouble rendering correctly when the room background has alpha
    channel... ? use the new https://wiki.libsdl.org/SDL_ComposeCustomBlendMode??
-   *)
+*)
 
 (* Warning: a new texture is created at every update, because size might
    change. TODO add an option in case we want to be fast and reuse the same
    texture? *)
 open Utils
 
-let update widget room =
+let update box room =
   let renderer = Layout.renderer room in
   let w,h = Layout.get_physical_size room in
   let x,y = Layout.(getx room, gety room) in
@@ -40,13 +40,12 @@ let update widget room =
   (* essai blur *)
   (* let target = Draw.blur_texture renderer target 24 in *)
 
-  let box = Widget.get_box widget in
-  do_option (Var.get box.Box.render) Draw.forget_texture;
-  Var.set box.Box.render (Some target);;
+  do_option (Var.get box#render) Draw.forget_texture;
+  Var.set box#render (Some target);;
 
 let create ?border room =
-  let w,h = Layout.get_size room in
-  let box = Widget.box ~w ~h ?border () in
+  let size = Layout.get_size room in
+  let box = new Box.t ~size ?border () in
   (* let c = Widget.connect_main box box (fun w _ _ -> update w room) [Trigger.startup] in
    * Widget.add_connection box c; *)
   box;;

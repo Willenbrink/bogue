@@ -21,7 +21,7 @@ let height = 400 (* height of window in Bogue units. *)
 let size = 50 (* max size of rectangle in Bogue units. *)
 let n = 60 (* number of rectangles *)
 let margin = 10
-           
+
 let bg = (180,180,180,255)
 
 let get_alpha r =
@@ -53,19 +53,19 @@ let draw_rect renderer tr =
   go (Sdl.render_fill_rect renderer (Some tr.rect))
 
 let make_board () =
-  let input = W.text_input ~max_size:200 ~prompt:"Enter your name" () in
-  let label = W.label ~size:40 "Hello !" in
+  let input = new Text_input.t ~max_size:200 ~prompt:"Enter your name" "" in
+  let label = new Label.t ~font_size:40 "Hello !" in
   let background = L.color_bg (Draw.(transp (find_color "olivedrab"))) in
   let w = width - 2*margin in
-  let layout = L.tower ~margins:margin [L.resident ~background ~w (Widget.Any input);
-                                        L.resident ~w ~h:200 (Widget.Any label)] in
+  let layout = L.tower ~margins:margin [L.resident ~background ~w (Widget.Any (input :> W.t));
+                                        L.resident ~w ~h:200 (Widget.Any (label :> W.t))] in
 
   let before_display () =
     let text = input#get_text in
     label#set_text ("Hello " ^ text ^ "!") in
 
   Bogue.make [] [layout], before_display
-  
+
 let main () =
   Sys.catch_break true;
   go(Sdl.init Sdl.Init.video);
@@ -81,16 +81,16 @@ let main () =
 
   let rec rect_loop i new_list = function
     | [] -> if i < n
-            then let r = new_rect () in
-                 draw_rect renderer r;
-                 List.rev (r::new_list)
-            else List.rev new_list
+      then let r = new_rect () in
+        draw_rect renderer r;
+        List.rev (r::new_list)
+      else List.rev new_list
     | r :: rest ->
-       let r' = 
-         let a = get_alpha r in
-         if a <> 0 then r else new_rect () in
-       draw_rect renderer r';
-       rect_loop (i+1) (r'::new_list) rest
+      let r' =
+        let a = get_alpha r in
+        if a <> 0 then r else new_rect () in
+      draw_rect renderer r';
+      rect_loop (i+1) (r'::new_list) rest
   in
 
   let show_gui = ref false in
@@ -101,27 +101,27 @@ let main () =
   let rec mainloop e list =
     if not !show_gui && Sdl.poll_event (Some e)
     then begin
-        match Trigger.event_kind e with
-        | `Key_up when Sdl.Event.(get e keyboard_keycode) = Sdl.K.tab ->
-           show_gui := not !show_gui
-        | `Key_up when Sdl.Event.(get e keyboard_keycode) = Sdl.K.escape ->
-           raise Sys.Break
-        | _ -> ()
-      end;
+      match Trigger.event_kind e with
+      | `Key_up when Sdl.Event.(get e keyboard_keycode) = Sdl.K.tab ->
+        show_gui := not !show_gui
+      | `Key_up when Sdl.Event.(get e keyboard_keycode) = Sdl.K.escape ->
+        raise Sys.Break
+      | _ -> ()
+    end;
     Draw.set_color renderer bg;
     go(Sdl.render_clear renderer);
     let new_list = rect_loop 0 [] list in
 
     if !show_gui
     then begin
-        (*List.iter Window.to_refresh board.Bogue.windows;*)
-        Bogue.refresh_custom_windows board;
-        try if not (Bogue.one_step ~before_display true (start_fps, fps) board)
-                   (* one_step returns true if fps was executed *)
-            then fps () with
-        | Bogue.Exit -> show_gui := false
-        | e -> raise e
-      end
+      (*List.iter Window.to_refresh board.Bogue.windows;*)
+      Bogue.refresh_custom_windows board;
+      try if not (Bogue.one_step ~before_display true (start_fps, fps) board)
+      (* one_step returns true if fps was executed *)
+        then fps () with
+      | Bogue.Exit -> show_gui := false
+      | e -> raise e
+    end
     else fps ();
     Sdl.render_present renderer;
     mainloop e new_list in
@@ -129,8 +129,8 @@ let main () =
   let e = Sdl.Event.create () in
   start_fps ();
   let () = try mainloop e [] with
-           | Sys.Break -> print_endline "Stop"
-           | e -> raise e in
+    | Sys.Break -> print_endline "Stop"
+    | e -> raise e in
 
   Sdl.destroy_window win;
   Draw.quit ()

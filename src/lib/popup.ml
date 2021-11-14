@@ -34,13 +34,13 @@ let resize_same_as model room =
     let open Layout in
     match model.house, room.house with
     | Some h1, Some h2 when Layout.equal h1 h2 ->
-       let keep_resize = true in
-       let size = get_size model in
-       let x = xpos model in
-       let y = ypos model in
-       setx ~keep_resize room x;
-       sety ~keep_resize room y;
-       set_size ~keep_resize room size
+      let keep_resize = true in
+      let size = get_size model in
+      let x = xpos model in
+      let y = ypos model in
+      setx ~keep_resize room x;
+      sety ~keep_resize room y;
+      set_size ~keep_resize room size
     | _ -> printd debug_error
              "[resize_same_as] must apply to two rooms in the same house. Maybe \
               you should use [Layout.resize_follow_house]."
@@ -52,8 +52,8 @@ let filter_screen ?color ?layer ?keyboard_focus layout =
   let w,h = Layout.(width layout, height layout) in
   printd debug_graphics "Create filter screen (%d,%d)" w h;
   let b = match color with
-    | None -> Widget.Any (new Widget.empty (w,h))
-    | Some color -> Widget.Any (Widget.box ~w ~h ~background:(Style.Solid color)()) in
+    | None -> Widget.Any (new Empty.t (w,h))
+    | Some color -> Widget.Any (new Box.t ~size:(w,h) ~bg:(Style.Solid color)() :> Widget.t) in
   let screen = (* Layout.(flat_of_w ~sep:0 layout.canvas [b]) in *)
     Layout.(resident ~name:"filter" ?canvas:layout.canvas b) in
   (* Layout.(screen.geometry <- {screen.geometry with w; h}); *)
@@ -62,10 +62,10 @@ let filter_screen ?color ?layer ?keyboard_focus layout =
   screen
 
 (** add a screen on top of the layout. This can be useful to make the whole
-   layout clickable as a whole. To make sure this works as expected, it should
-   be called dynamically and not statically before running the board, because if
-   other layers are created afterwards, the screen might endup not being on top
-   of everything. *)
+    layout clickable as a whole. To make sure this works as expected, it should
+    be called dynamically and not statically before running the board, because if
+    other layers are created afterwards, the screen might endup not being on top
+    of everything. *)
 let add_screen ?(color = Draw.(transp red) (* DEBUG *) ) layout =
   let base_layer = top_layer layout in
   let screen_layer = new_layer_above base_layer in
@@ -114,37 +114,40 @@ let slide_in ~dst content buttons =
   let border = Style.(border (line ~color:Draw.(opaque grey) ())) in
   let shadow = Style.shadow () in
   let background = Layout.Box
-                     (Box.create ~shadow
-                        ~background:(Style.Solid Draw.(opaque (pale grey)))
-                        ~border ()) in
+      (new Box.t ~shadow
+        ~bg:(Style.Solid Draw.(opaque (pale grey)))
+        ~border ()) in
   let popup = Layout.tower ~align:Draw.Center ~background [content; buttons] in
   let screen = attach ~bg:(Draw.(set_alpha 200 (pale grey))) dst popup in
   (* Layout.slide_in ~dst popup; *)
   popup, screen
 
-let one_button ?w ?h ~button ~dst content =
-  let close_btn = Widget.button ~border_radius:3 button in
-  let popup, screen = slide_in ~dst content (Layout.resident ?w ?h (Widget.Any close_btn)) in
+let one_button ?size ~button ~dst content =
+  let close_btn = new Button.t ~border_r:3 button in
+  let w,h = match size with None -> None,None | Some (w,h) -> (Some w, Some h) in
+  let popup, screen = slide_in ~dst content (Layout.resident ?w ?h (Widget.Any (close_btn :> Widget.t))) in
   let close _ =
     Layout.hide popup;
     Layout.hide screen;
     Layout.fade_out screen in
-  Widget.on_release ~release:close close_btn
+  Widget.on_release ~release:close (close_btn :> Widget.t)
 
 (* a text and a close button. *)
 (* TODO the ?w and ?h define the size of the text_display (not automatically
    detected). It should also include the size of the close button *)
-let info ?w ?h ?(button="Close") text dst =
-  let td = Widget.Any (Widget.text_display ?w ?h text)
+let info ?size ?(button="Close") text dst =
+  let td = Widget.Any ((new Text_display.t ?size text) :> Widget.t)
            |> Layout.resident in
-  one_button ?w ?h ~button ~dst td
+  one_button ?size ~button ~dst td
 
 (* ?w and ?h to specify a common size for both buttons *)
-let two_buttons ?w ?h ~label1 ~label2 ~action1 ~action2
+let two_buttons ?size ~label1 ~label2 ~action1 ~action2
     content dst =
-  let btn1 = Widget.button ~border_radius:3 label1 in
-  let btn2 = Widget.button ~border_radius:3 label2 in
-  let buttons = Layout.(flat ~vmargin:0 ~sep:(2*Theme.room_margin) [resident ?w ?h (Widget.Any btn1); resident ?w ?h (Widget.Any btn2)]) in
+  let w,h = match size with None -> None,None | Some (w,h) -> (Some w, Some h) in
+  let btn1 = new Button.t ~border_r:3 label1 in
+  let btn2 = new Button.t ~border_r:3 label2 in
+  let buttons = Layout.(flat ~vmargin:0 ~sep:(2*Theme.room_margin)
+                          [resident ?w ?h (Widget.Any (btn1 :> Widget.t)); resident ?w ?h (Widget.Any (btn2 :> Widget.t))]) in
   let popup, screen = slide_in ~dst content buttons in
   let close () =
     (*Layout.hide popup;*)
@@ -157,13 +160,13 @@ let two_buttons ?w ?h ~label1 ~label2 ~action1 ~action2
   let do2 _ =
     close ();
     action2 () in
-  Widget.on_release ~release:do1 btn1;
-  Widget.on_release ~release:do2 btn2
+  Widget.on_release ~release:do1 (btn1 :> Widget.t);
+  Widget.on_release ~release:do2 (btn2 :> Widget.t)
 
-let yesno ?w ?h ?(yes="Yes") ?(no="No") ~yes_action ~no_action text dst =
-  let td = Widget.Any (Widget.text_display ?w ?h text)
+let yesno ?size ?(yes="Yes") ?(no="No") ~yes_action ~no_action text dst =
+  let td = Widget.Any ((new Text_display.t ?size text) :> Widget.t)
            |> Layout.resident in
-  two_buttons ?w ?h ~label1:yes ~label2:no ~action1:yes_action ~action2:no_action
+  two_buttons ?size ~label1:yes ~label2:no ~action1:yes_action ~action2:no_action
     td dst
 
 
@@ -187,12 +190,12 @@ type position =
   | Mouse
 
 let tooltip ?background ?(position = Below) text ~target widget layout =
-  let t = Widget.label ~size:Theme.small_font_size text in
+  let t = new Label.t ~font_size:Theme.small_font_size text in
   let border = Style.(border ~radius:5 (line ())) in
   let background = default background
-      (Layout.Box (Box.create ~background:(Style.Solid Draw.(opaque (pale grey)))
-                     ~border ())) in
-  let tooltip = Layout.tower_of_w ~sep:3 ~background [Widget.Any t] in
+      (Layout.Box (new Box.t ~bg:(Style.Solid Draw.(opaque (pale grey)))
+                    ~border ())) in
+  let tooltip = Layout.tower_of_w ~sep:3 ~background [Widget.Any (t :> Widget.t)] in
   attach_on_top layout tooltip;
   tooltip.Layout.show <- false;
 

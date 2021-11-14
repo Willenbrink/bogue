@@ -18,19 +18,19 @@ let create () =
   let save_layer = Draw.get_current_layer () in
   Draw.use_new_layer (); (* TODO this should be saved to the window, not global, otherwise layouts that are created after this but in an older window will be drawn on this layer, and thus not shown at all... *)
   let b = W.check_box ~state:!W.draw_boxes () in
-  let l = W.label "Turn on debug rectangles" in
-  let dbg_boxes = L.flat_of_w ~align:Draw.Center W.[Any b; Any l] in
+  let l = new Label.t "Turn on debug rectangles" in
+  let dbg_boxes = L.flat_of_w ~align:Draw.Center W.[Any (b :> W.t); Any (l :> W.t)] in
 
   let action w _ _ =
     W.draw_boxes := w#get_state in
-  let action _ _ _ = () in
-  let c_boxes = W.connect b b action [Sdl.Event.mouse_button_down; Sdl.Event.finger_down] in
+  (* let action _ _ _ = () in
+   * let c_boxes = W.connect b b action [Sdl.Event.mouse_button_down; Sdl.Event.finger_down] in *)
 
   let b = W.check_box ~state:!debug () in
-  let l = W.label "Turn on debugging trace" in
-  let dbg_button = L.flat_of_w ~align:Draw.Center [Any b; Any l] in
+  let l = new Label.t "Turn on debugging trace" in
+  let dbg_button = L.flat_of_w ~align:Draw.Center [Any (b :> W.t); Any (l :> W.t)] in
 
-  let title = W.label "Debug Variables" in
+  let title = new Label.t "Debug Variables" in
   let action code w _ _ =
     set code (w#get_state)
   in
@@ -40,14 +40,14 @@ let create () =
     | [] -> rooms, connections
     | (var,code)::rest ->
       let bb = W.check_box ~state:(is_set code) () in
-      let ll = W.label var in
-      let btn = L.flat_of_w ~sep:0 W.[Any bb; Any ll] in
-      let c = W.connect bb bb (action code) [Sdl.Event.mouse_button_down] in
+      let ll = new Label.t var in
+      let btn = L.flat_of_w ~sep:0 W.[Any (bb :> W.t); Any (ll :> W.t)] in
+      let c = W.connect ((bb :> W.t)) (bb :> W.t) (action code) [Sdl.Event.mouse_button_down] in
       loop rest (btn :: rooms) (c :: connections) in
 
   let rooms, connections = loop debug_vars [] [] in
 
-  let panel = L.tower ~sep:0 ((L.flat_of_w ~sep:10 [W.Any title]) :: rooms) in
+  let panel = L.tower ~sep:0 ((L.flat_of_w ~sep:10 [W.Any (title :> W.t)]) :: rooms) in
   let action w _ _ =
     let ok = w#get_state in
     debug := ok;
@@ -55,7 +55,7 @@ let create () =
     then (L.show panel; L.fade_in panel)
     else (L.hide panel; L.fade_out panel)  in
   let action _ _ _ = () in
-  let c = W.connect b b action [Sdl.Event.mouse_button_down] in
+  let c = W.connect (b :> W.t) (b :> W.t) action [Sdl.Event.mouse_button_down] in
 
   (* List.iter (fun c -> let W.Any src = c.source in W.(add_connection src c)) (c_boxes :: c :: connections); *)
   panel.L.show <- !debug;

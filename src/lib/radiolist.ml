@@ -41,26 +41,27 @@ let get_button widgets =
 
 (* string -> label *)
 let make_label ?(click_on_label=true) entry =
-  let l = W.label entry in
+  let l = new Label.t entry in
   if click_on_label
   then l#set_cursor Cursor.Hand;
   l
 
 let make_button () =
   let style = Check.Circle in
-  W.create_empty  (W.Check (Check.create ~style ()));;
+  (* TODO previously, we used create_empty which added the widget to the WHash table *)
+  new Check.t ~style ()
 
 (* mettre "b w" n'est pas vraiment nécessaire car on peut faire "let (b,w) =
    widgets.data.(i)", mais bon... *)
 let select_action widgets i b _=
   if not (b#get_state)
   then begin
-      W.set_check_state b true;
-      (* do_option (get_button widgets) (fun old_b ->
-       *     W.set_check_state old_b false); *)
-      Var.set widgets.index (Some i);
-      (*Update.push b*)
-    end;;
+    b#set_check_state true;
+    (* do_option (get_button widgets) (fun old_b ->
+     *     W.set_check_state old_b false); *)
+    Var.set widgets.index (Some i);
+    (*Update.push b*)
+  end;;
 
 let make_connections widgets =
   for i = 0 to Array.length widgets.data - 1 do
@@ -75,7 +76,7 @@ let make_connections widgets =
 
 let make_widgets ?selected ?(click_on_label=true) entries =
   let data = Array.map (fun entry ->
-      W.(Any (make_button ()), Any (make_label ~click_on_label entry))) entries in
+      W.(Any (make_button () :> Widget.t), Any (make_label ~click_on_label entry :> Widget.t))) entries in
   (* do_option selected (fun i ->
    *     let (b,_) = data.(i) in
    *     W.set_check_state b true); *)

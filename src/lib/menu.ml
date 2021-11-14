@@ -27,34 +27,34 @@ module Engine = struct
     | Action of action
 
   and entry = {
-      kind : entry_type;
-      enabled: bool;
-      mutable selected: bool; (* equivalent to highlighted *)
-      layout : Layout.t; (* how to display the entry label *)
-      (* Note: a Separator should be an empty Layout *)
-      parent_menu : menu
-    }
+    kind : entry_type;
+    enabled: bool;
+    mutable selected: bool; (* equivalent to highlighted *)
+    layout : Layout.t; (* how to display the entry label *)
+    (* Note: a Separator should be an empty Layout *)
+    parent_menu : menu
+  }
 
   and menu = {
-      pos :  (int * int) option;
-      (* Relative position wrt the parent_entry *)
-      mutable active : bool;
-      (* 'active' implies that the menu is shown. But a menu can be shown
-         without being active. Active implies that submenu will open on
-         mouse_over, and keyboard is active. *)
-      mutable always_shown : bool;
-      (* If a menu is shown, it must be either 'active', or 'always_shown'. *)
-      (* some menus (typically a menu bar, for instance) are always shown, but
+    pos :  (int * int) option;
+    (* Relative position wrt the parent_entry *)
+    mutable active : bool;
+    (* 'active' implies that the menu is shown. But a menu can be shown
+       without being active. Active implies that submenu will open on
+       mouse_over, and keyboard is active. *)
+    mutable always_shown : bool;
+    (* If a menu is shown, it must be either 'active', or 'always_shown'. *)
+    (* some menus (typically a menu bar, for instance) are always shown, but
        not necessary always 'active' in the sense above. *)
-      mutable entries : entry list;
-      mutable room : Layout.t; (* the layout that contains all menu entries *)
-      mutable parent_entry : entry option
-      (* the entry to which this menu is attached, or None if this is the top
-         menu. *)
-    }
+    mutable entries : entry list;
+    mutable room : Layout.t; (* the layout that contains all menu entries *)
+    mutable parent_entry : entry option
+    (* the entry to which this menu is attached, or None if this is the top
+       menu. *)
+  }
 
   let separator = Action (fun () ->
-                      pre "This action should not be launched.")
+      pre "This action should not be launched.")
 
   (* 1. Functions for gearing menus interaction *)
   (* ------------------------------------------ *)
@@ -112,8 +112,8 @@ module Engine = struct
 
     in
     List.iter (fun entry -> match entry.kind with
-                            | Action _ -> ()
-                            | Menu submenu -> iter f submenu) menu.entries
+        | Action _ -> ()
+        | Menu submenu -> iter f submenu) menu.entries
 
   let set_menu_position menu =
     do_option menu.pos (fun (dx, dy) ->
@@ -121,10 +121,10 @@ module Engine = struct
         let x, y = match menu.parent_entry with
           | None -> 0, 0
           | Some entry ->
-             let m = entry.parent_menu.room in
-             let x0, y0 = Layout.(getx m, gety m) in
-             let dx0, dy0 = Layout.(getx entry.layout, gety entry.layout) in
-             x0+dx0, y0+dy0 in
+            let m = entry.parent_menu.room in
+            let x0, y0 = Layout.(getx m, gety m) in
+            let dx0, dy0 = Layout.(getx entry.layout, gety entry.layout) in
+            x0+dx0, y0+dy0 in
         Layout.setx ~keep_resize menu.room (x+dx);
         Layout.sety ~keep_resize menu.room (y+dy))
 
@@ -135,7 +135,7 @@ module Engine = struct
       Layout.add_room ~dst menu.room;
       set_menu_position menu;
       menu.room.Layout.resize <- (fun _ ->
-        set_menu_position menu);
+          set_menu_position menu);
       if not menu.active && not menu.always_shown
       then Layout.set_show menu.room false
     in
@@ -173,8 +173,8 @@ module Engine = struct
       let rec entriesloop = function
         | [] -> None
         | e::rest -> match check e with
-                     | Some e' -> Some e'
-                     | None -> entriesloop rest in
+          | Some e' -> Some e'
+          | None -> entriesloop rest in
       entriesloop menu.entries in
     menuloop (top menu)
 
@@ -199,12 +199,12 @@ module Engine = struct
   let activate ?(timeout = false) screen menu =
     if menu.active then ()
     else begin
-        if not menu.always_shown
-        then if timeout
-             then new_timeout (fun () -> show screen menu)
-             else show screen menu;
-        menu.active <- true
-      end
+      if not menu.always_shown
+      then if timeout
+        then new_timeout (fun () -> show screen menu)
+        else show screen menu;
+      menu.active <- true
+    end
 
   let close ?(timeout = false) screen menu =
     pre "CLOSE";
@@ -212,8 +212,8 @@ module Engine = struct
        no other open menus. We can disable the screen. *)
     do_option menu.parent_entry
       (fun e ->
-        if is_top e.parent_menu then screen_disable screen;
-        reset_entry e
+         if is_top e.parent_menu then screen_disable screen;
+         reset_entry e
       );
     if not menu.always_shown && menu.active then
       begin
@@ -233,7 +233,7 @@ module Engine = struct
      not worth. *)
   let rec close_children ?(timeout = false) screen menu =
     pre (Printf.sprintf "CLOSE_CHILDREN with %i ENTRIES"
-                     (List.length menu.entries));
+           (List.length menu.entries));
     List.iter (fun entry ->
         match entry.kind with
         | Action _ -> ()
@@ -254,15 +254,15 @@ module Engine = struct
     match entry.kind with
     | Action _ -> ()
     | Menu m ->
-       close ~timeout screen m;
-       close_children ~timeout screen m
+      close ~timeout screen m;
+      close_children ~timeout screen m
 
   (* Close the other menus at the same level *)
   let close_others ?(timeout = false) screen entry =
     let menu = entry.parent_menu in
     let other_entries = List.filter
-                          (fun e -> not Layout.(e.layout == entry.layout))
-                          menu.entries in
+        (fun e -> not Layout.(e.layout == entry.layout))
+        menu.entries in
     pre (Printf.sprintf "OTHER ENTRIES = %i" (List.length other_entries));
     List.iter (close_entry ~timeout screen) other_entries
 
@@ -371,31 +371,31 @@ module Engine = struct
     if keycode = Sdl.K.escape then close_tree screen entry.parent_menu
     else if entry.enabled then
       if keycode = Sdl.K.return then begin
-          match entry.kind with
-          | Menu menu ->
-             (* 1/ouvrir 2/selectionner premier *)
-             if menu.active
-             then set_keyboard_focus (List.hd menu.entries).layout
-                                     (* vérifier liste non vide ? *)
-             else activate screen menu
-          | Action _ -> run_action screen entry
-        end else
-        if keycode = Sdl.K.up || keycode = Sdl.K.down then
-          match selected_entry entry.parent_menu with
-          | None -> printd debug_error "Cannot find selected entry in menu!"
-          | Some (_,i0) ->
-             pre (string_of_int i0);
-             let n = List.length entry.parent_menu.entries in
-             let rec loop i (* search enabled entry upwards *) =
-               let i = (if keycode = Sdl.K.up
-                        then (i-1+n)
-                        else i+1) mod n  in
-               let new_entry = List.nth entry.parent_menu.entries i in
-               if new_entry.enabled then new_entry
-               else if i = i0 then entry
-               else loop i in
-             let new_entry = loop i0 in
-             set_keyboard_focus new_entry.layout
+        match entry.kind with
+        | Menu menu ->
+          (* 1/ouvrir 2/selectionner premier *)
+          if menu.active
+          then set_keyboard_focus (List.hd menu.entries).layout
+          (* vérifier liste non vide ? *)
+          else activate screen menu
+        | Action _ -> run_action screen entry
+      end else
+      if keycode = Sdl.K.up || keycode = Sdl.K.down then
+        match selected_entry entry.parent_menu with
+        | None -> printd debug_error "Cannot find selected entry in menu!"
+        | Some (_,i0) ->
+          pre (string_of_int i0);
+          let n = List.length entry.parent_menu.entries in
+          let rec loop i (* search enabled entry upwards *) =
+            let i = (if keycode = Sdl.K.up
+                     then (i-1+n)
+                     else i+1) mod n  in
+            let new_entry = List.nth entry.parent_menu.entries i in
+            if new_entry.enabled then new_entry
+            else if i = i0 then entry
+            else loop i in
+          let new_entry = loop i0 in
+          set_keyboard_focus new_entry.layout
 
   (* 3. Creation of widgets and connections. *)
   (* --------------------------------------- *)
@@ -426,7 +426,7 @@ module Engine = struct
 
     let action _ _ _ = mouse_over screen entry in
     let c = Widget.connect_main widget widget action
-              [(* Trigger.E.mouse_motion; *) Trigger.mouse_enter] in
+        [(* Trigger.E.mouse_motion; *) Trigger.mouse_enter] in
     (* Warning do NOT add finger_motion, it will interfere with finger_down.
        TODO finger doesn't work well yet. *)
     Widget.add_connection widget c;
@@ -436,7 +436,7 @@ module Engine = struct
     Widget.add_connection widget c;
 
     let action _ _ ev = key_down screen entry
-                          Sdl.Event.(get ev keyboard_keycode) in
+        Sdl.Event.(get ev keyboard_keycode) in
     let c = Widget.connect_main widget widget action [Trigger.E.key_down] in
     Widget.add_connection widget c
 
@@ -455,36 +455,36 @@ module Engine = struct
      automatically attach to its house. *)
 
   let init ~dst t =
-  let dst_layer = Chain.last (Layout.get_layer dst) in
-  let entry_layer = Popup.new_layer_above dst_layer in
-  add_menu_to_layer t entry_layer;
-  let coating_layer = Popup.new_layer_above entry_layer in
+    let dst_layer = Chain.last (Layout.get_layer dst) in
+    let entry_layer = Popup.new_layer_above dst_layer in
+    add_menu_to_layer t entry_layer;
+    let coating_layer = Popup.new_layer_above entry_layer in
 
-  (* the screen is used to grab all mouse focus outside of the submenus while
-     they are open *)
-  let screen = Popup.filter_screen ~layer:entry_layer
-      (* ~color:Draw.(more_transp (transp green)) *) (* DEBUG*) dst in
-  (* Le screen couvre tout ce qui est actuellement tracé, y compris le menu,
-     mais les connexions pour les entrées de menu sont sur le coating_layer, qui
-     est encore au dessus, donc ça fonctionne. TODO ça serait plus logique que
-     le screen soit entre dst_layer et entry_layer. Ou alors le mettre AVANT les
-     entries pour qu'il soit recouvert par elles (c'est le contraire
-     actuellement). ATTENTION si un deuxième menu est construit après, il sera
-     affiché AU DESSUS de ce screen... *)
-  (* TODO one could reserve a special layer for some usual menu types, like menu
-     bar on the main layout, and make sure this layer is always above anything
-     else. OU ALORS: définir le screen de façon dynamique quand on clique. *)
-  connect_loop screen coating_layer t;
-  add_menu_to_dst ~dst t;
+    (* the screen is used to grab all mouse focus outside of the submenus while
+       they are open *)
+    let screen = Popup.filter_screen ~layer:entry_layer
+        (* ~color:Draw.(more_transp (transp green)) *) (* DEBUG*) dst in
+    (* Le screen couvre tout ce qui est actuellement tracé, y compris le menu,
+       mais les connexions pour les entrées de menu sont sur le coating_layer, qui
+       est encore au dessus, donc ça fonctionne. TODO ça serait plus logique que
+       le screen soit entre dst_layer et entry_layer. Ou alors le mettre AVANT les
+       entries pour qu'il soit recouvert par elles (c'est le contraire
+       actuellement). ATTENTION si un deuxième menu est construit après, il sera
+       affiché AU DESSUS de ce screen... *)
+    (* TODO one could reserve a special layer for some usual menu types, like menu
+       bar on the main layout, and make sure this layer is always above anything
+       else. OU ALORS: définir le screen de façon dynamique quand on clique. *)
+    connect_loop screen coating_layer t;
+    add_menu_to_dst ~dst t;
 
-  screen_disable screen;
-  Layout.add_room ~dst screen;
-  Layout.resize_follow_house screen;
+    screen_disable screen;
+    Layout.add_room ~dst screen;
+    Layout.resize_follow_house screen;
 
-  let Any w = Layout.widget screen in
-  Widget.on_click ~click:(fun _ -> pre "CLICK SCREEN";
-      close_tree screen t
-      (* screen_disable screen *)) w;
+    let Any w = Layout.widget screen in
+    Widget.on_click ~click:(fun _ -> pre "CLICK SCREEN";
+                             close_tree screen t
+                             (* screen_disable screen *)) w;
 
 end
 
@@ -508,15 +508,15 @@ type action = unit -> unit
 type label =
   | Text of string
   | Layout of Layout.t
-(* The user (programmer) can either define the menu entry by a text -- like
-   'File', etc. or directly by an arbitrary layout -- useful for game menus, for
-   instance. In the latter case, the layout content is not altered to ensure
-   that its features, whether it is part of a menu or not, are not
-   altered. However, we cannot preserve its house (and it should not have any),
-   because usually the menu is relocated into the main window-layout. One can
-   'kind-of' preserve the house by letting it be the 'dst' parameter. But
-   warning, in all cases, the layout will be encapsulated into a screen, so the
-   'dst' will not remain its "direct house". *)
+  (* The user (programmer) can either define the menu entry by a text -- like
+     'File', etc. or directly by an arbitrary layout -- useful for game menus, for
+     instance. In the latter case, the layout content is not altered to ensure
+     that its features, whether it is part of a menu or not, are not
+     altered. However, we cannot preserve its house (and it should not have any),
+     because usually the menu is relocated into the main window-layout. One can
+     'kind-of' preserve the house by letting it be the 'dst' parameter. But
+     warning, in all cases, the layout will be encapsulated into a screen, so the
+     'dst' will not remain its "direct house". *)
 
 type entry = {
   label : label;
@@ -542,7 +542,7 @@ let text_margin = 5
 (* Text to Layout. w and h are only used for text. maybe remove *)
 let format_label ?w ?h = function
   | Text s ->
-    let res = Layout.resident ?w ?h (Widget.Any (Widget.label s)) in
+    let res = Layout.resident ?w ?h (Widget.Any (new Label.t s :> Widget.t)) in
     (* : here we cannot use a resident as is because we will need to add another
        room later; we need to wrap it: *)
     let background = Layout.Solid Draw.(opaque menu_bg_color) in
@@ -558,7 +558,7 @@ let format_label ?w ?h = function
 (* Warning, does not check whether there is already an icon... *)
 let add_icon_suffix ?(icon = "caret-right") layout =
   (* the icon used to indicate submenus *)
-  let submenu_indicator = Layout.resident ~name:icon (Widget.Any (Widget.icon icon)) in
+  let submenu_indicator = Layout.resident ~name:icon (Widget.Any (new Icon.t icon :> Widget.t)) in
   Layout.add_room ~dst:layout ~valign:Draw.Center ~halign:Draw.Max
     submenu_indicator
 
@@ -703,9 +703,9 @@ module Tmp = struct
      submenu. *)
   let rec entry_to_engine parent_menu entry =
     let layout = get_layout entry in
-      (* We add the suffixes, except for the first entry, which is dummy, see
-         create_engine below.  *)
-      if not (Engine.is_top parent_menu) then compute_suffix entry;
+    (* We add the suffixes, except for the first entry, which is dummy, see
+       create_engine below.  *)
+    if not (Engine.is_top parent_menu) then compute_suffix entry;
     let kind = match entry.content with
       | Action a -> Engine.Action a
       | Separator -> Engine.separator
@@ -740,24 +740,24 @@ module Tmp = struct
   let create_engine = function
     | Action _ -> failwith "Cannot create a menu from an Action content."
     | content ->
-       let dummy_parent = Layout.empty ~name:"dummy parent" ~w:0 ~h:0 () in
-       let entry = compute_layouts {label = Layout dummy_parent;
-                                    content;
-                                    formatted = true;
-                                    suffix = None} in
-       let parent_menu = Engine.{pos = None; active = true; always_shown = true;
-                                 entries = []; room = dummy_parent;
-                                 parent_entry = None} in
-       let eentry = entry_to_engine parent_menu entry in
-       let open Engine in
-       let menu = match eentry.kind with
-         | Action _ -> failwith "An Action should not show up here. BUG."
-         | Menu menu -> menu in
-       menu.Engine.always_shown <- true;
-       menu.Engine.parent_entry <- None; (* remove the dummy parent *)
-       menu
+      let dummy_parent = Layout.empty ~name:"dummy parent" ~w:0 ~h:0 () in
+      let entry = compute_layouts {label = Layout dummy_parent;
+                                   content;
+                                   formatted = true;
+                                   suffix = None} in
+      let parent_menu = Engine.{pos = None; active = true; always_shown = true;
+                                entries = []; room = dummy_parent;
+                                parent_entry = None} in
+      let eentry = entry_to_engine parent_menu entry in
+      let open Engine in
+      let menu = match eentry.kind with
+        | Action _ -> failwith "An Action should not show up here. BUG."
+        | Menu menu -> menu in
+      menu.Engine.always_shown <- true;
+      menu.Engine.parent_entry <- None; (* remove the dummy parent *)
+      menu
 
-         (* TO BE CONTINUED... *)
+  (* TO BE CONTINUED... *)
 
 
 end

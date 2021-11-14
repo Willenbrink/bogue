@@ -3,262 +3,22 @@
 
 open Tsdl
 open Utils
+include Base
 
-type _ kind =
-  | Box : Box.t -> Box.t kind
-  | Button : Button.t -> Button.t kind
-  | Check : Check.t -> Check.t kind
-  | Label : Label.t -> Label.t kind
-  | TextDisplay : Text_display.t -> Text_display.t kind
-  | Image : Image.t -> Image.t kind
-  | Slider : Slider.t -> Slider.t kind
-  | TextInput : Text_input.t -> Text_input.t kind
-  | Other : 'a kind
-
-(** what to do when the same action (= same connection id) is already running ? *)
-type action_priority =
-  | Forget (** discard the new action *)
-  | Join (** execute the new after the first one has completed *)
-  | Replace (** kill the first action (if possible) and execute the second one *)
-  | Main (** run in the main program. So this is blocking for all subsequent actions *)
-
-type active = {
-  thread : Thread.t; (** this is the thread launched by the connection with given id *)
-  event : Sdl.event; (* this is the event passed to the "action".  It is used
-                        also for communication *)
-  connect_id : int
-};;
-
-let fresh_id = fresh_int ();;
-let fresh_wid = fresh_int ();;
-
-type action = any -> any -> Sdl.event -> unit
-
-and connection = {
-  source : any;
-  target : any;
-  action : action;
-  priority : action_priority;
-  triggers : Trigger.t list;
-  id : int;
-}
-
-and 'a t = <
-  wid : int;
-  set_wid : int -> unit;
-  kind : 'a kind;
-  (*  receiver : action Event.channel; *) (* TODO: pas nécessaire ? *)
-  actives : (active list) Var.t;
-  (** all active threads/connections for this widget. Most recent come first in
-      the list *)
-  connections : connection list;
-  set_connections : connection list -> unit;
-  (** all possible connections from this widget. In the order to be
-      executed. Particular case: the local actions are connection from
-      and to the same widget. *)
-  fresh : bool Var.t; (* is the display up-to-date ? *)
-  (* not really used anymore. TODO: check if this flag is still used *)
-  room_id : int option; (* will be filled by the room id when inserted in that room *)
-  set_room_id : int option -> unit;
-  cursor : Cursor.t;
-  set_cursor : Cursor.t -> unit;
-  unload_texture : unit;
-  size : int * int;
-  resize : int * int -> unit;
-  get_text : string;
-  set_text : string -> unit;
-  get_state : bool;
-  display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list;
-  typ : string;
->
-and any = Any : 'a t -> any
-
-class virtual tc_anon size =
-    object
-      val mutable wid_ = fresh_wid ()
-      method wid = wid_
-      method set_wid wid = wid_ <- wid
-
-      method virtual typ : string
-
-      val mutable actives_ : active list Var.t = Var.create []
-      method actives = actives_
-
-      method fresh = Var.create false;
-
-      val mutable connections_ : connection list = []
-      method connections = connections_
-      method set_connections c = connections_ <- c
-
-      val mutable room_id_ : int option = None
-      method room_id = room_id_
-      method set_room_id rid = room_id_ <- rid
-
-      val virtual mutable cursor_ : Cursor.t
-      method cursor = cursor_
-      method set_cursor c = cursor_ <- c
-
-      val mutable size_ : int * int = size
-      method size = size_
-      method resize : int * int -> unit = failwith "Unimplemented"
-
-      method unload_texture = ()
-      method display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list = failwith "Unimplemented"
-      method get_text : string = failwith "Unimplemented"
-      method set_text : string -> unit = failwith "Unimplemented"
-      method get_state : bool = failwith "Unimplemented"
-
-    end
-
-class type ['a] tc' =
-  object
-    inherit tc_anon
-    method kind : 'a kind
-    method typ : string
-
-    val mutable cursor_ : Cursor.t
-  end
-
-class ['a] tc kind : ['a] tc' =
-  let typ (type a) (w : a tc') =
-    match w#kind with
-    | Box _ -> "Box"
-    | Button _ -> "Button"
-    | Check _ -> "Check"
-    | TextDisplay _ -> "TextDisplay"
-    | Label l -> "Label [" ^ Utils.xterm_red ^ (Label.text l) ^ Utils.xterm_nc ^ "]"
-    | Image _ -> "Image"
-    | Slider _ -> "Slider"
-    | TextInput _ -> "TextInput"
-  in
-  let display (type a) (w : a t) canvas layer geom =
-    Var.set w#fresh true;
-    let geom = Draw.scale_geom geom in
-    match w#kind with
-    (* | Empty e -> printd debug_board "empty box";
-     *   Empty.display canvas layer e geom *)
-    | Box b -> printd debug_board "draw box";
-      Box.display canvas layer b geom
-    | Check b -> printd debug_board "check button: %b" (Check.state b);
-      Check.display canvas layer b geom
-    | Button b -> printd debug_board "button [%s]" (Button.text b);
-      Button.display canvas layer b geom
-    | TextDisplay td -> printd debug_board "text display: %s" (Text_display.text td);
-      Text_display.display canvas layer td geom
-    | Image img -> printd debug_board "image: %s" (Var.get img.Image.file);
-      Image.display canvas layer img geom
-    | Label l -> printd debug_board "label: %s" (Label.text l);
-      Label.display canvas layer l geom
-    | Slider s -> printd debug_board "slider: %d" (Slider.value s);
-      Slider.display canvas layer s geom
-    | TextInput ti -> printd debug_board "Input: %s" (Text_input.text ti);
-      Text_input.display canvas layer ti geom
-  in
-
-  (* unload all textures but the widget remains usable. (Rendering will recreate
-     all textures) *)
-  let unload_texture (type a) (w : a tc') =
-    printd debug_memory "Unloading texture for widget #%u" w#wid;
-    match w#kind with
-    | Box b -> Box.unload b
-    | Check b -> Check.unload b
-    | Button b -> Button.unload b
-    | TextDisplay t -> Text_display.unload t
-    | Image img -> Image.unload img
-    | Label l -> Label.unload l
-    | Slider s -> Slider.unload s
-    | TextInput ti -> Text_input.unload ti
-  in
-  let resize (type a) (w : a tc') size =
-    match w#kind with
-    | Box b -> Box.resize size b
-    | Button b -> Button.resize size b
-    | Check c -> Check.resize size c
-    | Label l -> Label.resize size l
-    | TextDisplay t -> Text_display.resize size t
-    | Image i -> Image.resize size i
-    | Slider s -> Slider.resize size s
-    | TextInput ti -> Text_input.resize size ti
-  in
-  (* let default_size (type a) (w : a tc') =
-   *   match w#kind with
-   *   | Empty e -> Empty.size e
-   *   | Check b -> Check.size b
-   *   | Box b -> Box.size b
-   *   | TextDisplay td -> Text_display.size td
-   *   | Label l -> let x,y = Label.size l in (x+2,y+2)
-   *   | Image img -> Image.size img
-   *   | Button b -> Button.size b
-   *   | Slider s -> Slider.size s
-   *   | TextInput ti -> Text_input.size ti *)
-
-  let get_cursor (type a) (w : a kind) =
-      match w with
-       | Box _
-       | Label _
-       | TextDisplay _
-       | Image _ -> Cursor.Arrow
-       | Button _
-       | Check _
-       | Slider _ -> Cursor.Hand
-       | TextInput _ -> Cursor.Ibeam
-  in
-  let get_text (type a) (w : a tc') =
-    match w#kind with
-    | Button b -> Button.text b
-    | TextDisplay td -> Text_display.text td
-    | Label l -> Label.text l
-    | TextInput ti -> Text_input.text ti
-    | _ -> (printd debug_error "This type of widget does not have a text function";
-            "")
-  in
-  let set_text (type a) (w : a tc') text =
-    match w#kind with
-    | Button b -> Button.set_label b text
-    | TextDisplay td -> let pa = Text_display.paragraphs_of_string text in
-      Text_display.update td pa
-    | Label l -> Label.set l text
-    | TextInput ti -> let k = Utf8.split text in
-      Text_input.set ti k
-    | _ -> printd debug_error "Cannot set text to this type of widget"
-  in
-  let get_state (type a) (w : a tc') =
-    match w#kind with
-    | Button b -> Button.state b
-    | Check c -> Check.state c
-    | _ -> (printd debug_error "This type of widget does not have a state function";
-            false)
-  in
-  object (self)
-    inherit tc_anon (0,0) (* TODO *)
-    method kind : 'a kind = kind
-    val mutable cursor_ = get_cursor kind
-    method typ = typ (self :> 'a tc')
-
-    method! resize = resize (self :> 'a tc')
-    method! unload_texture = unload_texture (self :> 'a tc')
-    method! get_state = get_state (self :> 'a tc')
-    method! get_text = get_text (self :> 'a tc')
-    method! set_text text = set_text (self :> 'a tc') text
-    method! display canvas layer geom = display (self :> 'a tc') canvas layer geom
-  end
-
-(* an empty widget. Does not draw anything, but can be used to get mouse focus *)
-class empty size : [unit] tc' =
-  object (self)
-    inherit tc_anon size
-    method kind = Other
-    method typ = "Empty"
-    val mutable cursor_ = Cursor.Arrow
-
-    method! resize x = size_ <- x
-    method! unload_texture = ()
-    end
+class type virtual t = tc_anon
 
 let draw_boxes = ref false;;
 (* for debugging: draws a red rect rectangle around each widget layout, (fill
    when it has mouse focus (might need a redraw: CTRL-l) and a blue rect around
    container layouts *)
+
+let test () = [
+  `Empty (new Empty.t (0,0));
+  `Box (new Box.t ());
+  `Slider (new Slider.t ());
+  `Button (new Button.t "Press Me");
+  `Image (new Image.t "/non_existing.png")
+]
 
 let id (Any w) = w#wid;;
 
@@ -292,7 +52,7 @@ let is_fresh w = Var.get w#fresh;;
 (*   w.canvas <- Some canvas;; *)
 
 let dummy_widget wid =
-  let dummy = new empty (0,0) in
+  let dummy = new Empty.t (0,0) in
   WHash.add widgets_wtable (Any dummy);
   dummy#set_wid wid;
   dummy
@@ -344,7 +104,7 @@ let connect source target action ?(priority=Forget) ?(update_target=true) ?join 
   let id = match join with
     | None -> fresh_id ()
     | Some c -> c.id in
-    let source,target = Any source, Any target in
+  let source,target = Any source, Any target in
   { source;
     target;
     action;
@@ -355,8 +115,8 @@ let connect source target action ?(priority=Forget) ?(update_target=true) ?join 
 let connect_after source target action triggers =
   let action _ _ _ = () in (* TODO FIXME *)
   match List.rev source#connections with
-    | [] -> connect source target action ~priority:Join triggers
-    | c::_ -> connect source target action ~priority:Join ~join:c triggers;;
+  | [] -> connect source target action ~priority:Join triggers
+  | c::_ -> connect source target action ~priority:Join ~join:c triggers;;
 
 let connect_main = connect ~priority:Main;;
 
@@ -368,62 +128,26 @@ let connections t =
 let add_connection w c =
   w#set_connections (List.rev (c :: List.rev w#connections))
 
-(* TODO: remove connection *)
-let get_box w =
-  match w#kind with
-    | Box b -> b
-    | _ -> failwith "Expecting a box";;
-
-let get_check w =
-  match w#kind with
-    | Check b -> b
-    | _ -> failwith "Expecting a check box";;
-
-let get_label w =
- match w#kind with
-    | Label l -> l
-    | _ -> failwith "Expecting a label";;
-
-let get_button w =
-  match w#kind with
-    | Button b -> b
-    | _ -> failwith "Expecting a button";;
-
-let get_slider w =
- match w#kind with
-    | Slider s -> s
-    | _ -> failwith "Expecting a slider";;
-
-let get_text_display w =
- match w#kind with
-    | TextDisplay td -> td
-    | _ -> failwith "Expecting a text display";;
-
-
-let get_text_input w =
- match w#kind with
-    | TextInput ti -> ti
-    | _ -> failwith "Expecting a text input";;
-
 (** creation of simple widgets *)
-let create_empty kind =
-  let w = new tc kind in
+let create_empty () =
+  let w = new Empty.t (0,0) in
   WHash.add widgets_wtable (Any w);
   w
 
 let check_box ?state ?style () =
-  let b = create_empty  (Check (Check.create ?state ?style ())) in
+  (* let b = create_empty  (Check (Check.create ?state ?style ())) in *)
+  let b = new Check.t ?state ?style () in
   (* let action = fun (Any w) _ _ -> Check.action (get_check w) in *)
-  let action _ _ _ = () in  (* TODO FIXME Disabled connections *)
-  let c = connect_main b b action Trigger.buttons_down in
-  add_connection b c;
-  b;;
-
+  (* let action _ _ _ = () in  (\* TODO FIXME Disabled connections *\)
+   * let c = connect_main b b action Trigger.buttons_down in
+   * add_connection b c; *)
+  b
 
 (*let get_check_state b =
   Check.state (get_check b);;
 *)
 
+(*
 let set_check_state b s =
   Check.set (get_check b) s;;
 
@@ -568,6 +292,7 @@ let check_box_with_label text =
   (* let c = connect_main l b action Trigger.buttons_down in
    * add_connection l c; *)
   b,l;;
+ * *)
 
 (****)
 
@@ -634,8 +359,8 @@ let terminate ?(timeout = 50) active =
   printd debug_thread "Ask for terminating connection #%u" active.connect_id;
   Sdl.Event.(set active.event typ) Trigger.stop;
   ignore (Timeout.add timeout (fun () ->
-              if not (has_terminated active)
-              then printd debug_thread "Cannot terminate thread for connection #%u after %u ms." active.connect_id timeout
+      if not (has_terminated active)
+      then printd debug_thread "Cannot terminate thread for connection #%u after %u ms." active.connect_id timeout
     ));;
 
 (* ask for terminate and wait (blocking) until it really terminates by itself *)
@@ -714,23 +439,23 @@ let remove_active_connections widget =
    like text_input, even react to the TAB key. In fact, keyboard_focus is
    treated globally by the main loop, therefore one could (should ?) rely on
    this function below instead of adding new reactions to TAB & click *)
-let set_keyboard_focus (type a) (w : a t) =
-  match w#kind with
-  | TextInput _ -> () (* already done by the widget *)
-  | Slider s -> Slider.set_focus s
-  | _ -> ();;
+(* let set_keyboard_focus (type a) (w : a t) =
+ *   match w#kind with
+ *   | TextInput _ -> () (\* already done by the widget *\)
+ *   | Slider s -> Slider.set_focus s
+ *   | _ -> ();; *)
 
-let remove_keyboard_focus (type a) (w : a t) =
-  match w#kind with
-  | TextInput ti -> Text_input.stop ti
-  | Slider s -> Slider.unfocus s
-  | _ -> ();;
+(* let remove_keyboard_focus (type a) (w : a t) =
+ *   match w#kind with
+ *   | TextInput ti -> Text_input.stop ti
+ *   | Slider s -> Slider.unfocus s
+ *   | _ -> ();; *)
 
 
-let guess_unset_keyboard_focus (type a) (w : a t) =
-  match w#kind with
-  | TextInput _ -> Some false
-  | Slider _ -> Some false
-  | _ -> None;;
+(* let guess_unset_keyboard_focus (type a) (w : a t) =
+ *   match w#kind with
+ *   | TextInput _ -> Some false
+ *   | Slider _ -> Some false
+ *   | _ -> None;; *)
 (* TODO: buttons could have keyboard focus... to activate them with TAB or ENTER
    or SPACE... *)

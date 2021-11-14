@@ -23,23 +23,23 @@ type sort =
   | Descending (* decreasing *)
 
 type column_private = {
-    title : string;
-    rows : int -> Layout.t;
-    compare : (int -> int -> int) option;
-    mutable width : int;
-    mutable sort : sort option
-  }
+  title : string;
+  rows : int -> Layout.t;
+  compare : (int -> int -> int) option;
+  mutable width : int;
+  mutable sort : sort option
+}
 
 type t = {
-    length : int;
-    data : column_private array;
-    selection : Selection.t Var.t; (* selection of rows *)
-    mutable last_selected : int option;
-    order : int array; (* we keep here the bijection ith entry --> jth displayed *)
-    titles : Layout.t array;
-    row_height : int;
-    layout : (Layout.t option) Var.t (* the global layout *)
-  }
+  length : int;
+  data : column_private array;
+  selection : Selection.t Var.t; (* selection of rows *)
+  mutable last_selected : int option;
+  order : int array; (* we keep here the bijection ith entry --> jth displayed *)
+  titles : Layout.t array;
+  row_height : int;
+  layout : (Layout.t option) Var.t (* the global layout *)
+}
 
 let title_margin = 5;;
 let title_background = Layout.Solid Draw.(set_alpha 40 blue);;
@@ -53,12 +53,12 @@ let max_width ?(n_max = 50) (c : column) =
   let rec loop i m =
     if i = n_max then m
     else let w = Layout.width (c.rows i) in
-         loop (i+1) (imax m w) in
+      loop (i+1) (imax m w) in
   loop 0 0
 
 let make_title (c : column) =
   (* we compute the label widget *)
-  let label = Widget.label c.title in
+  let label = new Label.t c.title in
   (* if no width is specified, we compute the max width of the first entries of
      the column *)
   let lw,_ = label#size in
@@ -68,22 +68,22 @@ let make_title (c : column) =
   let layout =
     if c.compare = None
     then (* first encapsulate in order to then left-align *)
-      Layout.flat_of_w ~sep:0 [Widget.Any label]
+      Layout.flat_of_w ~sep:0 [Widget.Any (label :> Widget.t)]
     else begin (* add icon for sorting *)
-      let sort_indicator = Widget.icon ~fg:icon_color "sort" in
+      let sort_indicator = new Icon.t ~fg:icon_color "sort" in
       let sw,_ = sort_indicator#size in
       let lw,lh = label#size in
       let w' = w - sw - lw in
       if w' >= 0
       then (* we can add sort_indicator *)
-        Layout.flat_of_w ~sep:0 ~align:(Draw.Max) [Widget.Any label;
-                                                   Widget.Any (new Widget.empty (w',lh));
-                                                   Widget.Any (sort_indicator)]
-      else Layout.flat_of_w ~sep:0 [Widget.Any label]
+        Layout.flat_of_w ~sep:0 ~align:(Draw.Max) [Widget.Any (label :> Widget.t);
+                                                   Widget.Any (new Empty.t (w',lh) :> Widget.t);
+                                                   Widget.Any (sort_indicator :> Widget.t)]
+      else Layout.flat_of_w ~sep:0 [Widget.Any (label :> Widget.t)]
     end in
   Layout.set_width layout w; (* not necessary in the case of sort_indicator *)
   let (_,h) = label#size in
-  let click_area = new Widget.empty (w,h) in
+  let click_area = new Empty.t (w,h) in
   let title = Layout.(superpose [resident (Widget.Any click_area); layout]) in
   title;;
 
@@ -146,17 +146,17 @@ let get_background t i ii =
   if Selection.mem (Var.get t.selection) i
   then Some row_selected
   else
-    if ii mod 2 = 1
-    then Some (Layout.Solid Draw.(set_alpha 20 grey))
-    else None;;
+  if ii mod 2 = 1
+  then Some (Layout.Solid Draw.(set_alpha 20 grey))
+  else None;;
 
 let make_long_list ~w ~h t  =
   (* generate row #i: *)
   let generate = fun ii ->
     let i = t.order.(ii) in
     let background = get_background t i ii in
-    let left_margin = new Widget.empty (title_margin,t.row_height) in
-    let click_area = new Widget.empty (w,t.row_height) in
+    let left_margin = new Empty.t (title_margin,t.row_height) in
+    let click_area = new Empty.t (w,t.row_height) in
     let ca = Layout.resident ~name:(sprintf "click_area %u(%u)" i ii) (Widget.Any click_area) in
     let row =
       Array.mapi (fun j c ->
@@ -168,12 +168,12 @@ let make_long_list ~w ~h t  =
       |> cons (Layout.resident (Widget.Any left_margin))
       |> (Layout.flat ~sep:0 ~hmargin:0 ~vmargin:0 ?background) in
     let enter _ = (Layout.set_background ca (Some row_hl)
-                  (* Layout.fade_in ca ~duration:150 *)) in
+    (* Layout.fade_in ca ~duration:150 *)) in
     let leave _ = Layout.set_background ca None
     (* Layout.fade_out ca ~duration:150 *) in
     (* TODO: PROBLEM if one adds Layout.fade_in/out animations here, it becomes
-    very slow when one tries to scroll at the same time ==> cf
-    "check_mouse_motion board" dans bogue.ml *)
+       very slow when one tries to scroll at the same time ==> cf
+       "check_mouse_motion board" dans bogue.ml *)
     Widget.mouse_over ~enter ~leave click_area;
     (* TODO click is not good with touchscreen *)
     let click _ =
@@ -226,16 +226,16 @@ let reverse_array a =
 let set_indicator t j =
   if t.data.(j).compare = None then ()
   else begin
-      let sort = t.data.(j).sort in
-      do_option (get_indicator t.titles.(j)) (fun indicator ->
-          (* let label = Widget.get_label indicator in
-           * Label.set label (match sort with
-           *                  | None -> Theme.fa_symbol "sort"
-           *                  (\* terminology in font_a is reversed *\)
-           *                  | Some Ascending -> Theme.fa_symbol "sort-desc"
-           *                  | Some Descending -> Theme.fa_symbol "sort-asc") *)
+    let sort = t.data.(j).sort in
+    do_option (get_indicator t.titles.(j)) (fun indicator ->
+        (* let label = Widget.get_label indicator in
+         * Label.set label (match sort with
+         *                  | None -> Theme.fa_symbol "sort"
+         *                  (\* terminology in font_a is reversed *\)
+         *                  | Some Ascending -> Theme.fa_symbol "sort-desc"
+         *                  | Some Descending -> Theme.fa_symbol "sort-asc") *)
         ())
-    end;;
+  end;;
 
 
 (* refreshes the table by creating a new long_list *)
@@ -348,11 +348,11 @@ let of_array ?w ~h ?widths ?row_height ?name headers a =
              |> Array.mapi (fun j title ->
                  { title;
                    length = ni;
-                   rows = (fun i -> Layout.resident (Widget.Any (Widget.label a.(i).(j))));
+                   rows = (fun i -> Layout.resident (Widget.Any (new Label.t a.(i).(j) :> Widget.t)));
                    compare = Some (fun i1 i2 -> compare a.(i1).(j) a.(i2).(j));
                    width = widths.(j) })
              |> Array.to_list in
-           create ?w ~h ?row_height ?name columns;;
+        create ?w ~h ?row_height ?name columns;;
 
 (* From a Csv.t style list of rows (first row must be the header). Warning: this
    functions first converts to an array, ie. the data is likely to be duplicated
@@ -360,8 +360,8 @@ let of_array ?w ~h ?widths ?row_height ?name headers a =
 let of_list ?w ~h ?widths ?row_height ?name = function
   | [] -> failwith "Cannot create table with empty list."
   | headers::rows ->
-     let a = List.map Array.of_list rows
-             |> Array.of_list in
-     of_array ?w ~h ?widths ?row_height ?name headers a
+    let a = List.map Array.of_list rows
+            |> Array.of_list in
+    of_array ?w ~h ?widths ?row_height ?name headers a
 
 (* * * * *)

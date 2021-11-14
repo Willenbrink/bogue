@@ -1,6 +1,7 @@
 (** a simple text display in one line *)
 open Utils
 open Tsdl_ttf
+open Base
 
 type font =
   | File of string
@@ -8,108 +9,90 @@ type font =
 
 type style = Tsdl_ttf.Ttf.Style.t
 
-type t =
-  { text : string Var.t;
-    render : (Draw.texture option) Var.t;
-    font : font Var.t;
-    style : Ttf.Style.t;
-    size : int; (* font size *)
-    fg : (Draw.color option) Var.t; (* foreground color *)
-  }
+(* open font with specified size. Here this is the true size, it will not be
+         scaled. *)
+(* This can be used by all widgets requiring a font. *)
+let get_font_var v size =
+  match Var.get v with
+  | Font f -> f
+  | File file -> let f = Draw.open_font file size in
+    Var.set v (Font f); f
 
-let create ?(size = Theme.label_font_size) ?(font = File Theme.label_font)
+let physical_size_text font text =
+  (* Attention, SDL_ttf n'est peut-être pas encore initialisé... *)
+  go (Ttf.size_utf8 font text)
+
+class t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
     ?(style = Ttf.Style.normal) ?fg text =
-  Draw.ttf_init (); (* we init here so that one can get the size of the widget *)
-  { text = Var.create text;
-    render = Var.create None;
-    font = Var.create font;
-    style;
-    size;
-    fg = Var.create fg}
+  let typ = "Label [" ^ Utils.xterm_red ^ text ^ Utils.xterm_nc ^ "]" in
+  let size = (0,font_size) (* TODO missing calculation *) in
+  object (self)
+    inherit w size typ Cursor.Arrow
+    initializer Draw.ttf_init ()
 
-(* see https://lab.artlung.com/font-awesome-sample/*)
-let icon ?size ?fg name =
-  create ?size ?fg ~font:(File Theme.fa_font) (Theme.fa_symbol name)
+    val _text = Var.create text
+    val render : (Draw.texture option) Var.t = Var.create None
+    val font = Var.create font
+    val style = style
+    val font_size = font_size
+    val fg = Var.create fg
 
-let unload l =
-  match Var.get l.render with
-  | None -> ()
-  | Some tex -> begin
-      Draw.forget_texture tex;
-      Var.set l.render None
-    end
+    method! unload =
+      do_option (Var.get render) Draw.forget_texture;
+      Var.set render None
 
-(* TODO *)
-let free = unload
-(* TODO free font ? *)
+    method text = Var.get _text
+    method set_text x =
+      if Var.get _text <> x
+      then begin
+        Var.set _text x;
+        do_option (Var.get render) Draw.forget_texture;
+        Var.set render None
+      end
 
-let text l = Var.get l.text
+    method set_fg_color x = Var.set fg (Some x)
 
-let set l text =
-  if Var.get l.text <> text
-  then begin
-    Var.set l.text text;
-    let texo = Var.get l.render in
-    Var.set l.render None;
-    do_option texo Draw.forget_texture
+    method display canvas layer geom =
+
+
+      let ttffont = get_font_var font (Theme.scale_int font_size) in
+      (* physical size *)
+
+
+      let render_text_surf ?fg font style text =
+        let text = if text = "" then " " else text in
+        printd debug_graphics "render_text:%s" text;
+        let color = Draw.create_color (default fg (10,11,12,255)) in
+        Draw.ttf_set_font_style font style;
+        Draw.ttf_render font text color
+      in
+
+
+      let render_text renderer ?fg font style text =
+        let surf = render_text_surf ?fg font style text in
+        printd debug_graphics "convert to texture";
+        let tex = Draw.create_texture_from_surface renderer surf in
+        Draw.free_surface surf;
+        tex
+      in
+
+      let tex = match Var.get render with
+        | Some t -> t
+        | None ->
+          let fg = default (Var.get fg) Draw.(opaque label_color) in
+          let tex = render_text canvas.Draw.renderer ttffont style text ~fg in
+          Var.set render (Some tex); tex
+      in
+      [Draw.center_tex_to_layer canvas layer tex geom]
+
   end
 
-let set_fg_color l color =
-  Var.set l.fg (Some color)
+(*
 
 (************* display ***********)
 
 (* let default_size = (128,32);;*)
 (* "/home/san/public_html/7h09/sites/all/themes/drupal_7h09/css/museo.ttf";; *)
-
-
-(* physical size *)
-let physical_size_text font text =
-  (* Attention, SDL_ttf n'est peut-être pas encore initialisé... *)
-  go (Ttf.size_utf8 font text)
-
-(* Not used. The init is now done at [create]. *)
-let size_text_init font text =
-   if not (Ttf.was_init ())
-   then (go (Ttf.init ());
-         printd debug_graphics "SDL TTF initialized";
-         Draw.at_cleanup (fun () ->
-             printd debug_graphics "Quitting SDL TTF";
-             Ttf.quit ()));
-   go (Ttf.size_utf8 font text)
-
-(* Not used. After benchmarking, this function is faster than size_text_init
-   after TTF initialization. *)
-let size_text_exn font text =
-  try go (Ttf.size_utf8 font text) with
-  | Failure _ -> size_text_init font text
-  | e -> raise e
-
-let render_text_surf ?fg font style text =
-  let text = if text = "" then " " else text in
-  printd debug_graphics "render_text:%s" text;
-  let color = Draw.create_color (default fg (10,11,12,255)) in
-  Draw.ttf_set_font_style font style;
-  Draw.ttf_render font text color
-
-let render_text renderer ?fg font style text =
-  let surf = render_text_surf ?fg font style text in
-  printd debug_graphics "convert to texture";
-  let tex = Draw.create_texture_from_surface renderer surf in
-  Draw.free_surface surf;
-  tex
-
-
-(* open font with specified size. Here this is the true size, it will not be
-   scaled. *)
-(* This can be used by all widgets requiring a font. *)
-let get_font_var v size =
-  match Var.get v with
-    | Font f -> f
-    | File file -> let f = Draw.open_font file size in
-      Var.set v (Font f); f
-
-let font l = get_font_var l.font (Theme.scale_int l.size)
 
 let physical_size l =
   match Var.get l.render with
@@ -129,11 +112,4 @@ let size l =
 let resize _size _l =
   ()
 
-let display canvas layer l g =
-  let tex = match Var.get l.render with
-    | Some t -> t
-    | None ->
-      let fg = default (Var.get l.fg) Draw.(opaque label_color) in
-      let tex = render_text canvas.Draw.renderer (font l) l.style (text l) ~fg in
-      Var.set l.render (Some tex); tex in
-  [Draw.center_tex_to_layer canvas layer tex g]
+  *)

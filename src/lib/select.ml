@@ -41,7 +41,7 @@ let new_id = fresh_int ()
 (* Return [dst] (created if necessary). [name] will be the name of the selected
    entry, not the name of the whole [dst] layout. *)
 let create ?dst ?name ?(action = fun _ -> ()) ?fg
-      entries selected =
+    entries selected =
 
   let name = match name with
     | Some name -> name
@@ -50,19 +50,18 @@ let create ?dst ?name ?(action = fun _ -> ()) ?fg
   let action = Var.create action in
 
   (* let background = Layout.Solid(Draw.(transp white)) in *)
-  let selected_widget = Widget.label ?fg entries.(Var.get selected) in
+  let selected_widget = new Label.t ?fg entries.(Var.get selected) in
   let selected_layout = Layout.flat_of_w ~name (* ~background *)
-                          ~sep:0 [Widget.Any selected_widget] in
-  let selected_label = Widget.get_label selected_widget in
+      ~sep:0 [Widget.Any (selected_widget :> Widget.t)] in
 
   let entries = Array.to_list entries |>
-                  List.mapi (fun i s ->
-                      let action () =
-                        Label.set selected_label entries.(i);
-                        Var.set selected i;
-                        Var.get action i in
-                      Menu.{ label = Text s;
-                             content = Action action }) in
+                List.mapi (fun i s ->
+                    let action () =
+                      selected_widget#set_text entries.(i);
+                      Var.set selected i;
+                      Var.get action i in
+                    Menu.{ label = Text s;
+                           content = Action action }) in
 
   let entry = Menu.{ label = Layout selected_layout;
                      content = Tower entries } in
@@ -83,7 +82,7 @@ let create ?dst ?name ?(action = fun _ -> ()) ?fg
         [ selected_layout = [label "banana"]] [ caret-down ];
       ]
      ]
-   *)
+  *)
   pre (Print.layout_down menu_layout);
   List.iter (fun l -> Layout.set_width l (w - Menu.suffix_width))
     [menu_layout;
@@ -100,70 +99,70 @@ let create ?dst ?name ?(action = fun _ -> ()) ?fg
     | None -> failwith "Menu should have a unique submenu" in
 
   let tmp_dst = default dst
-                  (* Just a horizontal line *)
-                  (let line = new Widget.empty (w,1) in
-                   (* let background = Layout.Solid(Draw.(transp grey)) in *)
-                   (* DEBUG *)
-                   Layout.flat_of_w ~sep:0 (* ~background *) [Widget.Any line]) in
+      (* Just a horizontal line *)
+      (let line = new Empty.t (w,1) in
+       (* let background = Layout.Solid(Draw.(transp grey)) in *)
+       (* DEBUG *)
+       Layout.flat_of_w ~sep:0 (* ~background *) [Widget.Any line]) in
 
   Menu.Engine.init ~dst:tmp_dst menu;
 
   if dst = None then begin
-      Layout.set_height tmp_dst (Layout.height menu_layout);
-      (* We need to relocate to the top layout *)
-      (fun () ->
-        pre "RELOCATE!";
-        let room = Menu.layout_of_menu submenu in
-        let screen = Layout.get_rooms tmp_dst |>
-                       List.rev |>
-                       List.hd in
-        (* We move the submenu layout to the top layout, otherwise it will be
-           clipped by its house; unfortunately, the menu and the submenu end up
-           being in different houses, so we have to recode the resize
-           function. If the menu is too big, we add a scrollbar. Note that,
-           currently, this has the effect of hiding the shadow. TODO: correct
-           this...*)
-        let new_room = Layout.relocate ~scroll:true
-                         ~dst:(Layout.top_house tmp_dst) room in
-        let resize _ =
-          let open Layout in
-          let keep_resize = true in
-          let x,y = compute_pos menu_layout in
-          let h = height menu_layout in
-          setx ~keep_resize new_room x;
-          sety ~keep_resize new_room (y+h) in
-        new_room.Layout.resize <- resize;
+    Layout.set_height tmp_dst (Layout.height menu_layout);
+    (* We need to relocate to the top layout *)
+    (fun () ->
+       pre "RELOCATE!";
+       let room = Menu.layout_of_menu submenu in
+       let screen = Layout.get_rooms tmp_dst |>
+                    List.rev |>
+                    List.hd in
+       (* We move the submenu layout to the top layout, otherwise it will be
+          clipped by its house; unfortunately, the menu and the submenu end up
+          being in different houses, so we have to recode the resize
+          function. If the menu is too big, we add a scrollbar. Note that,
+          currently, this has the effect of hiding the shadow. TODO: correct
+          this...*)
+       let new_room = Layout.relocate ~scroll:true
+           ~dst:(Layout.top_house tmp_dst) room in
+       let resize _ =
+         let open Layout in
+         let keep_resize = true in
+         let x,y = compute_pos menu_layout in
+         let h = height menu_layout in
+         setx ~keep_resize new_room x;
+         sety ~keep_resize new_room (y+h) in
+       new_room.Layout.resize <- resize;
 
-        (* We expand the screen to full size: *)
-        let screen = Layout.relocate ~scroll:false
-                       ~dst:(Layout.top_house tmp_dst) screen in
-        Layout.maximize screen;
-        Layout.resize_follow_house screen;
-        if not Layout.(new_room == room)
-        then begin
-            Menu.set_layout submenu new_room;
-            Layout.hide ~duration:0 new_room
-          end;
-      (* pre (Print.layout_down screen);
-       * pre (Print.layout_down new_room); *)
-      (* pre (Print.layout_down (Layout.top_house screen)); *)
+       (* We expand the screen to full size: *)
+       let screen = Layout.relocate ~scroll:false
+           ~dst:(Layout.top_house tmp_dst) screen in
+       Layout.maximize screen;
+       Layout.resize_follow_house screen;
+       if not Layout.(new_room == room)
+       then begin
+         Menu.set_layout submenu new_room;
+         Layout.hide ~duration:0 new_room
+       end;
+       (* pre (Print.layout_down screen);
+        * pre (Print.layout_down new_room); *)
+       (* pre (Print.layout_down (Layout.top_house screen)); *)
 
-      (* TODO si on crée plusieurs select dans la même page, le deuxième va être
-         tracé sur un layer + élevé que celui du screen du premier select... et
-         donc il va PAS être caché correctement par ce screen: bref le premier
-         menu ne va pas se fermer quand on clique sur le deuxième...  A la place
-         on pourrait créer le screen dynamiquement quand on clique sur le menu.
-         *)
-      )
-      |> Sync.push;
-    end else
-    if true then begin (* TODO parameter adjust = true*)
-        let w,h = Layout.get_size (Menu.layout_of_menu submenu) in
-        Layout.set_size tmp_dst (w,(Layout.height menu_layout + h));
-        (* TODO ou plutôt faire un relocate, comme au-dessus, mais dans le dst *)
-      (* on peut aussi fournir en sortir la fonction qui fait le relocate dans un
+       (* TODO si on crée plusieurs select dans la même page, le deuxième va être
+          tracé sur un layer + élevé que celui du screen du premier select... et
+          donc il va PAS être caché correctement par ce screen: bref le premier
+          menu ne va pas se fermer quand on clique sur le deuxième...  A la place
+          on pourrait créer le screen dynamiquement quand on clique sur le menu.
+       *)
+    )
+    |> Sync.push;
+  end else
+  if true then begin (* TODO parameter adjust = true*)
+    let w,h = Layout.get_size (Menu.layout_of_menu submenu) in
+    Layout.set_size tmp_dst (w,(Layout.height menu_layout + h));
+    (* TODO ou plutôt faire un relocate, comme au-dessus, mais dans le dst *)
+    (* on peut aussi fournir en sortir la fonction qui fait le relocate dans un
        layout de son choix, qu'on n'est pas obligé de construire exprès --cf
        examples/displays *)
-      end;
+  end;
 
   tmp_dst

@@ -5,77 +5,58 @@
 (* TODO: keyboard focus *)
 
 open Utils
+open Base
 
 type style =
   | Square
   | Circle (* circle is used for radio buttons *)
 
-type t =
-    { style : style;
-      state : bool Var.t;
-      mutable size : (int * int) option
-      (* size = size in (logical) pixels of the "check" symbol. Can be different
-         from the geometry of the housing layout. *)
-    }
-
-let create ?(state=false) ?(style=Square) () =
-  { style; state = Var.create state;
-    size = None; (* will be initialized at first rendering *)
-  }
-
-let state b = Var.get b.state
-
-let set b s = Var.set b.state s
-
-(** when one clicks on the button *)
-(* TODO This will work with button_down. But if we want to change state only on
-button_up, we need to check the mouse is still over the widget *)
-let action b =
-  let s = state b in
-  Var.set b.state (not s)
-
-let free _ =
-  ()
-
-let unload _ =
-  ()
-
-let resize _size _b =
-  ()
-
-(************* display ***********)
-
 let default_circle_size = (12,14);; (* TODO compute at run-time *)
 let default_square_size = (17,18)
 
-(* TODO load the symbol at run-time so that we can change color *)
-let size t =
-  default t.size (match t.style with
-      | Circle -> default_circle_size
-      | Square -> default_square_size)
-
-let display canvas layer b g =
-  printd debug_graphics "Display button";
-  let open Draw in
-  let texture_on = match b.style with
-    | Square -> canvas.textures.check_on
-    | Circle -> canvas.textures.radio_on
+class t ?(state = false) ?(style = Square) () =
+  let size = match style with
+      Square -> default_square_size
+    | Circle -> default_circle_size
   in
-  let texture_off = match b.style with
-    | Square -> canvas.textures.check_off
-    | Circle -> canvas.textures.radio_off
-  in
-  let tex = if state b
-    then texture_on
-    else texture_off in
-  if b.size = None
-  then b.size <- (let w,h = tex_size tex in
-                  Some (unscale_size (w, h)));
 
-  (* DEBUG *)
-  (* let (w,h) = tex_size tex in *)
-  (* Printf.printf "TEX SIZE=(%u,%u)\n" w h; *)
+  object (self)
+    inherit w size "Check" Cursor.Hand
+    val style = style
+    method get_style = style
+    val _state = Var.create state
+    method state = Var.get _state
+    method set_state x = Var.set _state x
+    method action = self#set_state (not self#state)
 
-  [center_tex_to_layer ~clip:false ~horiz:false canvas layer tex g]
-(* we could center horizontally, but then first one should change textures so
-   that check_off and check_on have same width. *)
+    (* TODO load the symbol at run-time so that we can change color *)
+
+    method display canvas layer g =
+      printd debug_graphics "Display button";
+      let open Draw in
+      let texture_on = match style with
+        | Square -> canvas.textures.check_on
+        | Circle -> canvas.textures.radio_on
+      in
+      let texture_off = match style with
+        | Square -> canvas.textures.check_off
+        | Circle -> canvas.textures.radio_off
+      in
+      let tex = if self#state
+        then texture_on
+        else texture_off in
+      (* if self#size = None
+       * then _size <- (let w,h = tex_size tex in
+       *                 Some (unscale_size (w, h))); *)
+
+      (* DEBUG *)
+      (* let (w,h) = tex_size tex in *)
+      (* Printf.printf "TEX SIZE=(%u,%u)\n" w h; *)
+
+      [center_tex_to_layer ~clip:false ~horiz:false canvas layer tex g]
+      (* we could center horizontally, but then first one should change textures so
+         that check_off and check_on have same width. *)
+  end
+
+(************* display ***********)
+

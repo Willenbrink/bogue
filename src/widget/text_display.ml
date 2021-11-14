@@ -2,6 +2,7 @@ open Str
 open Utils
 open Tsdl
 open Tsdl_ttf
+open Base
 
 (* TODO: use TTF_RenderUTF8_Blended_Wrapped *)
 (* cf SDL_ttf.h *)
@@ -21,30 +22,7 @@ type words = entity list
 let example : words = let open Ttf.Style in
   [ Word "Hello"; Space; Word "I"; Space; Word "am"; Space; Style bold; Word "bold"; Style normal; Space; Word "and"; Space; Style italic; Word "italic." ]
 
-type t =
-    { paragraphs : (words list) Var.t;
-      render : (Draw.texture option) Var.t;
-      font : (Label.font) Var.t;
-      size: int; (* FONT size *)
-      mutable w: int option; (* width of the widget in pixels. Currently it is
-                                not used, since rendering is done with the
-                                geometry of the housing layout. *)
-      mutable h: int option; (* height in pixels. See above. *)
-    }
-
 let default_font = Label.File Theme.text_font
-
-let unload td =
-    match Var.get td.render with
-  | None -> ()
-  | Some tex -> begin
-      Draw.forget_texture tex;
-      Var.set td.render None
-    end
-
-(* TODO *)
-let free = unload
-(* TODO free font ? *)
 
 (* determine the style at the end of the entity list, assuming that the initial
    style is normal *)
@@ -105,17 +83,6 @@ let tab_to_space ?(sep = 8) s =
   loop 0 0;
   Buffer.contents b
 
-(** change the content of the text on the fly *)
-let update ?w ?h t paragraphs =
-  Var.protect t.render;
-  let texo = Var.get t.render in
-  Var.unsafe_set t.render None;
-  do_option texo Draw.forget_texture;
-  Var.set t.paragraphs paragraphs;
-  t.w <- w;
-  t.h <- h;
-  Var.release t.render
-
 let split_line line =
   full_split (regexp " ") line
   |> List.map (function
@@ -140,13 +107,7 @@ let ( ++ ) = append
 (*   [para "Hello"; para "World"]  *)
 let page list : words list = list
 
-let create ?(size = Theme.text_font_size) ?w ?h ?(font = default_font)
-      paragraphs =
-  Draw.ttf_init ();
-  { paragraphs = Var.create (List.rev ([Style Ttf.Style.normal] :: (List.rev paragraphs))); (* we add normal style at the end *)
-    render = Var.create None;
-    font = Var.create font;
-    size; w; h}
+let default_size = (256,128)
 
 (* convert a full text including '\n' into paragraphs *)
 let paragraphs_of_string text =
@@ -157,6 +118,55 @@ let paragraphs_of_string text =
 let paragraphs_of_lines lines =
   List.map split_line lines
 
+let unsplit_words words =
+  List.map (function
+      | Word w -> w
+      | Space -> " "
+      | _ -> "") words
+  |> String.concat ""
+
+let unsplit pars = String.concat "\n" (List.map unsplit_words pars)
+
+class t ?size ?(font_size = Theme.text_font_size) ?(font = default_font) paragraphs =
+  let size = default size (0,font_size) (* TODO missing calculation *) in
+  object (self)
+      inherit w size "TextDisplay" Cursor.Arrow
+      initializer Draw.ttf_init ()
+
+      val _paragraphs = Var.create (List.rev ([Style Ttf.Style.normal] :: (List.rev paragraphs))) (* we add normal style at the end *)
+      val render = Var.create None
+      val font = Var.create font
+
+      method paragraphs = Var.get _paragraphs
+      method text = unsplit self#paragraphs
+
+(** change the content of the text on the fly *)
+      method set_text x =
+        let x = paragraphs_of_string x in
+        Var.protect render;
+        let texo = Var.get render in
+        Var.unsafe_set render None;
+        do_option texo Draw.forget_texture;
+        Var.set _paragraphs x;
+        Var.release render
+
+      method resize x =
+        self#unload;
+        _size <- x
+
+      method unload =
+        match Var.get render with
+        | None -> ()
+        | Some tex -> begin
+            Draw.forget_texture tex;
+            Var.set render None
+          end
+
+
+
+    end
+
+(*
 let create_from_string ?(size = Theme.text_font_size) ?w ?h ?(font = default_font) text =
   let paragraphs = paragraphs_of_string text in
   create ~size ?w ?h ~font paragraphs
@@ -270,38 +280,6 @@ let update_verbatim t text =
   print_endline (Printf.sprintf "New SIZE %d,%d" (default dummy.w 0) (default dummy.h 0));
   replace ~by:dummy t
 
-let unsplit_old words =
-  let rec loop list acc =
-    match list with
-      | [] -> acc
-      | w::rest -> loop rest (if acc = "" then w else acc ^ " " ^ w) in
-  loop words ""
-
-let unsplit_words words =
-  List.map (function
-      | Word w -> w
-      | Space -> " "
-      | _ -> "") words
-  |> String.concat ""
-
-let unsplit pars = String.concat "\n" (List.map unsplit_words pars)
-
-let paragraphs td = Var.get td.paragraphs
-
-let text td = unsplit (Var.get td.paragraphs)
-
-let default_size = (256,128)
-
-let size td =
-  let w,h = default_size in
-  (default td.w w),
-  (default td.h h)
-
-let resize (w,h) td =
-  unload td;
-  td.w <- Some w;
-  td.h <- Some h
-
 (************* display ***********)
 
 let render_word ?fg font word =
@@ -371,3 +349,5 @@ let display canvas layer td g =
   Var.release td.render;
   let dst = geom_to_rect g in
   [make_blit ~voffset:g.voffset ~dst canvas layer tex]
+
+ * *)

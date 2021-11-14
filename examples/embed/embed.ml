@@ -28,8 +28,8 @@ let get_alpha r =
   let t = Time.now () - r.created in
   if t > duration then 0
   else
-    let _ = print_int t in
-    let _ = print_newline() in
+    (* let _ = print_int t in
+     * let _ = print_newline() in *)
     let a = 255. *. (sin (3.14159 *. (float t) /. (float duration)))
             |> round in
     imax a 0
@@ -61,14 +61,13 @@ let make_board () =
                                         L.resident ~w ~h:200 (Widget.Any (label :> W.t))] in
 
   let before_display () =
-    let text = input#get_text in
-    label#set_text ("Hello " ^ text ^ "!") in
+    label#set_text ("Hello <" ^ input#text ^ ">!") in
 
   Bogue.make [] [layout], before_display
 
 let main () =
   Sys.catch_break true;
-  go(Sdl.init Sdl.Init.video);
+  go (Sdl.init Sdl.Init.video);
   let w,h = Theme.(scale_int width, scale_int height) in
   let win = go(Sdl.create_window ~w ~h
                  "Test Window" Sdl.Window.windowed) in
@@ -76,7 +75,7 @@ let main () =
   (* very important: set blend mode: *)
   go (Sdl.set_render_draw_blend_mode renderer Sdl.Blend.mode_blend);
   Draw.set_color renderer bg;
-  go(Sdl.render_clear renderer);
+  go (Sdl.render_clear renderer);
   Random.self_init ();
 
   let rec rect_loop i new_list = function
@@ -109,14 +108,14 @@ let main () =
       | _ -> ()
     end;
     Draw.set_color renderer bg;
-    go(Sdl.render_clear renderer);
+    go (Sdl.render_clear renderer);
     let new_list = rect_loop 0 [] list in
 
     if !show_gui
     then begin
       (*List.iter Window.to_refresh board.Bogue.windows;*)
       Bogue.refresh_custom_windows board;
-      try if not (Bogue.one_step ~before_display true (start_fps, fps) board)
+      try if not (Bogue.one_step ~before_display false (start_fps, fps) board)
       (* one_step returns true if fps was executed *)
         then fps () with
       | Bogue.Exit -> show_gui := false

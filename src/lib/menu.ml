@@ -413,7 +413,7 @@ module Engine = struct
     Layout.add_room ~dst:entry.layout coat;
     Layout.resize_follow_house coat;
     (* we don't use Popup.add_screen to avoid creating too many layers. *)
-    let Any widget = Layout.widget coat in
+    let widget = Layout.widget coat in
     widget#set_cursor Cursor.Hand;
 
     let action _ _ _ = button_down screen entry in
@@ -481,7 +481,7 @@ module Engine = struct
     Layout.add_room ~dst screen;
     Layout.resize_follow_house screen;
 
-    let Any w = Layout.widget screen in
+    let w = Layout.widget screen in
     Widget.on_click ~click:(fun _ -> pre "CLICK SCREEN";
                              close_tree screen t
                              (* screen_disable screen *)) w;
@@ -542,7 +542,7 @@ let text_margin = 5
 (* Text to Layout. w and h are only used for text. maybe remove *)
 let format_label ?w ?h = function
   | Text s ->
-    let res = Layout.resident ?w ?h (Widget.Any (new Label.t s :> Widget.t)) in
+    let res = Layout.resident ?w ?h ((new Label.t s :> Widget.t)) in
     (* : here we cannot use a resident as is because we will need to add another
        room later; we need to wrap it: *)
     let background = Layout.Solid Draw.(opaque menu_bg_color) in
@@ -558,7 +558,7 @@ let format_label ?w ?h = function
 (* Warning, does not check whether there is already an icon... *)
 let add_icon_suffix ?(icon = "caret-right") layout =
   (* the icon used to indicate submenus *)
-  let submenu_indicator = Layout.resident ~name:icon (Widget.Any (new Icon.t icon :> Widget.t)) in
+  let submenu_indicator = Layout.resident ~name:icon ((new Icon.t icon :> Widget.t)) in
   Layout.add_room ~dst:layout ~valign:Draw.Center ~halign:Draw.Max
     submenu_indicator
 

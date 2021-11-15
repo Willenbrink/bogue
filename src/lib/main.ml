@@ -181,7 +181,7 @@ let add_window board layout =
   flip board;
   (* We send the startup_event to all widgets *)
   List.iter (Widget.wake_up (Trigger.startup_event ()))
-    (List.flatten (List.map (fun (Widget.Any x) -> Widget.connections x) (Layout.get_widgets layout)));
+    (List.flatten (List.map (fun (x) -> Widget.connections x) (Layout.get_widgets layout)));
   Trigger.renew_my_event ();
   window
 
@@ -763,7 +763,7 @@ let one_step ?before_display anim (start_fps, fps) ?clear board =
      the state of Trigger.has_no_event () *)
   do_option evo_widget (fun ev ->
       do_option (target_widget board ev)
-        (fun (Widget.Any x) -> Widget.wake_up_all ev x)
+        (fun (x) -> Widget.wake_up_all ev x)
     );
 
   (* the board can use the event that was filtered by the widget *)
@@ -906,10 +906,10 @@ let make ?(shortcuts = []) connections layouts =
   let windows_house = Layout.create_win_house layouts in
   let widgets = (* List.flatten (List.map Layout.get_widgets layouts) *)
     Layout.get_widgets windows_house in
-  do_option (repeated Widget.equal widgets) (fun (Widget.Any w) ->
+  do_option (repeated Widget.equal widgets) (fun (w) ->
       print_endline (Print.widget w);
       failwith (Printf.sprintf "Widget is repeated: #%u" (w#wid)));
-  List.iter (fun c -> Widget.(let Any src = c.source in add_connection src c)) connections;
+  List.iter (fun c -> Widget.(let src = c.source in add_connection src c)) connections;
   (* = ou bien dans "run" ? (ça modifie les widgets) *)
   let shortcuts = Shortcut.create shortcuts in
   let shortcuts = (if !debug then add_debug_shortcuts shortcuts else shortcuts)
@@ -968,7 +968,7 @@ let run ?before_display ?after_display board =
   (*               (List.flatten (List.map Widget.connections (Layout.get_widgets l)))) *)
   (*   board.layouts; *)
   List.iter (Widget.wake_up (Trigger.startup_event ())) (* TODOOOOO this event can be modified by a thread ??!!! *)
-    (List.flatten (List.map (fun (Widget.Any x) -> Widget.connections x) (Layout.get_widgets board.windows_house)));
+    (List.flatten (List.map (fun (x) -> Widget.connections x) (Layout.get_widgets board.windows_house)));
   Trigger.renew_my_event ();
   let rec loop anim =
     let anim' = one_step ?before_display ~clear:true anim fps board in

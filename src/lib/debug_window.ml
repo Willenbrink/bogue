@@ -19,7 +19,7 @@ let create () =
   Draw.use_new_layer (); (* TODO this should be saved to the window, not global, otherwise layouts that are created after this but in an older window will be drawn on this layer, and thus not shown at all... *)
   let b = W.check_box ~state:!W.draw_boxes () in
   let l = new Label.t "Turn on debug rectangles" in
-  let dbg_boxes = L.flat_of_w ~align:Draw.Center W.[Any (b :> W.t); Any (l :> W.t)] in
+  let dbg_boxes = L.flat_of_w ~align:Draw.Center W.[(b :> W.t); (l :> W.t)] in
 
   let action w _ _ =
     W.draw_boxes := w#get_state in
@@ -28,7 +28,7 @@ let create () =
 
   let b = W.check_box ~state:!debug () in
   let l = new Label.t "Turn on debugging trace" in
-  let dbg_button = L.flat_of_w ~align:Draw.Center [Any (b :> W.t); Any (l :> W.t)] in
+  let dbg_button = L.flat_of_w ~align:Draw.Center [(b :> W.t); (l :> W.t)] in
 
   let title = new Label.t "Debug Variables" in
   let action code w _ _ =
@@ -41,13 +41,13 @@ let create () =
     | (var,code)::rest ->
       let bb = W.check_box ~state:(is_set code) () in
       let ll = new Label.t var in
-      let btn = L.flat_of_w ~sep:0 W.[Any (bb :> W.t); Any (ll :> W.t)] in
+      let btn = L.flat_of_w ~sep:0 W.[(bb :> W.t); (ll :> W.t)] in
       let c = W.connect ((bb :> W.t)) (bb :> W.t) (action code) [Sdl.Event.mouse_button_down] in
       loop rest (btn :: rooms) (c :: connections) in
 
   let rooms, connections = loop debug_vars [] [] in
 
-  let panel = L.tower ~sep:0 ((L.flat_of_w ~sep:10 [W.Any (title :> W.t)]) :: rooms) in
+  let panel = L.tower ~sep:0 ((L.flat_of_w ~sep:10 [(title :> W.t)]) :: rooms) in
   let action w _ _ =
     let ok = w#get_state in
     debug := ok;
@@ -57,7 +57,7 @@ let create () =
   let action _ _ _ = () in
   let c = W.connect (b :> W.t) (b :> W.t) action [Sdl.Event.mouse_button_down] in
 
-  (* List.iter (fun c -> let W.Any src = c.source in W.(add_connection src c)) (c_boxes :: c :: connections); *)
+  (* List.iter (fun c -> let src = c.source in W.(add_connection src c)) (c_boxes :: c :: connections); *)
   panel.L.show <- !debug;
   let layout = L.tower ~sep:0 [dbg_boxes; dbg_button; panel] in
   Draw.set_current_layer save_layer; (* DEBUG: not here ! *)

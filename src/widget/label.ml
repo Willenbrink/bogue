@@ -25,6 +25,10 @@ let physical_size_text font text =
 class t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
     ?(style = Ttf.Style.normal) ?fg text =
   let typ = "Label [" ^ Utils.xterm_red ^ text ^ Utils.xterm_nc ^ "]" in
+  (* Previous implementation:
+   * let default_size (type a) (w : a tc') =
+   *   match w#kind with
+   *   | Label l -> let x,y = Label.size l in (x+2,y+2)*)
   let size = (0,font_size) (* TODO missing calculation *) in
   object (self)
     inherit w size typ Cursor.Arrow

@@ -20,18 +20,18 @@ let test () = [
   `Image (new Image.t "/non_existing.png")
 ]
 
-let id (Any w) = w#wid;;
+let id (w) = w#wid;;
 
 let get_room_id w = match w#room_id with
   | None -> failwith "The widget does not belong to a room yet"
   | Some id -> id;;
 
-let equal (Any w1) (Any w2) =
+let equal (w1) (w2) =
   w1#wid = w2#wid;;
 let (==) = equal;;
 
 module Hash = struct
-  type t = any
+  type t = Base.w
   let equal = equal
   let hash = id
 end
@@ -53,13 +53,13 @@ let is_fresh w = Var.get w#fresh;;
 
 let dummy_widget wid =
   let dummy = new Empty.t (0,0) in
-  WHash.add widgets_wtable (Any dummy);
+  WHash.add widgets_wtable (dummy);
   dummy#set_wid wid;
   dummy
 
 (*let of_id wid = Hashtbl.find widgets_table wid;;*)
-let of_id wid : any =
-  try WHash.find widgets_wtable (Any (dummy_widget wid)) with
+let of_id wid =
+  try WHash.find widgets_wtable ((dummy_widget wid)) with
   | Not_found -> (printd debug_error "Cannot find widget with wid=%d" wid;
                   raise Not_found);;
 
@@ -92,7 +92,7 @@ let connect source target action ?(priority=Forget) ?(update_target=true) ?join 
   if update_target && (List.mem Sdl.Event.user_event triggers)
   then printd debug_warning "one should not 'connect' with 'update_target'=true if the trigger list contains 'user_event'. It may cause an infinite display loop";
   let action = if update_target
-    then fun (Any w1) (Any w2) ev -> (action (Any w1) (Any w2) ev; update w2) (* TODO ajouter Trigger.will_exit ev ?? *)
+    then fun (w1) (w2) ev -> (action (w1) (w2) ev; update w2) (* TODO ajouter Trigger.will_exit ev ?? *)
     else action in
   let action = if !debug
     then fun w1 w2 ev ->
@@ -104,7 +104,7 @@ let connect source target action ?(priority=Forget) ?(update_target=true) ?join 
   let id = match join with
     | None -> fresh_id ()
     | Some c -> c.id in
-  let source,target = Any source, Any target in
+  let source,target = source, target in
   { source;
     target;
     action;
@@ -131,13 +131,13 @@ let add_connection w c =
 (** creation of simple widgets *)
 let create_empty () =
   let w = new Empty.t (0,0) in
-  WHash.add widgets_wtable (Any w);
+  WHash.add widgets_wtable (w);
   w
 
 let check_box ?state ?style () =
   (* let b = create_empty  (Check (Check.create ?state ?style ())) in *)
   let b = new Check.t ?state ?style () in
-  (* let action = fun (Any w) _ _ -> Check.action (get_check w) in *)
+  (* let action = fun (w) _ _ -> Check.action (get_check w) in *)
   (* let action _ _ _ = () in  (\* TODO FIXME Disabled connections *\)
    * let c = connect_main b b action Trigger.buttons_down in
    * add_connection b c; *)
@@ -381,7 +381,7 @@ let add_action c action ev =
   (* WARNING: at this point it is not possible to copy the drop_file_file field *)
   let e_copy = Trigger.copy_event ev in
   incr threads_created;
-  let Any src = c.source in
+  let src = c.source in
   add src
     { thread = Thread.create (action c.source c.target) e_copy;
       event = e_copy;
@@ -397,10 +397,10 @@ let wake_up event c =
       (* = direct action, no thread !. Should we still add it to the active list
          ? *)
       else begin
-        let action = fun (Any w1) w2 ev ->
-          c.action (Any w1) w2 ev;
+        let action = fun (w1) w2 ev ->
+          c.action (w1) w2 ev;
           remove_me c.id w1 in
-        let Any src = c.source in
+        let src = c.source in
         let alist = Var.get src#actives in
         let tho = is_active alist c in
         if alist = [] || tho = None then add_action c action event
@@ -414,7 +414,7 @@ let wake_up event c =
               (* Thread.kill a.thread; *) (* Thread.kill is in fact NOT
                                              implemented... ! *)
               terminate a;
-              let Any src = c.source in
+              let src = c.source in
               remove src (Thread.id a.thread);
               add_action c action event
             end

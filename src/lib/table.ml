@@ -68,7 +68,7 @@ let make_title (c : column) =
   let layout =
     if c.compare = None
     then (* first encapsulate in order to then left-align *)
-      Layout.flat_of_w ~sep:0 [Widget.Any (label :> Widget.t)]
+      Layout.flat_of_w ~sep:0 [(label :> Widget.t)]
     else begin (* add icon for sorting *)
       let sort_indicator = new Icon.t ~fg:icon_color "sort" in
       let sw,_ = sort_indicator#size in
@@ -76,15 +76,15 @@ let make_title (c : column) =
       let w' = w - sw - lw in
       if w' >= 0
       then (* we can add sort_indicator *)
-        Layout.flat_of_w ~sep:0 ~align:(Draw.Max) [Widget.Any (label :> Widget.t);
-                                                   Widget.Any (new Empty.t (w',lh) :> Widget.t);
-                                                   Widget.Any (sort_indicator :> Widget.t)]
-      else Layout.flat_of_w ~sep:0 [Widget.Any (label :> Widget.t)]
+        Layout.flat_of_w ~sep:0 ~align:(Draw.Max) [ (label :> Widget.t);
+                                                    (new Empty.t (w',lh) :> Widget.t);
+                                                    (sort_indicator :> Widget.t)]
+      else Layout.flat_of_w ~sep:0 [ (label :> Widget.t)]
     end in
   Layout.set_width layout w; (* not necessary in the case of sort_indicator *)
   let (_,h) = label#size in
   let click_area = new Empty.t (w,h) in
-  let title = Layout.(superpose [resident (Widget.Any click_area); layout]) in
+  let title = Layout.(superpose [resident ( click_area); layout]) in
   title;;
 
 (* extracts the click_area widget from the title layout *)
@@ -157,7 +157,7 @@ let make_long_list ~w ~h t  =
     let background = get_background t i ii in
     let left_margin = new Empty.t (title_margin,t.row_height) in
     let click_area = new Empty.t (w,t.row_height) in
-    let ca = Layout.resident ~name:(sprintf "click_area %u(%u)" i ii) (Widget.Any click_area) in
+    let ca = Layout.resident ~name:(sprintf "click_area %u(%u)" i ii) ( click_area) in
     let row =
       Array.mapi (fun j c ->
           let width = Layout.width t.titles.(j) in
@@ -165,7 +165,7 @@ let make_long_list ~w ~h t  =
           let r = Layout.flat ~sep:0 ~hmargin:0 ~vmargin:0 ~name [c.rows i] in
           Layout.set_width r (width  + title_margin); r) t.data
       |> Array.to_list
-      |> cons (Layout.resident (Widget.Any left_margin))
+      |> cons (Layout.resident ( left_margin))
       |> (Layout.flat ~sep:0 ~hmargin:0 ~vmargin:0 ?background) in
     let enter _ = (Layout.set_background ca (Some row_hl)
     (* Layout.fade_in ca ~duration:150 *)) in
@@ -284,7 +284,7 @@ let change_order t j sort =
 let connect_title t j =
   if t.data.(j).compare = None then ()
   else begin
-    let Widget.Any widget = get_area t.titles.(j) in
+    let widget = get_area t.titles.(j) in
     let click _ =
       let sort = match t.data.(j).sort with
         | None -> Ascending
@@ -348,7 +348,7 @@ let of_array ?w ~h ?widths ?row_height ?name headers a =
              |> Array.mapi (fun j title ->
                  { title;
                    length = ni;
-                   rows = (fun i -> Layout.resident (Widget.Any (new Label.t a.(i).(j) :> Widget.t)));
+                   rows = (fun i -> Layout.resident ((new Label.t a.(i).(j) :> Widget.t)));
                    compare = Some (fun i1 i2 -> compare a.(i1).(j) a.(i2).(j));
                    width = widths.(j) })
              |> Array.to_list in

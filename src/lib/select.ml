@@ -52,7 +52,7 @@ let create ?dst ?name ?(action = fun _ -> ()) ?fg
   (* let background = Layout.Solid(Draw.(transp white)) in *)
   let selected_widget = new Label.t ?fg entries.(Var.get selected) in
   let selected_layout = Layout.flat_of_w ~name (* ~background *)
-      ~sep:0 [Widget.Any (selected_widget :> Widget.t)] in
+      ~sep:0 [(selected_widget :> Widget.t)] in
 
   let entries = Array.to_list entries |>
                 List.mapi (fun i s ->
@@ -103,7 +103,7 @@ let create ?dst ?name ?(action = fun _ -> ()) ?fg
       (let line = new Empty.t (w,1) in
        (* let background = Layout.Solid(Draw.(transp grey)) in *)
        (* DEBUG *)
-       Layout.flat_of_w ~sep:0 (* ~background *) [Widget.Any line]) in
+       Layout.flat_of_w ~sep:0 (* ~background *) [line]) in
 
   Menu.Engine.init ~dst:tmp_dst menu;
 

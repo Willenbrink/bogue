@@ -83,7 +83,7 @@ let create (*?(circular = true)*) ?slide ?(adjust = Layout.Fit) ?(expand = true)
     let first_l = List.hd labels in
     first_l#press;
 
-    let menu = Layout.flat_of_w ?canvas ~sep:0 (List.map (fun x -> W.Any (x :> Widget.t)) labels) in
+    let menu = Layout.flat_of_w ?canvas ~sep:0 (List.map (fun x -> (x :> Widget.t)) labels) in
     if expand (* we set the same width to all labels... do better? *)
     then begin
       let w = Layout.width dest_room in (* TODO utiliser relayout *)

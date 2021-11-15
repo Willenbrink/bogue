@@ -340,7 +340,7 @@ module Engine = struct
        not only on the area of the text itself (label). *)
     Layout.add_room ~dst:entry.layout coat;
     (* we don't use Popup.add_screen to avoid creating too many layers. *)
-    let Any widget = Layout.widget coat in
+    let widget = Layout.widget coat in
     widget#set_cursor Cursor.Hand;
 
     let action _ _ _ = button_down screen entry in
@@ -387,7 +387,7 @@ module Engine = struct
     screen_disable screen;
     Layout.add_room ~dst screen;
 
-    let Any w = Layout.widget screen in
+    let w = Layout.widget screen in
     Widget.on_click ~click:(fun _ -> print_endline "CLICK SCREEN";
                              close_tree screen t
                              (* screen_disable screen *)) w;
@@ -436,7 +436,7 @@ let text_margin = 5
 (* Text to Layout. w and h are only used for text. maybe remove *)
 let format_label ?w ?h = function
   | Text s ->
-    let res = Layout.resident ?w ?h (Widget.Any (new Label.t s :> Widget.t)) in
+    let res = Layout.resident ?w ?h ((new Label.t s :> Widget.t)) in
     (* : here we cannot use a resident as is because we will need to add another
        room later. we need to wrap it: *)
     let background = Layout.Solid Draw.(opaque menu_bg_color) in
@@ -449,7 +449,7 @@ let format_label ?w ?h = function
 let add_icon_suffix layout =
   let submenu_icon = "caret-right" in
   (* the icon used to indicate submenus *)
-  let submenu_indicator = Layout.resident (Widget.Any (new Icon.t submenu_icon :> Widget.t)) in
+  let submenu_indicator = Layout.resident ((new Icon.t submenu_icon :> Widget.t)) in
   Layout.add_room ~dst:layout ~valign:Draw.Center ~halign:Draw.Max
     submenu_indicator
 

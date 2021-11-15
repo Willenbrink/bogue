@@ -13,7 +13,7 @@ module W = Widget
 
 type widgets = {
   index : (int option) Var.t; (* the index of selected entry *)
-  data : (W.any * W.any) array
+  data : (W.t * W.t) array
 }
 
 type t = {
@@ -76,7 +76,7 @@ let make_connections widgets =
 
 let make_widgets ?selected ?(click_on_label=true) entries =
   let data = Array.map (fun entry ->
-      W.(Any (make_button () :> Widget.t), Any (make_label ~click_on_label entry :> Widget.t))) entries in
+      W.((make_button () :> Widget.t), (make_label ~click_on_label entry :> Widget.t))) entries in
   (* do_option selected (fun i ->
    *     let (b,_) = data.(i) in
    *     W.set_check_state b true); *)

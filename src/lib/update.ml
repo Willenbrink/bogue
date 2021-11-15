@@ -12,7 +12,7 @@ open Utils
 
 let str = Printf.sprintf
 
-let table : (Widget.any list) Var.t = Var.create  [];;
+let table : (Widget.t list) Var.t = Var.create  [];;
 
 let is_empty () =
   Var.get table = [];;
@@ -41,7 +41,7 @@ let push_all () =
   List.iter
     (fun w -> Trigger.push_update (Widget.id w)) (Var.get table);;
 
-let execute_one e (Widget.Any w) =
+let execute_one e (w) =
   if w#wid = Trigger.get_update_wid e
   then (
     Widget.wake_up_all e w;
@@ -54,7 +54,7 @@ let execute e =
   | list -> (
       Var.protect table;
       let wid = Trigger.get_update_wid e in
-      let list_e, other = List.partition (fun (Widget.Any w) -> w#wid = wid) list in
+      let list_e, other = List.partition (fun (w) -> w#wid = wid) list in
       printd debug_memory "Udpate Table: remaining size=%i" (List.length other);
       (* we keep the widgets that do not correspond to the event e *)
       Var.unsafe_set table other;

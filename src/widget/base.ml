@@ -18,18 +18,18 @@ type active = {
 let fresh_id = fresh_int ()
 let fresh_wid = fresh_int ()
 
-type action = any -> any -> Sdl.event -> unit
+type action = t -> t -> Sdl.event -> unit
 
 and connection = {
-  source : any;
-  target : any;
+  source : t;
+  target : t;
   action : action;
   priority : action_priority;
   triggers : Trigger.t list;
   id : int;
 }
 
-and 'a t = <
+and t = <
   wid : int;
   set_wid : int -> unit;
   (*  receiver : action Event.channel; *) (* TODO: pas nécessaire ? *)
@@ -50,15 +50,9 @@ and 'a t = <
   unload : unit;
   size : int * int;
   resize : int * int -> unit;
-  (* get_text : string;
-   * set_text : string -> unit;
-   * get_state : bool; *)
   display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list;
   typ : string;
 >
-and any = Any : 'a t -> any
-
-let any (type a) (w : 'a t) = Any w
 
 class virtual w size typ cursor =
   object
@@ -93,16 +87,5 @@ class virtual w size typ cursor =
        all textures) *)
     method unload = ()
     method virtual display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list
-    (* method virtual get_text : string = failwith "Unimplemented"
-     * method virtual set_text : string -> unit = failwith "Unimplemented"
-     * method virtual get_state : bool = failwith "Unimplemented" *)
 
   end
-
-(*
-class ['a] tc kind : ['a] tc' =
-  (* let default_size (type a) (w : a tc') =
-   *   match w#kind with
-   *   | Label l -> let x,y = Label.size l in (x+2,y+2)
-   * *)
-  *)

@@ -152,6 +152,11 @@ class t ?step ?(kind = Horizontal) ?(value = 0) ?(length = 200)
           Var.set render None
         end
 
+    method set_keyboard_focus = self#focus
+
+    method remove_keyboard_focus = self#unfocus
+
+    method guess_unset_keyboard_focus = false
 
     method resize (w,h) =
       self#unload;

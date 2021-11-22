@@ -72,7 +72,6 @@ let connect source target action ?priority ?update_target ?join triggers =
   new connection source target action ?priority ?update_target ?join triggers
 
 let connect_after source target action triggers =
-  let action _ _ _ = () in (* TODO FIXME *)
   match List.rev source#connections with
   | [] -> connect source target action ~priority:Join triggers
   | c::_ -> connect source target action ~priority:Join ~join:c triggers;;
@@ -93,10 +92,9 @@ let create_empty () =
 let check_box ?state ?style () =
   (* let b = create_empty  (Check (Check.create ?state ?style ())) in *)
   let b = new Check.t ?state ?style () in
-  (* let action = fun (w) _ _ -> Check.action (get_check w) in *)
-  (* let action _ _ _ = () in  (\* TODO FIXME Disabled connections *\)
-   * let c = connect_main b b action Trigger.buttons_down in
-   * add_connection b c; *)
+  let action ev = b#action in
+  let c = connect_main (b :> t) (b :> t) action Trigger.buttons_down in
+  add_connection b c;
   b
 
 (*let get_check_state b =
@@ -259,17 +257,17 @@ let check_box_with_label text =
    very fast actions. *)
 
 let mouse_over ?(enter = nop) ?(leave = nop) w =
-  let c = connect w w (fun w _ _ -> enter w) [Trigger.mouse_enter] in
+  let c = connect w w (fun ev -> enter w) [Trigger.mouse_enter] in
   add_connection w c;
-  let c' = connect w w (fun w _ _ -> leave w) [Trigger.mouse_leave] in
+  let c' = connect w w (fun ev -> leave w) [Trigger.mouse_leave] in
   add_connection w c';;
 
 let on_click ~click w =
-  let c = connect_main w w (fun w _ _ -> click w) Trigger.buttons_down in
+  let c = connect_main w w (fun ev -> click w) Trigger.buttons_down in
   add_connection w c;;
 
 let on_release ~release w =
-  let c = connect_main w w (fun w _ _ -> release w) Trigger.buttons_up in
+  let c = connect_main w w (fun ev -> release w) Trigger.buttons_up in
   add_connection w c;;
 
 (****)
@@ -394,23 +392,5 @@ let remove_active_connections widget =
    like text_input, even react to the TAB key. In fact, keyboard_focus is
    treated globally by the main loop, therefore one could (should ?) rely on
    this function below instead of adding new reactions to TAB & click *)
-(* let set_keyboard_focus (type a) (w : a t) =
- *   match w#kind with
- *   | TextInput _ -> () (\* already done by the widget *\)
- *   | Slider s -> Slider.set_focus s
- *   | _ -> ();; *)
-
-(* let remove_keyboard_focus (type a) (w : a t) =
- *   match w#kind with
- *   | TextInput ti -> Text_input.stop ti
- *   | Slider s -> Slider.unfocus s
- *   | _ -> ();; *)
-
-
-(* let guess_unset_keyboard_focus (type a) (w : a t) =
- *   match w#kind with
- *   | TextInput _ -> Some false
- *   | Slider _ -> Some false
- *   | _ -> None;; *)
 (* TODO: buttons could have keyboard focus... to activate them with TAB or ENTER
    or SPACE... *)

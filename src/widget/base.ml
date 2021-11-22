@@ -46,6 +46,10 @@ class virtual w size typ cursor =
     method room_id = room_id_
     method set_room_id rid = room_id_ <- rid
 
+    method set_keyboard_focus = ()
+    method remove_keyboard_focus = ()
+    method guess_unset_keyboard_focus = true
+
     method update =
       (** ask for refresh *)
       (* Warning: this is frequently called by other threads *)
@@ -81,10 +85,10 @@ and connection src dst action ?(priority=Forget) ?(update_target=true) ?join tri
       then
         (printd debug_thread "Executing action";
          let t = Unix.gettimeofday () in
-         action src dst ev;
+         action ev;
          printd debug_thread "End of action with time=%f" (Unix.gettimeofday () -. t))
       else
-        action src dst ev;
+        action ev;
 
       (* TODO ajouter Trigger.will_exit ev ?? *)
       if update_target then dst#update

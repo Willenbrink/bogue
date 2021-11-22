@@ -387,6 +387,10 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
       self#click_cursor ev;
       self#clear
 
+    method remove_keyboard_focus = self#stop
+
+    method guess_unset_keyboard_focus = false
+
     (* render letter by letter so that x position is precise *)
     method draw_keys ?fg font keys =
       let color = if keys = [] then Draw.(transp faint_color) (* inutile ? *)

@@ -1138,9 +1138,7 @@ let set_keyboard_focus r =
         r.keyboard_focus <- Some true;
         match r.content with
         | Rooms _ -> ()
-        | Resident w -> ()
-        (* TODO keyboard_focus is disabled right now*)
-        (* Widget.set_keyboard_focus w *)
+        | Resident w -> w#set_keyboard_focus
       end
     )
 
@@ -1148,8 +1146,7 @@ let rec remove_keyboard_focus r =
   do_option r.keyboard_focus (fun b -> if b then r.keyboard_focus <- Some false);
   match r.content with
   | Rooms list -> List.iter remove_keyboard_focus list
-  | Resident w -> ()
-(* Widget.remove_keyboard_focus w *)
+  | Resident w -> w#remove_keyboard_focus
 
 let claim_focus r =
   if has_resident r then Trigger.push_mouse_focus r.id
@@ -1195,7 +1192,7 @@ let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?draggable ?canvas ?layer
   let keyboard_focus = match keyboard_focus with
     | Some true -> Some false
     | Some false -> None
-    | None -> None (*Widget.guess_unset_keyboard_focus widget*) in
+    | None -> widget#guess_unset_keyboard_focus |> (fun b -> if b then None else Some false) in
   let geometry = geometry ~x ~y ~w ~h () in
   create ?name ?background ?keyboard_focus ?draggable ?layer ?canvas
     geometry (Resident (widget))
@@ -1213,7 +1210,7 @@ let change_resident ?w ?h room widget =
     let h = default h h' in
     room.content <- Resident widget;
     widget#set_room_id (Some room.id);
-    (* room.keyboard_focus <- Widget.guess_unset_keyboard_focus widget; *)
+    room.keyboard_focus <- widget#guess_unset_keyboard_focus |> (fun b -> if b then None else Some false);
     resid#set_room_id None;
     set_size room (w,h)
   | _ -> printd debug_event "[change_resident]: but target room has no resident!"

@@ -199,7 +199,7 @@ let tooltip ?background ?(position = Below) text ~target widget layout =
   attach_on_top layout tooltip;
   tooltip.Layout.show <- false;
 
-  let show_tooltip _ _ _ =
+  let show_tooltip _ =
     let open Layout in
     if not tooltip.show then begin
       let x,y = pos_from layout target in

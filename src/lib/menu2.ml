@@ -343,22 +343,22 @@ module Engine = struct
     let widget = Layout.widget coat in
     widget#set_cursor Cursor.Hand;
 
-    let action _ _ _ = button_down screen entry in
+    let action _ = button_down screen entry in
     let c = Widget.connect_main widget widget action Trigger.buttons_down in
     Widget.add_connection widget c;
 
-    let action _ _ _ = button_up screen entry in
+    let action _ = button_up screen entry in
     let c = Widget.connect_main widget widget action Trigger.buttons_up in
     Widget.add_connection widget c;
 
-    let action _ _ _ = mouse_over screen entry in
+    let action _ = mouse_over screen entry in
     let c = Widget.connect_main widget widget action
         [(* Trigger.E.mouse_motion; *) Trigger.mouse_enter] in
     (* Warning do NOT add finger_motion, it will interfere with finger_down.
        TODO finger doesn't work well yet. *)
     Widget.add_connection widget c;
 
-    let action _ _ _ = mouse_leave entry in
+    let action _ = mouse_leave entry in
     let c = Widget.connect_main widget widget action [Trigger.mouse_leave] in
     Widget.add_connection widget c
 

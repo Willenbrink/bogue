@@ -16,49 +16,12 @@ type active = {
 }
 
 let fresh_id = fresh_int ()
-let fresh_wid = fresh_int ()
-
-type action = t -> t -> Sdl.event -> unit
-
-and connection = {
-  source : t;
-  target : t;
-  action : action;
-  priority : action_priority;
-  triggers : Trigger.t list;
-  id : int;
-}
-
-and t = <
-  wid : int;
-  set_wid : int -> unit;
-  (*  receiver : action Event.channel; *) (* TODO: pas nécessaire ? *)
-  actives : (active list) Var.t;
-  (** all active threads/connections for this widget. Most recent come first in
-      the list *)
-  connections : connection list;
-  set_connections : connection list -> unit;
-  (** all possible connections from this widget. In the order to be
-      executed. Particular case: the local actions are connection from
-      and to the same widget. *)
-  fresh : bool Var.t; (* is the display up-to-date ? *)
-  (* not really used anymore. TODO: check if this flag is still used *)
-  room_id : int option; (* will be filled by the room id when inserted in that room *)
-  set_room_id : int option -> unit;
-  cursor : Cursor.t;
-  set_cursor : Cursor.t -> unit;
-  unload : unit;
-  size : int * int;
-  resize : int * int -> unit;
-  display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list;
-  typ : string;
->
 
 class virtual w size typ cursor =
-  object
-    val mutable _wid = fresh_wid ()
-    method wid = _wid
-    method set_wid x = _wid <- x
+  object (self)
+    val mutable _id = fresh_id ()
+    method id = _id
+    method set_id x = _id <- x
 
     method typ : string = typ
 
@@ -83,9 +46,57 @@ class virtual w size typ cursor =
     method room_id = room_id_
     method set_room_id rid = room_id_ <- rid
 
+    method update =
+      (** ask for refresh *)
+      (* Warning: this is frequently called by other threads *)
+      (* Warning: this *resets to 0* the user_window_id *)
+      (* anyway, it is not clear if the user_window_id field for created event types
+         is really supported by (T)SDL *)
+      printd debug_board "Please refresh";
+      Var.set self#fresh false;
+      (* if !draw_boxes then Trigger.(push_event refresh_event) *)
+      (* else *)
+      Trigger.push_redraw self#id (*TODO... use wid et/ou window_id...*)
+    (* refresh is not used anymore. We redraw everyhting at each frame ... *)
+    (* before, it was not very subtle either: if !draw_boxes is false, we ask for
+       clearing the background before painting. Maybe some widgets can update
+       without clearing the whole background. But those with some transparency
+       probably need it. This should not be necessary in case we draw a solid
+       background -- for instance if draw_boxes = true *)
+
+
     (* unload all textures but the widget remains usable. (Rendering will recreate
        all textures) *)
     method unload = ()
     method virtual display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list
 
+  end
+
+and connection src dst action ?(priority=Forget) ?(update_target=true) ?join triggers =
+  object
+    method src : w = src
+    method dst : w = dst
+    method action (ev : Sdl.event) : unit =
+      if !debug
+      then
+        (printd debug_thread "Executing action";
+         let t = Unix.gettimeofday () in
+         action src dst ev;
+         printd debug_thread "End of action with time=%f" (Unix.gettimeofday () -. t))
+      else
+        action src dst ev;
+
+      (* TODO ajouter Trigger.will_exit ev ?? *)
+      if update_target then dst#update
+
+    method priority = priority
+    method triggers = triggers
+
+    method id = match join with
+      | None -> fresh_id ()
+      | Some c -> c#id
+
+    initializer
+      if update_target && (List.mem Sdl.Event.user_event triggers)
+      then printd debug_warning "one should not 'connect' with 'update_target'=true if the trigger list contains 'user_event'. It may cause an infinite display loop";
   end

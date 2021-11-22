@@ -4,7 +4,7 @@ module L = Layout
 
 let widget w =
   let open Widget in
-  sprintf "wid: #%u, kind: %s" w#wid (w#typ)
+  sprintf "wid: #%u, kind: %s" w#id (w#typ)
 
 let color (r,g,b,a) =
   sprintf "(r=%u, g=%u, b=%u, a=%u)" r g b a
@@ -16,7 +16,7 @@ let geometry g =
 let content c =
   match c with
   | L.Rooms list -> sprintf "Rooms (%u)" (List.length list) (* do not call recursively all rooms, because we have a circular type *)
-  | L.Resident (w) -> sprintf "Resident (%s)" (widget w)
+  | L.Resident w -> sprintf "Resident (%s)" (widget w)
 
 let house h =
   sprintf "%s" (L.sprint_id h)

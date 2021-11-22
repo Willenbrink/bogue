@@ -467,7 +467,7 @@ let rec first_show_widget layout =
   if layout.show
   then match layout.content with
     | Resident w ->
-      (printd debug_board "first_show_widget selects %u" (Widget.id w); w)
+      (printd debug_board "first_show_widget selects %u" w#id; w)
     | Rooms rooms ->
       let rec loop = function
         | [] -> raise Not_found
@@ -1138,7 +1138,7 @@ let set_keyboard_focus r =
         r.keyboard_focus <- Some true;
         match r.content with
         | Rooms _ -> ()
-        | Resident (w) -> ()
+        | Resident w -> ()
         (* TODO keyboard_focus is disabled right now*)
         (* Widget.set_keyboard_focus w *)
       end
@@ -1148,7 +1148,7 @@ let rec remove_keyboard_focus r =
   do_option r.keyboard_focus (fun b -> if b then r.keyboard_focus <- Some false);
   match r.content with
   | Rooms list -> List.iter remove_keyboard_focus list
-  | Resident (w) -> ()
+  | Resident w -> ()
 (* Widget.remove_keyboard_focus w *)
 
 let claim_focus r =
@@ -1207,11 +1207,11 @@ let change_resident ?w ?h room widget =
   match room.content with
   | Resident (resid) ->
     printd debug_board "Replacing room %s's widget by widget #%d"
-      (sprint_id room) (widget#wid);
+      (sprint_id room) widget#id;
     let (w',h') = widget#size in
     let w = default w w' in
     let h = default h h' in
-    room.content <- Resident (widget);
+    room.content <- Resident widget;
     widget#set_room_id (Some room.id);
     (* room.keyboard_focus <- Widget.guess_unset_keyboard_focus widget; *)
     resid#set_room_id None;
@@ -1674,7 +1674,7 @@ let save_to_event_OLD event room =
    (since all widgets must be in the same window) *)
 let rec ask_update room =
   match room.content with
-  | Resident (w) -> Widget.update w
+  | Resident w -> w#update
   | Rooms list -> List.iter ask_update list
 
 (** animations: *)

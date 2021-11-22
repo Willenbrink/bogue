@@ -220,7 +220,7 @@ let tooltip ?background ?(position = Below) text ~target widget layout =
     to_show := false;
     ignore (Timeout.add 200 (fun () ->
         tooltip.Layout.show <- !to_show;
-        Trigger.push_redraw (Widget.id b)))
+        Trigger.push_redraw b#id))
   in
   let enter _ =
     if tooltip.Layout.show

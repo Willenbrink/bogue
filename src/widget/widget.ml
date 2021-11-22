@@ -20,20 +20,18 @@ let test () = [
   `Image (new Image.t "/non_existing.png")
 ]
 
-let id (w) = w#wid;;
-
 let get_room_id w = match w#room_id with
   | None -> failwith "The widget does not belong to a room yet"
   | Some id -> id;;
 
-let equal (w1) (w2) =
-  w1#wid = w2#wid;;
-let (==) = equal;;
+let equal w1 w2 =
+  w1#id = w2#id
+let (==) = equal
 
 module Hash = struct
   type t = Base.w
   let equal = equal
-  let hash = id
+  let hash x = x#id
 end
 
 module WHash = Weak.Make(Hash);;
@@ -51,35 +49,17 @@ let is_fresh w = Var.get w#fresh;;
 (* let set_canvas canvas w = *)
 (*   w.canvas <- Some canvas;; *)
 
-let dummy_widget wid =
+let dummy_widget id =
   let dummy = new Empty.t (0,0) in
-  WHash.add widgets_wtable (dummy);
-  dummy#set_wid wid;
+  WHash.add widgets_wtable dummy;
+  dummy#set_id id;
   dummy
 
-(*let of_id wid = Hashtbl.find widgets_table wid;;*)
-let of_id wid =
-  try WHash.find widgets_wtable ((dummy_widget wid)) with
-  | Not_found -> (printd debug_error "Cannot find widget with wid=%d" wid;
+(*let of_id id = Hashtbl.find widgets_table id;;*)
+let of_id id =
+  try WHash.find widgets_wtable (dummy_widget id) with
+  | Not_found -> (printd debug_error "Cannot find widget with id=%d" id;
                   raise Not_found);;
-
-(** ask for refresh *)
-(* Warning: this is frequently called by other threads *)
-(* Warning: this *resets to 0* the user_window_id *)
-(* anyway, it is not clear if the user_window_id field for created event types
-   is really supported by (T)SDL *)
-let update w =
-  printd debug_board "Please refresh";
-  Var.set w#fresh false;
-  (* if !draw_boxes then Trigger.(push_event refresh_event) *)
-  (* else *)
-  Trigger.push_redraw w#wid;; (*TODO... use wid et/ou window_id...*)
-(* refresh is not used anymore. We redraw everyhting at each frame ... *)
-(* before, it was not very subtle either: if !draw_boxes is false, we ask for
-   clearing the background before painting. Maybe some widgets can update
-   without clearing the whole background. But those with some transparency
-   probably need it. This should not be necessary in case we draw a solid
-   background -- for instance if draw_boxes = true *)
 
 
 (** create new connection *)
@@ -88,29 +68,8 @@ let update w =
    la priorité Join pour effectuer à la suite de c). Attention dans ce
    cas, ne pas déclancher plein de ces connexions à la suite... elles
    s'attendent ! *)
-let connect source target action ?(priority=Forget) ?(update_target=true) ?join triggers =
-  if update_target && (List.mem Sdl.Event.user_event triggers)
-  then printd debug_warning "one should not 'connect' with 'update_target'=true if the trigger list contains 'user_event'. It may cause an infinite display loop";
-  let action = if update_target
-    then fun (w1) (w2) ev -> (action (w1) (w2) ev; update w2) (* TODO ajouter Trigger.will_exit ev ?? *)
-    else action in
-  let action = if !debug
-    then fun w1 w2 ev ->
-      (printd debug_thread "Executing action";
-       let t = Unix.gettimeofday () in
-       action w1 w2 ev;
-       printd debug_thread "End of action with time=%f" (Unix.gettimeofday () -. t))
-    else action in
-  let id = match join with
-    | None -> fresh_id ()
-    | Some c -> c.id in
-  let source,target = source, target in
-  { source;
-    target;
-    action;
-    priority;
-    triggers;
-    id }
+let connect source target action ?priority ?update_target ?join triggers =
+  new connection source target action ?priority ?update_target ?join triggers
 
 let connect_after source target action triggers =
   let action _ _ _ = () in (* TODO FIXME *)
@@ -119,9 +78,6 @@ let connect_after source target action triggers =
   | c::_ -> connect source target action ~priority:Join ~join:c triggers;;
 
 let connect_main = connect ~priority:Main;;
-
-let connections t =
-  t#connections;;
 
 (* TODO: vérifier qu'on n'ajoute pas deux fois la même *)
 (* TODO à faire automatiquement après "connect" ? *)
@@ -323,7 +279,7 @@ let on_release ~release w =
 let is_active alist c =
   let rec loop = function
     | [] -> None
-    | a::rest -> if a.connect_id = c.id then Some a else loop rest
+    | a::rest -> if a.connect_id = c#id then Some a else loop rest
   in loop alist;;
 
 (** remove an 'active' from the active list of the widget *)
@@ -370,7 +326,7 @@ let wait_terminate active =
 
 (** activate an action (via a thread) on the connection *)
 let add_action c action ev =
-  printd debug_thread "Create thread for connection #%d" c.id;
+  printd debug_thread "Create thread for connection #%d" c#id;
   (* Trigger.renew_my_event (); *)
   (* we used to create a new event for the main loop, so that "ev" can be safely
      sent to the thread, and the thread can examine later, even after several
@@ -381,41 +337,40 @@ let add_action c action ev =
   (* WARNING: at this point it is not possible to copy the drop_file_file field *)
   let e_copy = Trigger.copy_event ev in
   incr threads_created;
-  let src = c.source in
+  let src = c#src in
   add src
-    { thread = Thread.create (action c.source c.target) e_copy;
+    { thread = Thread.create action e_copy;
       event = e_copy;
-      connect_id = c.id };;
+      connect_id = c#id };;
 
 (** check if the trigger can wake up a connection, and if so, run the action *)
-let wake_up event c =
-  if List.mem (Trigger.of_event event) c.triggers then
+let wake_up event (c : connection) =
+  if List.mem (Trigger.of_event event) c#triggers then
     begin
-      printd debug_thread "Activating connection #%d" c.id;
+      printd debug_thread "Activating connection #%d" c#id;
       (* TODO add a more precise ~test before launching the thread ? *)
-      if c.priority = Main then c.action c.source c.target event
+      if c#priority = Main then c#action event
       (* = direct action, no thread !. Should we still add it to the active list
          ? *)
       else begin
-        let action = fun (w1) w2 ev ->
-          c.action (w1) w2 ev;
-          remove_me c.id w1 in
-        let src = c.source in
-        let alist = Var.get src#actives in
+        let action ev =
+          c#action ev;
+          remove_me c#id c#src
+        in
+        let alist = Var.get c#src#actives in
         let tho = is_active alist c in
         if alist = [] || tho = None then add_action c action event
-        else match c.priority, tho with
-          | Forget, _ -> printd debug_thread "Forgetting connection #%d" c.id
+        else match c#priority, tho with
+          | Forget, _ -> printd debug_thread "Forgetting connection #%d" c#id
           | Join, Some a ->
-            let action = fun w1 w2 ev -> (Thread.join a.thread; action w1 w2 ev) in
+            let action ev = Thread.join a.thread; action ev in
             add_action c action event
           | Replace, Some a -> begin
               (*printd debug_thread "Killing connection #%d" a.connect_id;*)
               (* Thread.kill a.thread; *) (* Thread.kill is in fact NOT
                                              implemented... ! *)
               terminate a;
-              let src = c.source in
-              remove src (Thread.id a.thread);
+              remove c#src (Thread.id a.thread);
               add_action c action event
             end
           | _ -> failwith "This should not happen"

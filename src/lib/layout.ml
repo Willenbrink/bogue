@@ -1185,7 +1185,8 @@ let v_align ~align layout y0 h =
 (* x,y specification will be overwritten if the room is then included in a flat
    or tower, which is essentially always the case... *)
 let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?draggable ?canvas ?layer
-    ?keyboard_focus (widget) =
+    ?keyboard_focus widget =
+  let widget = (widget :> Widget.t) in
   let (w',h') = widget#size in
   let w = default w w' in
   let h = default h h' in
@@ -1195,7 +1196,7 @@ let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?draggable ?canvas ?layer
     | None -> widget#guess_unset_keyboard_focus |> (fun b -> if b then None else Some false) in
   let geometry = geometry ~x ~y ~w ~h () in
   create ?name ?background ?keyboard_focus ?draggable ?layer ?canvas
-    geometry (Resident (widget))
+    geometry (Resident widget)
 let of_widget = resident
 
 (* Set the given widget as the new resident of the given room. If w,h are not
@@ -1537,7 +1538,7 @@ let flat_of_w ?name ?(sep = Theme.room_margin) ?h ?align ?background ?widget_bg
   let rooms =
     List.map (fun wg ->
         let name = map_option name (fun s -> "Resident of [" ^ s ^ "]") in
-        resident ?name ?h ~x:0 ~y:sep ?background:widget_bg ?canvas wg) widgets
+        resident ?name ?h ~x:0 ~y:sep ?background:widget_bg ?canvas (wg :> Widget.t)) widgets
   in
   flat ?name ~margins:sep ?align ?background ?canvas rooms
 
@@ -1612,7 +1613,7 @@ let tower_of_w ?name ?(sep = Theme.room_margin) ?w ?align ?background ?widget_bg
   let rooms =
     List.map (fun wg ->
         let name = map_option name (fun s -> "Resident of [" ^ s ^ "]") in
-        resident ?name ?w ~x:sep ~y:0 ?background:widget_bg ?canvas wg) widgets
+        resident ?name ?w ~x:sep ~y:0 ?background:widget_bg ?canvas (wg :> Widget.t)) widgets
   in
   tower ?name ~margins:sep ?align ?background ?canvas rooms
 

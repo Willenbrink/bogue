@@ -595,8 +595,17 @@ let one_step ?before_display anim (start_fps, fps) ?clear board =
         | `Key_down ->
           let pair = get e keyboard_keycode, get e keyboard_keymod in
           if not board.shortcut_pressed
-          then do_option (Shortcut.find board.shortcuts pair)
-              (fun a -> board.shortcut_pressed <- true; a board)
+          then
+            (Printf.printf "Handling shortcut\n";
+             if Sdl.K.tab = fst pair
+             then (
+               Printf.printf "Tab pressed with mod %i\n" (snd pair);
+               List.iter (Printf.printf "Code %i\n")
+                 Sdl.Kmod.[none; lshift; rshift; lctrl; rctrl; lalt; ralt;
+                           lgui; rgui; num; caps; mode; reserved; ctrl; shift; alt; gui]);
+             match (Shortcut.find board.shortcuts pair) with
+             | None -> print_endline "No shortcut found."
+             | Some a -> board.shortcut_pressed <- true; a board)
         (* | `Key_down when get e keyboard_keycode = Sdl.K.tab -> tab board *)
         (* | `Key_down when get e keyboard_keycode = Sdl.K.i ->
          *   if Trigger.ctrl_shift_pressed ()

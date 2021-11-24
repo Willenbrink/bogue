@@ -12,6 +12,11 @@ type style = Tsdl_ttf.Ttf.Style.t
 (* open font with specified size. Here this is the true size, it will not be
          scaled. *)
 (* This can be used by all widgets requiring a font. *)
+let get_font font size =
+  match font with
+  | Font f -> f
+  | File file -> Draw.open_font file size
+
 let get_font_var v size =
   match Var.get v with
   | Font f -> f
@@ -23,13 +28,13 @@ let physical_size_text font text =
   go (Ttf.size_utf8 font text)
 
 class t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
-    ?(style = Ttf.Style.normal) ?fg text =
+    ?(style = Ttf.Style.normal) ?(fg = Draw.(opaque label_color)) text =
   let typ = "Label [" ^ Utils.xterm_red ^ text ^ Utils.xterm_nc ^ "]" in
   (* Previous implementation:
    * let default_size (type a) (w : a tc') =
    *   match w#kind with
    *   | Label l -> let x,y = Label.size l in (x+2,y+2)*)
-  let size = (0,font_size) (* TODO missing calculation *) in
+  let size = physical_size_text (get_font font font_size) text (* TODO missing calculation *) in
   object (self)
     inherit w size typ Cursor.Arrow
     initializer Draw.ttf_init ()
@@ -42,38 +47,39 @@ class t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
     val fg = Var.create fg
 
     method! unload =
-      do_option (Var.get render) Draw.forget_texture;
-      Var.set render None
+      let tex = Var.get render in
+      Var.set render None;
+      do_option tex Draw.forget_texture
 
     method text = Var.get _text
     method set_text x =
-      if Var.get _text <> x
+      if self#text <> x
       then begin
         Var.set _text x;
-        do_option (Var.get render) Draw.forget_texture;
-        Var.set render None
+        self#unload
       end
 
-    method set_fg_color x = Var.set fg (Some x)
+    method set_fg_color x = Var.set fg x
 
     method display canvas layer geom =
+      let fg = Var.get fg in
 
 
       let ttffont = get_font_var font (Theme.scale_int font_size) in
       (* physical size *)
 
 
-      let render_text_surf ?fg font style text =
+      let render_text_surf font style text =
         let text = if text = "" then " " else text in
         printd debug_graphics "render_text:%s" text;
-        let color = Draw.create_color (default fg (10,11,12,255)) in
+        let color = Draw.create_color fg in
         Draw.ttf_set_font_style font style;
         Draw.ttf_render font text color
       in
 
 
-      let render_text renderer ?fg font style text =
-        let surf = render_text_surf ?fg font style text in
+      let render_text renderer font style text =
+        let surf = render_text_surf font style text in
         printd debug_graphics "convert to texture";
         let tex = Draw.create_texture_from_surface renderer surf in
         Draw.free_surface surf;
@@ -83,8 +89,8 @@ class t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
       let tex = match Var.get render with
         | Some t -> t
         | None ->
-          let fg = default (Var.get fg) Draw.(opaque label_color) in
-          let tex = render_text canvas.Draw.renderer ttffont style text ~fg in
+          Printf.printf "Creating renderer\n";
+          let tex = render_text canvas.Draw.renderer ttffont style text in
           Var.set render (Some tex); tex
       in
       [Draw.center_tex_to_layer canvas layer tex geom]

@@ -16,21 +16,22 @@ type resize =  (* not implemented *)
  * performing scale (size / scale), thus we loose some units due to integer
    rounding. To be exact, we should keep a flag "original size" and modify the
    blit to use exact size *)
-class t ?width ?height ?(noscale = false)
+class t ?w ?h ?(noscale = false)
     ?(bg = Draw.(opaque black)) file =
-  let width, height = match width, height with
+  let size = match w, h with
     | Some w, Some h -> (w,h)
     | _ -> begin let (w0,h0) = Draw.image_size file in
-        match width, height with
+        Printf.printf "Image size is: %i %i" w0 h0;
+        match w, h with
         | None, Some h -> (w0 * h) / h0, h
         | Some w, None -> w, (h0 * w) / w0
         | _ -> w0, h0
       end in
-  let w, h = if noscale
-    then Draw.unscale_size (width, height)
-    else width, height in
+  let size = if noscale
+    then Draw.unscale_size size
+    else size in
   object (self)
-    inherit w (w,h) "Image" Cursor.Arrow
+    inherit w size "Image" Cursor.Arrow
 
     val file = Var.create file
     val background = bg (* idem *)
@@ -45,6 +46,7 @@ class t ?width ?height ?(noscale = false)
           Var.set render None
         end
 
+    (* FIXME somehow, this is flipped*)
     method display canvas layer g =
       let open Draw in
       let tex = match Var.get render with
@@ -87,8 +89,11 @@ class t ?width ?height ?(noscale = false)
 (* NOTE once we have a more recent version (>= 2.0.2) of SDL_image, we should be
    able to directly load SVG. HOWEVER, it currently it doesn't scale the image,
    so it's not recommended. *)
-(* let create_from_svg ?width ?height ?(bg = Draw.(opaque black)) file =
- *   create ?width ?height ~bg (Draw.convert_svg ?w:width ?h:height file) *)
+let create_from_svg ?w ?h ?(bg = Draw.(opaque black)) file =
+  let svg = Draw.convert_svg ?w ?h file in
+  let w,h = Draw.unscale_size (Draw.image_size svg) in
+  new t ~w ~h ~bg svg
+
 
 (************* display ***********)
 

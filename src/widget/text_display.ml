@@ -48,6 +48,8 @@ let set_style style words =
         (* we remove the normal (incompatible with style) and style (redundant
            with style) declarations *)
         | Style s when s = style -> false
+        (* FIXME: We have multiple properties, normal resets all of them.
+           B -> N, I -> N but also BI -> N. We want a transition BI -> B if style = B etc.*)
         | Style s when s = Ttf.Style.normal -> false
         | _ -> true) words in
       (Style style) :: w in
@@ -134,8 +136,12 @@ let render_word ?fg font word =
   go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_none);
   surf
 
-class t ?size ?(font_size = Theme.text_font_size) ?(font = default_font) paragraphs =
-  let size = default size (0,font_size) (* TODO missing calculation *) in
+class t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font = default_font) paragraphs =
+  (* FIXME this is ugly. Like real ugly. Maybe revert to ?w ?h ?*)
+  let size =
+    let w,h = size in
+    (if w = 0 then fst default_size else w),(if h = 0 then snd default_size else h)
+  in
   object (self)
     inherit w size "TextDisplay" Cursor.Arrow
     initializer Draw.ttf_init ()
@@ -241,6 +247,7 @@ let create_from_string ?(size = Theme.text_font_size) ?w ?h ?(font = default_fon
 let create_from_lines ?(size = Theme.text_font_size) ?w ?h ?(font = default_font) lines =
   let paragraphs = paragraphs_of_lines lines in
   create ~size ?w ?h ~font paragraphs
+ *)
 
 (* Basic html parser *)
 
@@ -308,11 +315,12 @@ let paragraphs_of_html src =
 
 (* *** *)
 
-let create_from_html ?(size = Theme.text_font_size) ?w ?h
+let create_from_html ?(font_size = Theme.text_font_size) ?size
     ?(font = default_font) html =
   let paragraphs = paragraphs_of_html html in
-  create ~size ?w ?h ~font paragraphs
+  new t ~font_size ?size ~font paragraphs
 
+(*
 let create_verbatim ?(size = Theme.text_font_size) ?(font = Label.File Theme.mono_font) text =
   Draw.ttf_init ();
   let font = match font with

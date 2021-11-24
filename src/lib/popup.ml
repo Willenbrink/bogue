@@ -136,7 +136,7 @@ let one_button ?size ~button ~dst content =
 (* TODO the ?w and ?h define the size of the text_display (not automatically
    detected). It should also include the size of the close button *)
 let info ?size ?(button="Close") text dst =
-  let td = ((new Text_display.t ?size text) :> Widget.t)
+  let td = ((new Text_display.t ?size (Text_display.paragraphs_of_string text)) :> Widget.t)
            |> Layout.resident in
   one_button ?size ~button ~dst td
 
@@ -164,7 +164,7 @@ let two_buttons ?size ~label1 ~label2 ~action1 ~action2
   Widget.on_release ~release:do2 (btn2 :> Widget.t)
 
 let yesno ?size ?(yes="Yes") ?(no="No") ~yes_action ~no_action text dst =
-  let td = ((new Text_display.t ?size text) :> Widget.t)
+  let td = ((new Text_display.t ?size (Text_display.paragraphs_of_string text)) :> Widget.t)
            |> Layout.resident in
   two_buttons ?size ~label1:yes ~label2:no ~action1:yes_action ~action2:no_action
     td dst

@@ -24,19 +24,6 @@ let get_room_id w = match w#room_id with
   | None -> failwith "The widget does not belong to a room yet"
   | Some id -> id;;
 
-let equal w1 w2 =
-  w1#id = w2#id
-let (==) = equal
-
-module Hash = struct
-  type t = Base.w
-  let equal = equal
-  let hash x = x#id
-end
-
-module WHash = Weak.Make(Hash);;
-let widgets_wtable = WHash.create 100;;
-
 let is_fresh w = Var.get w#fresh;;
 
 (* let canvas w = match w.canvas with *)
@@ -50,6 +37,7 @@ let is_fresh w = Var.get w#fresh;;
 (*   w.canvas <- Some canvas;; *)
 
 let dummy_widget id =
+  let open Base in
   let dummy = new Empty.t (0,0) in
   WHash.add widgets_wtable dummy;
   dummy#set_id id;
@@ -57,10 +45,16 @@ let dummy_widget id =
 
 (*let of_id id = Hashtbl.find widgets_table id;;*)
 let of_id id =
+  let open Base in
   try WHash.find widgets_wtable (dummy_widget id) with
   | Not_found -> (printd debug_error "Cannot find widget with id=%d" id;
                   raise Not_found);;
 
+let create_empty () =
+  let open Base in
+  let w = new Empty.t (0,0) in
+  WHash.add widgets_wtable (w);
+  w
 
 (** create new connection *)
 (* if ~join:c, on donne le même id que la connexion c, ce qui permet
@@ -69,7 +63,7 @@ let of_id id =
    cas, ne pas déclancher plein de ces connexions à la suite... elles
    s'attendent ! *)
 let connect source target action ?priority ?update_target ?join triggers =
-  new connection source target action ?priority ?update_target ?join triggers
+  new connection (source :> t) (target :> t) action ?priority ?update_target ?join triggers
 
 let connect_after source target action triggers =
   match List.rev source#connections with
@@ -84,11 +78,6 @@ let add_connection w c =
   w#set_connections (List.rev (c :: List.rev w#connections))
 
 (** creation of simple widgets *)
-let create_empty () =
-  let w = new Empty.t (0,0) in
-  WHash.add widgets_wtable (w);
-  w
-
 let check_box ?state ?style () =
   (* let b = create_empty  (Check (Check.create ?state ?style ())) in *)
   let b = new Check.t ?state ?style () in
@@ -97,9 +86,7 @@ let check_box ?state ?style () =
   add_connection b c;
   b
 
-(*let get_check_state b =
-  Check.state (get_check b);;
-*)
+let rich_text ?font_size ?size paragraphs = new Text_display.t ?font_size ?size paragraphs
 
 (*
 let set_check_state b s =
@@ -107,9 +94,6 @@ let set_check_state b s =
 
 let text_display ?w ?h text =
   create_empty (TextDisplay (Text_display.create_from_string ?w ?h text));;
-
-let rich_text ?size ?w ?h paragraphs =
-  create_empty (TextDisplay (Text_display.create ?size ?w ?h paragraphs));;
 
 let lines_display ?w ?h lines =
   create_empty (TextDisplay (Text_display.create_from_lines ?w ?h lines));;
@@ -238,15 +222,15 @@ let text_input ?(text = "") ?prompt ?size ?filter ?max_size () =
 (* TODO *)
 
 
+ * *)
 (** creation of combined widgets *)
 let check_box_with_label text =
   let b = check_box () in
-  let l = label text in
-  let action = fun _ w _ -> Check.action (get_check w) in
-  (* let c = connect_main l b action Trigger.buttons_down in
-   * add_connection l c; *)
-  b,l;;
- * *)
+  let l = new Label.t text in
+  let action = fun _ w _ -> w#action in
+  let c = connect_main l b (action () b) Trigger.buttons_down in
+  add_connection l c;
+  b,l
 
 (****)
 

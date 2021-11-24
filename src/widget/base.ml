@@ -17,7 +17,7 @@ type active = {
 
 let fresh_id = fresh_int ()
 
-class virtual w size typ cursor =
+class virtual base size typ cursor =
   object (self)
     val mutable _id = fresh_id ()
     method id = _id
@@ -78,8 +78,8 @@ class virtual w size typ cursor =
 
 and connection src dst action ?(priority=Forget) ?(update_target=true) ?join triggers =
   object
-    method src : w = src
-    method dst : w = dst
+    method src : base = src
+    method dst : base = dst
     method action (ev : Sdl.event) : unit =
       if !debug
       then
@@ -103,4 +103,24 @@ and connection src dst action ?(priority=Forget) ?(update_target=true) ?join tri
     initializer
       if update_target && (List.mem Sdl.Event.user_event triggers)
       then printd debug_warning "one should not 'connect' with 'update_target'=true if the trigger list contains 'user_event'. It may cause an infinite display loop";
+  end
+
+let equal w1 w2 =
+  w1#id = w2#id
+let (==) = equal
+
+module Hash = struct
+  type t = base
+  let equal = equal
+  let hash x = x#id
+end
+
+module WHash = Weak.Make(Hash)
+
+let widgets_wtable = WHash.create 100
+
+class virtual w size typ cursor =
+  object (self)
+    inherit base size typ cursor
+    initializer WHash.add widgets_wtable (self :> base)
   end

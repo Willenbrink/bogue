@@ -149,7 +149,6 @@ let example6 () =
   let board = make ~shortcuts [] [layout] in
   run board
 
-(* FIXME when run as first example, font fails to load *)
 let desc7 = "click on the button to change the label"
 let example7 () = (* TODO à vérifier ! parfois ce n'est pas synchro *)
   let b = W.check_box () in
@@ -169,6 +168,7 @@ let example7 () = (* TODO à vérifier ! parfois ce n'est pas synchro *)
   let board = make [c] [layout] in
   run board
 
+(* FIXME how do we change the hover icon for the label? *)
 let desc8 = "the button and the label are inter-connected"
 let example8 () =
   let b,l = W.check_box_with_label "you may click here too" in

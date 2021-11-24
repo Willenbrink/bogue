@@ -34,6 +34,7 @@ class t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
    * let default_size (type a) (w : a tc') =
    *   match w#kind with
    *   | Label l -> let x,y = Label.size l in (x+2,y+2)*)
+  let () = Draw.ttf_init () in
   let size = physical_size_text (get_font font font_size) text (* TODO missing calculation *) in
   object (self)
     inherit w size typ Cursor.Arrow
@@ -62,12 +63,11 @@ class t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
     method set_fg_color x = Var.set fg x
 
     method display canvas layer geom =
+      let text = self#text in
       let fg = Var.get fg in
-
 
       let ttffont = get_font_var font (Theme.scale_int font_size) in
       (* physical size *)
-
 
       let render_text_surf font style text =
         let text = if text = "" then " " else text in
@@ -76,7 +76,6 @@ class t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
         Draw.ttf_set_font_style font style;
         Draw.ttf_render font text color
       in
-
 
       let render_text renderer font style text =
         let surf = render_text_surf font style text in

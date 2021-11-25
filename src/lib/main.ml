@@ -44,8 +44,6 @@ type board = {
      located at 0,0...*)
 }
 
-let exit_on_escape = (Sdl.K.escape, Sdl.Kmod.none, fun (_ : board) -> raise Exit)
-
 let get_layouts board =
   List.map Window.get_layout board.windows
 (* should be the same as getting the Rooms content of the windows_house *)
@@ -473,24 +471,26 @@ let toggle_debug_window =
       remove_window board w;
       window := None
 
-let add_debug_shortcuts shortcuts =
-  shortcuts
-  |> Shortcut.add_ctrl (Sdl.K.d, fun _ ->
-      debug := not !debug;
-      print_endline (Printf.sprintf "Debug set to %b" !debug))
-  |> Shortcut.add_ctrl_shift (Sdl.K.d, toggle_debug_window)
-  |> Shortcut.add_ctrl_shift (Sdl.K.i, fun board ->
-      print_endline "Mouse Focus Layout parents:";
-      print_endline Print.(option layout_up board.mouse_focus))
-  |> Shortcut.add_ctrl (Sdl.K.i, fun board ->
-      print_endline "Hover Layout children (don't trust this):";
-      print_endline Print.(option layout_down (check_mouse_hover board)))
-  |> Shortcut.add_ctrl_shift (Sdl.K.s, fun board -> (* snapshot *)
-      Print.dump board.windows_house)
-  |> Shortcut.add_ctrl (Sdl.K.m, fun _ ->
-      print_endline "Garbage collecting...";
-      Gc.compact ();
-      Draw.memory_info ())
+let debug_shortcuts =
+  let open Shortcut in
+  [
+    ([Ctrl], K.d, fun _ ->
+        debug := not !debug;
+        print_endline (Printf.sprintf "Debug set to %b" !debug));
+    ([Ctrl; Shift], K.d, toggle_debug_window);
+    ([Ctrl; Shift], K.i, fun board ->
+        print_endline "Mouse Focus Layout parents:";
+        print_endline Print.(option layout_up board.mouse_focus));
+    ([Ctrl], K.i, fun board ->
+        print_endline "Hover Layout children (don't trust this):";
+        print_endline Print.(option layout_down (check_mouse_hover board)));
+    ([Ctrl; Shift], K.s, fun board -> (* snapshot *)
+        Print.dump board.windows_house);
+    ([Ctrl], K.m, fun _ ->
+        print_endline "Garbage collecting...";
+        Gc.compact ();
+        Draw.memory_info ());
+  ]
 
 let refresh_custom_windows board =
   List.iter (fun w -> printd debug_board "BOGUE WINDOW=%b" w.Window.bogue;
@@ -597,13 +597,7 @@ let one_step ?before_display anim (start_fps, fps) ?clear board =
           if not board.shortcut_pressed
           then
             (Printf.printf "Handling shortcut\n";
-             if Sdl.K.tab = fst pair
-             then (
-               Printf.printf "Tab pressed with mod %i\n" (snd pair);
-               List.iter (Printf.printf "Code %i\n")
-                 Sdl.Kmod.[none; lshift; rshift; lctrl; rctrl; lalt; ralt;
-                           lgui; rgui; num; caps; mode; reserved; ctrl; shift; alt; gui]);
-             match (Shortcut.find board.shortcuts pair) with
+             match (Shortcut.find pair board.shortcuts) with
              | None -> print_endline "No shortcut found."
              | Some a -> board.shortcut_pressed <- true; a board)
         (* | `Key_down when get e keyboard_keycode = Sdl.K.tab -> tab board *)
@@ -920,15 +914,17 @@ let make ?(shortcuts = []) connections layouts =
       failwith (Printf.sprintf "Widget is repeated: #%u" w#id));
   List.iter (fun c -> c#src#add_connection c) connections;
   (* = ou bien dans "run" ? (ça modifie les widgets) *)
-  let shortcuts = Shortcut.create shortcuts in
-  let shortcuts = (if !debug then add_debug_shortcuts shortcuts else shortcuts)
-                  |> Shortcut.add (Sdl.K.tab, tab)
-                  |> Shortcut.add_ctrl
-                    (Sdl.K.l,
-                     fun board ->
-                       print_endline "User Redraw";
-                       display board;
-                       show board) in
+  let shortcuts =
+    let open Shortcut in
+    empty
+    |> add_list shortcuts
+    |> add_list debug_shortcuts (* FIXME Add this always or only when debugging? *)
+    |> add K.tab tab
+    |> add ~kmod:[Ctrl] K.l (fun board ->
+        print_endline "User Redraw";
+        display board;
+        show board)
+  in
   { windows;
     windows_house;
     mouse_focus = None;

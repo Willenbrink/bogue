@@ -105,7 +105,6 @@ let iksprintf _f = Printf.ikfprintf (fun () -> ()) ()
 
 let printd code =
   let debug = !debug && (code land !debug_code <> 0) in
-  let debug = (code land !debug_code <> 0) in (* TODO remove *)
   let printf = Printf.(if debug then ksprintf else iksprintf) in
   printf (fun s ->
       output_string !log_channel

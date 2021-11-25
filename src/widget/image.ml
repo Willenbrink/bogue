@@ -38,7 +38,7 @@ class t ?w ?h ?(noscale = false)
     val render : (Draw.texture option) Var.t = Var.create None
     method render = Var.get render
 
-    method unload =
+    method! unload =
       match Var.get render with
       | None -> ()
       | Some tex -> begin

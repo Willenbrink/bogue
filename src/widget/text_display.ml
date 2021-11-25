@@ -163,11 +163,11 @@ class t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font = defa
       Var.set _paragraphs x;
       Var.release render
 
-    method resize x =
+    method! resize x =
       self#unload;
       _size <- x
 
-    method unload =
+    method! unload =
       match Var.get render with
       | None -> ()
       | Some tex -> begin

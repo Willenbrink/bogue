@@ -124,7 +124,6 @@ let example4 () =
   let board = make [] [layout] in
   run board
 
-(* FIXME shortcuts are not working?*)
 let desc5 = "We pack two layouts in a (horizontal) flat. Layouts have names (press CTRL-I). The second button is draggable"
 let example5 () =
   let b1 = W.check_box () in
@@ -138,14 +137,13 @@ let example5 () =
   let board = make [] [layout] in
   run board
 
-(* FIXME shortcuts are not working?*)
 let desc6 = "a button and a colored label. Global shortcut (ESC)."
 let example6 () =
   let b = W.check_box () in
   let l = new Label.t ~fg:(Draw.(opaque (find_color "firebrick")))
     "Merry Christmas !" in
   let layout = L.flat_of_w ~align:Draw.Center [(b :> W.t);(l :> W.t)] in
-  let shortcuts = [exit_on_escape] in
+  let shortcuts = [Shortcut.exit_on_escape] in
   let board = make ~shortcuts [] [layout] in
   run board
 
@@ -197,7 +195,7 @@ let example10 () =
   Draw.use_new_layer (); (* we start a new window *)
   let l2 = L.flat_of_w ~name:"Window#2" [(b2 :> W.t); (new Label.t "Win 2" :> W.t)] in
 
-  let shortcuts = [exit_on_escape] in
+  let shortcuts = [Shortcut.exit_on_escape] in
   let board = make ~shortcuts [] [l1;l2] in
   (* window position can be set after "make" and before "run" *)
   L.set_window_pos l1 (200,200); L.set_window_pos l2 (400,200);
@@ -215,11 +213,12 @@ let example11 () = (* attention ne marche pas avec DEBUG=false !! OK problème r
   let l1 = L.flat_of_w [(b1 :> W.t); (new Label.t "Window 1 = the master" :> W.t)] in
   Draw.use_new_layer ();
   let l2 = L.flat_of_w [(b2 :> W.t); (new Label.t "Window 2" :> W.t)] in
-  let shortcuts = [exit_on_escape] in
+  let shortcuts = [Shortcut.exit_on_escape] in
   let board = make ~shortcuts [c] [l1;l2] in
   L.set_window_pos l1 (200,200); L.set_window_pos l2 (400,200);
   run board
 
+(* FIXME Focussing the text box doesn't work *)
 let desc12 = "a check_box and a text input in a line editor"
 let example12 () =
   let b = W.check_box () in
@@ -1007,7 +1006,7 @@ let example48 () =
   let _ = Timeout.add 5000 (fun () -> L.set_size layout (200, 200)) in
   run (make [] [layout])
 
-let main skip =
+let main () =
   let examples = [
     "0", (example0, desc0) ;
     "1h", (example1h, desc1h) ;
@@ -1067,10 +1066,6 @@ let main skip =
     "48", (example48, desc48) ;
 
   ]
-  (* |> (fun xs -> (skip,xs))
-   * |> (fun xs -> List.fold_left (fun (c,acc) x -> (c-1, if c <= 0 then x :: acc else acc)) xs [])
-   * |> snd
-   * |> List.rev *)
   in
   let all = List.map fst examples in
   let to_run =
@@ -1104,9 +1099,8 @@ let main skip =
 
 let _ =
   Printexc.record_backtrace true;
-  let skip = try int_of_string (Sys.argv.(1)) with _ -> 0 in
   (try
-     main skip
+     main ()
    with e -> Printexc.print_backtrace stdout; Printexc.to_string e |> print_endline);
 
   Stdlib.exit 0

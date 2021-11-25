@@ -129,3 +129,19 @@ class virtual w size typ cursor =
       id <- x;
       WHash.add widgets_wtable (self :> base)
   end
+
+(** create new connection *)
+(* if ~join:c, on donne le même id que la connexion c, ce qui permet
+   d'effectuer l'action conjointement avec celle de c (avec en général
+   la priorité Join pour effectuer à la suite de c). Attention dans ce
+   cas, ne pas déclancher plein de ces connexions à la suite... elles
+   s'attendent ! *)
+let connect source target action ?priority ?update_target ?join triggers =
+  new connection (source :> w) (target :> w) action ?priority ?update_target ?join triggers
+
+let connect_after source target action triggers =
+  match List.rev source#connections with
+  | [] -> connect source target action ~priority:Join triggers
+  | c::_ -> connect source target action ~priority:Join ~join:c triggers
+
+let connect_main = connect ~priority:Main

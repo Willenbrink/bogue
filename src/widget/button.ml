@@ -14,7 +14,7 @@ let color_off = Draw.find_color Theme.button_color_off
 let bg_on = Style.color_bg (Draw.opaque color_on)
 let bg_off = Style.color_bg (Draw.opaque color_off)
 
-class t ?(size = (0,0) (* TODO give sensible default *)) ?border_r ?border_c ?fg ?(bg_on = bg_on) ?(bg_off = bg_off) ?bg_over
+class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?border_r ?border_c ?fg ?(bg_on = bg_on) ?(bg_off = bg_off) ?bg_over
     ?label ?label_on ?label_off ?(state = false) text =
   let label_on, label_off = match label, label_on, label_off with
     | None, None, None -> let l = new Label.t ?fg text in l,l
@@ -45,12 +45,17 @@ class t ?(size = (0,0) (* TODO give sensible default *)) ?border_r ?border_c ?fg
 
     val label_on = label_on
     val label_off = label_off
-    val _state = Var.create state
-    val pressed = Var.create state (* TODO duplication? *)
     val mutable mouse_over = false
     val box_on = new Box.t ~bg:bg_on ?border:border_on ()
     val box_off = new Box.t ~bg:bg_off ?border:border_off ()
     val box_over = map_option bg_over (fun bg -> new Box.t ~bg ())
+
+    val state = Var.create state
+    method state = Var.get state
+    method set_state x = Var.set state x
+
+    method press = self#set_state (not self#state)
+    method release = if not switch then self#set_state false
 
     method! unload =
       label_on#unload;
@@ -59,7 +64,6 @@ class t ?(size = (0,0) (* TODO give sensible default *)) ?border_r ?border_c ?fg
       box_off#unload;
       do_option box_over (fun o -> o#unload)
 
-    method state = Var.get _state
     method text =
       if self#state
       then label_on#text
@@ -70,32 +74,10 @@ class t ?(size = (0,0) (* TODO give sensible default *)) ?border_r ?border_c ?fg
       then label_on#set_text text
       else label_off#set_text text
 
-    method is_pressed = Var.get pressed
-
-    method press = Var.set pressed true
-
-    method reset =
-      Var.set pressed false;
-      Var.set _state false
-
-    method release =
-      Var.set pressed false;
-      Var.set _state (not self#state)
-
-    (* called by button_up in case of kind=Switch *)
-    method switch ev =
-      if Sdl.Event.(get ev mouse_button_state) = Sdl.pressed
-      (* = DIRTY trick, see bogue.ml *)
-      then begin
-        Var.set _state (not self#state);
-        printd debug_event "Switch button to [pressed=%b] [state=%b]" (self#is_pressed) self#state;
-      end;
-      Var.set pressed self#state
-
     method mouse_enter = mouse_over <- true
-    method mouse_leve = mouse_over <- false
+    method mouse_leave = mouse_over <- false
 
-    method size =
+    method! size =
       let (w,h) = label_on#size in
       let (w',h') = label_off#size in
       let w = imax w w' and h = imax h h' in
@@ -112,14 +94,14 @@ class t ?(size = (0,0) (* TODO give sensible default *)) ?border_r ?border_c ?fg
         do_option box_over (fun x -> x#resize (w,h))
       in
 
-      let (dx,dy) = if self#is_pressed then (0, 1) else (0, 0) in
-      let box = if self#is_pressed
+      let (dx,dy) = if self#state then (0, 1) else (0, 0) in
+      let box = if self#state
         then box_on
         else if mouse_over
         then default box_over box_off
         else box_off
       in
-      (*let margin = if is_pressed b then 0 else button_margin in*)
+      (*let margin = if self#state b then 0 else button_margin in*)
       (*  Draw.box canvas.Draw.renderer ~bg (x+margin) (y+margin) (w-2*margin) (h-2*margin); *)
       let box_blit = box#display canvas layer
           Draw.( { x = g.x (* + margin *);
@@ -128,12 +110,22 @@ class t ?(size = (0,0) (* TODO give sensible default *)) ?border_r ?border_c ?fg
                    h = g.h;
                    voffset = g.voffset } ) in
       let label_blit =
-          (if self#state then label_on else label_off)#display canvas layer
+        (if self#state then label_on else label_off)#display canvas layer
           Draw.( { x = g.x + bm + dx;
                    y = g.y + bm + dy;
                    w = g.w - 2*bm;
                    h = g.h - 2*bm;
                    voffset = g.voffset } )
       in List.concat [box_blit; label_blit]
+
+    initializer
+      let c = connect_main self self (fun _ -> self#press) Trigger.buttons_down in
+      self#add_connection c;
+      let c = connect_main self self (fun _ -> self#release) Trigger.buttons_up in
+      self#add_connection c;
+      let c = connect_main self self (fun _ -> self#mouse_enter) [Trigger.mouse_enter] in
+      self#add_connection c;
+      let c = connect_main self self (fun _ -> self#mouse_leave) [Trigger.mouse_leave] in
+      self#add_connection c
 
   end

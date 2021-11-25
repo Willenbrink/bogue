@@ -632,7 +632,6 @@ let one_step ?before_display anim (start_fps, fps) ?clear board =
           activate board (get_mouse_focus board)
         | `Mouse_button_up
         | `Finger_up ->
-          printd debug_event "Mouse button up !";
           Trigger.button_up e; (* TODO for touch too... *)
           if not !Trigger.too_fast
           && (map2_option board.button_down (get_mouse_focus board) Layout.equal

@@ -52,10 +52,11 @@ let example0 () =
   let board = make [] [layout] in
   run board
 
+(* FIXME image inside a box is flipped for some reason. *)
 let desc1h = "Horizontal layout, box with image and border."
 let example1h () =
   let b = W.check_box () in
-  let td = new Text_display.t (Text_display.paragraphs_of_string "lorem") in
+  let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in
   let border = Style.(border ~radius:10
                         (line ~color:Draw.(opaque grey) ~width:3 ~style:Solid ())) in
 
@@ -218,7 +219,6 @@ let example11 () = (* attention ne marche pas avec DEBUG=false !! OK problème r
   L.set_window_pos l1 (200,200); L.set_window_pos l2 (400,200);
   run board
 
-(* FIXME Focussing the text box doesn't work *)
 let desc12 = "a check_box and a text input in a line editor"
 let example12 () =
   let b = W.check_box () in
@@ -297,18 +297,16 @@ let example15 () =
 let desc16 = "buttons with label"
 let example16 () =
   let b = new Button.t "Press Me" in
-  (* FIXME Switch *)
-  let c = new Button.t "Click Me" in
+  let c = new Button.t ~switch:true "Click Me" in
   let fg = Draw.(opaque black) in
   let bg_off = Style.color_bg Draw.none in
   (* let bg_on = Style.color_bg Draw.(opaque blue) in *)
   let bg_over = Style.color_bg Draw.(opaque grey) in
-  (* FIXME Switch *)
-  let d = new Button.t ~bg_off (* ~bg_on *) ~bg_over
+  let d = new Button.t ~switch:true ~bg_off (* ~bg_on *) ~bg_over
     ~label_on:(new Icon.t ~fg "train")
     ~label_off:(new Icon.t ~fg:(Draw.(lighter (lighter fg))) "train")
     "" in
-  let layout = L.flat_of_w [b;c;d] in
+  let layout = L.flat_of_w [(b :> W.t);(c :> W.t);(d :> W.t)] in
   let board = make [] [layout] in
   run board
 
@@ -374,7 +372,7 @@ let example21 () =
     L.set_show popup b#state;
     L.set_show screen b#state in
   W.on_release ~release button;
-  let close b = b#reset; release b  in
+  let close b = b#release; release b  in
   let c = W.connect_main close_btn button (fun _ -> close button) T.buttons_up in
 
   let global = L.tower [L.resident button; layout] in

@@ -2121,7 +2121,7 @@ let make_clip ?w ?(scrollbar = true) ?(scrollbar_inside = false) ?(scrollbar_wid
           then sli#set_tick_size
               (h * h / (height room));
           let v = sli#update_value; sli#value in
-          if v < 0 then sli#set 0;
+          if v < 0 then sli#set_value 0;
           if dh <= 0
           then rec_set_show false bar
           else rec_set_show true bar);

@@ -61,7 +61,6 @@ let add ?(kmod = []) kcode action map =
     List.map sdl_of_kmod kmod
     |> List.fold_left Kmod.(+) 0
   in
-  Printf.printf "Adding shortcut of kcode: %i, kmod: %i \n" kcode kmod;
   PairsMap.add (kcode, kmod) action map
 
 let add_map (kmod,kcode,action) map = add ~kmod kcode action map
@@ -71,7 +70,6 @@ let remove pair map = PairsMap.remove pair map
 (* Return the action bound to the keycode, or None. *)
 (* FIXME uses Sdl.Kmod directly, encapsulate *)
 let find pair map =
-  Printf.printf "Finding shortcut of kcode: %i, kmod: %i \n" (fst pair) (snd pair);
   PairsMap.find_opt pair map
 
 (* Add new entries from a list of triples (keycode, keymod, action) *)

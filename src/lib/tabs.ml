@@ -20,27 +20,25 @@ let bg_off = Style.Solid Draw.(opaque Button.color_off)
    actif, ce qui n'est pas très joli. *)
 let create_one ?slide title room dest_room =
   (* TODO create_empty adds to WHash table *)
-  let l = new Button.t ~bg_on ~bg_off title in
+  let b = new Button.t ~bg_on ~bg_off title in
   (* the first action sets the button to 'pressed' when we click (button_down)
      on it. Below we will add another action to reset all other buttons to 'not
      pressed' *)
-  (* let onpress w _ _ =
-   *   let b = W.get_button w in
-   *   (\* TODO skip this if the tab is already selected *\)
-   *   if not (Button.is_pressed b)
-   *   then begin
-   *     Button.press b;
-   *     Layout.iter_rooms (fun l -> Layout.set_show l false) dest_room;
-   *     Layout.set_show room true;
-   *
-   *     do_option slide (fun from -> Layout.slide_in ~from ~dst:dest_room room);
-   *     W.update w; (\* or refresh only layout ? *\)
-   *   end
-   * in
-   * let onpress _ _ _ = () in
-   * let c = W.connect_main l l onpress Trigger.buttons_down in
-   * W.add_connection l c; *)
-  l
+  let onpress _ =
+    (* TODO skip this if the tab is already selected *)
+    if not b#state
+    then begin
+      b#press;
+      Layout.iter_rooms (fun l -> Layout.set_show l false) dest_room;
+      Layout.set_show room true;
+
+      do_option slide (fun from -> Layout.slide_in ~from ~dst:dest_room room);
+      b#update (* or refresh only layout ? *)
+    end
+  in
+  let c = W.connect_main b b onpress Trigger.buttons_down in
+  b#add_connection c;
+  b
 
 (** create tabs from a assoc list ("title"; layout) *)
 (* TODO, return a function that can be called to activate tab #i *)
@@ -71,14 +69,13 @@ let create (*?(circular = true)*) ?slide ?(adjust = Layout.Fit) ?(expand = true)
      * end; *)
     let labels = List.map (fun (title, layout) ->
         create_one ?slide title layout dest_room) list in
-    (* let reset_other_labels w _ _ =
-     *   List.iter (fun b ->
-     *       if not (W.equal w b) then Button.reset (W.get_button b)) labels;
-     * (\* + refresh ? *\) in *)
-    (* let reset_other_labels _ _ _ = () in
-     * List.iter (fun l ->
-     *     let c =  W.connect_main l l reset_other_labels Trigger.buttons_down in
-     *     W.add_connection l c) labels; *)
+    let reset_other_labels w _ =
+      List.iter (fun b ->
+          if not (W.equal w b) then b#release) labels;
+      (* + refresh ? *) in
+    List.iter (fun l ->
+        let c =  W.connect_main l l (reset_other_labels l) Trigger.buttons_down in
+        l#add_connection c) labels;
     (* we activate the first label (TODO: choose which one) *)
     let first_l = List.hd labels in
     first_l#press;

@@ -64,6 +64,12 @@ let text_dims = memo2 text_dims
 let text_width font s =
   let w,_ = text_dims font s in w
 
+let ctrl_pressed () =
+  let m = Sdl.get_mod_state () in
+  m = Sdl.Kmod.ctrl
+  || m = Sdl.Kmod.lctrl
+  || m = Sdl.Kmod.rctrl
+
 
 class t ?(max_size = 2048) ?(prompt = "Enter text")
     ?(font_size = Theme.text_font_size)
@@ -548,6 +554,132 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
                                 y = g.y + bh - voff } in
         [text_blit; tex_to_layer canvas layer cursor cursor_g]
       else [text_blit]
+
+
+    (* start selection on pressing SHIFT *)
+    method shift_check_sel =
+      if Trigger.shift_pressed () then
+        (if Var.get selection = Empty then self#start_selection)
+      else self#unselect
+
+    method backspace =
+      if Var.get selection <> Empty then self#kill_selection
+      else let x = Var.get cursor_pos in
+        if x > 0 then
+          let head, tail = split_list (Var.get keys) (x-1) in
+          let tail' = match tail with
+            | [] -> printd debug_error "This should not happen in backspace"; []
+            | _::rest -> rest in
+          Var.set cursor_pos (x-1);
+          self#set_text_raw (List.flatten [head; tail'])
+
+    (* move cursor to the left *)
+    method left =
+      self#shift_check_sel;
+      let x = Var.get cursor_pos in
+      self#clear;
+      Var.set cursor_pos (max 0 (x-1))
+
+    (* move cursor to the right *)
+    method right =
+      self#shift_check_sel;
+      let x = Var.get cursor_pos in
+      self#clear;
+      Var.set cursor_pos (min (List.length (Var.get keys)) (x+1))
+
+    (* move to beginning of line *)
+    method home =
+      self#shift_check_sel;
+      self#clear;
+      Var.set cursor_pos 0
+
+    (* move to end of line *)
+    method last =
+      self#shift_check_sel;
+      self#clear;
+      Var.set cursor_pos (List.length (Var.get keys))
+
+    (* copy to clipboard *)
+    method copy =
+      let text = self#selection_text in
+      if text <> "" then begin
+        printd debug_memory "Copy to clipboard: [%s]" text;
+        go (Sdl.set_clipboard_text text)
+      end
+
+    (* copy and kill *)
+    method kill =
+      self#copy;
+      self#kill_selection
+
+    (* paste from clipboard *)
+    method paste =
+      if Sdl.has_clipboard_text () then
+        let text = go (Sdl.get_clipboard_text ()) in
+        self#insert_text text
+
+
+    (* treat the text events *)
+    (* DOC: *)
+    (* SDL_Scancode values are used to represent the physical location of a keyboard
+       key on the keyboard. *)
+    (* SDL_Keycode values are mapped to the current layout of the keyboard and
+       correlate to an SDL_Scancode *)
+    method receive_key ev =
+      if self#is_active then let
+        (* in principe, if not active, text-input events are already disabled, but
+           one could still receive keyboard input events. This is why we have to
+           double check here *)
+        open Sdl.Event in
+        match Trigger.event_kind ev with
+        | `Text_input -> (* a letter is recognized *)
+          let s = get ev text_input_text in
+          if filter s then self#insert s
+        | `Text_editing -> print_endline "Text composing mode"
+        (* TODO:
+           Update the composition text.
+           Update the cursor position.
+           Update the selection length (if any). *)
+        | `Key_down -> (match get ev keyboard_keycode with
+            | c when c = Sdl.K.backspace -> self#backspace
+            | c when c = Sdl.K.left -> self#left
+            | c when c = Sdl.K.right -> self#right
+            | c when c = Sdl.K.up -> self#home
+            | c when c = Sdl.K.home -> self#home
+            | c when c = Sdl.K.down -> self#last
+            | c when c = Sdl.K.kend -> self#last
+            | c when c = Sdl.K.return -> self#stop
+            | c when c = Sdl.K.a && ctrl_pressed () -> self#select_all
+            | c when c = Sdl.K.c && ctrl_pressed () -> self#copy (* : desactivate this for debugging the emacs problem *)
+            | c when c = Sdl.K.x && ctrl_pressed () -> self#kill
+            | c when c = Sdl.K.v && ctrl_pressed () -> self#paste
+            | c -> (printd debug_event "==> Key down event discarded.";
+                    printd debug_event "Key=[%s], mod=%u, Keycode:%u" (Sdl.get_key_name c) (Sdl.get_mod_state ()) c)
+          )
+        | `Key_up -> (match get ev keyboard_keycode with
+            | c when c = Sdl.K.lshift -> self#make_selection
+            | c when c = Sdl.K.rshift -> self#make_selection
+            | c -> (printd debug_event "==> Key up event discarded.";
+                    printd debug_event "Key=[%s], mod=%u, Keycode:%u" (Sdl.get_key_name c) (Sdl.get_mod_state ()) c)
+          )
+        | _ -> printd debug_warning "Warning: Event should not happen here"
+
+    initializer
+      let c = connect_main self self self#button_down Trigger.buttons_down in
+      self#add_connection c;
+      let c = connect_main self self self#click Trigger.buttons_up in
+      self#add_connection c;
+      let c = connect_main self self self#tab [Sdl.Event.key_down] in
+      self#add_connection c;
+      let selection ev =
+        if Trigger.mm_pressed ev then (self#mouse_select ev; self#update)
+      in
+      let c = connect_main ~update_target:false self self selection [Sdl.Event.mouse_motion] in
+      self#add_connection c;
+      let get_keys ev = self#receive_key ev
+      in
+      let c2 = connect_main self self get_keys [Sdl.Event.text_editing; Sdl.Event.text_input; Sdl.Event.key_down; Sdl.Event.key_up] in
+      self#add_connection c2;
   end
 
       (*
@@ -572,124 +704,4 @@ type t =
     prompt : string; (* text to display when there is no user input *)
     filter : filter; (* which letters are accepted *)
   }
-
-
-let ctrl_pressed () =
-  let m = Sdl.get_mod_state () in
-  m = Sdl.Kmod.ctrl
-  || m = Sdl.Kmod.lctrl
-  || m = Sdl.Kmod.rctrl
-
-(* start selection on pressing SHIFT *)
-method shift_check_sel =
-  if Trigger.shift_pressed () then
-    (if Var.get selection = Empty then self#start_selection)
-  else self#unselect
-
-method backspace =
-  if Var.get selection <> Empty then self#kill_selection
-  else let x = Var.get cursor_pos in
-    if x > 0 then
-      let head, tail = split_list (Var.get keys) (x-1) in
-      let tail' = match tail with
-        | [] -> printd debug_error "This should not happen in backspace"; []
-        | _::rest -> rest in
-      Var.set cursor_pos (x-1);
-      self#set_text_raw (List.flatten [head; tail'])
-
-(* move cursor to the left *)
-method left =
-  self#shift_check_sel;
-  let x = Var.get cursor_pos in
-  self#clear;
-  Var.set cursor_pos (max 0 (x-1))
-
-(* move cursor to the right *)
-method right =
-  self#shift_check_sel;
-  let x = Var.get cursor_pos in
-  self#clear;
-  Var.set cursor_pos (min (List.length (Var.get keys)) (x+1))
-
-(* move to beginning of line *)
-method home =
-  self#shift_check_sel;
-  self#clear;
-  Var.set cursor_pos 0
-
-(* move to end of line *)
-method last =
-  self#shift_check_sel;
-  self#clear;
-  Var.set cursor_pos (List.length (Var.get keys))
-
-(* copy to clipboard *)
-method copy =
-  let text = self#selection_text in
-  if text <> "" then begin
-    printd debug_memory "Copy to clipboard: [%s]" text;
-    go (Sdl.set_clipboard_text text)
-  end
-
-(* copy and kill *)
-method kill =
-  self#copy;
-  self#kill_selection
-
-(* paste from clipboard *)
-method paste =
-  if Sdl.has_clipboard_text () then
-    let text = go (Sdl.get_clipboard_text ()) in
-    self#insert_text text
-
-
-(* keyboard events *)
-
-
-(* treat the text events *)
-(* DOC: *)
-(* SDL_Scancode values are used to represent the physical location of a keyboard
-   key on the keyboard. *)
-(* SDL_Keycode values are mapped to the current layout of the keyboard and
-   correlate to an SDL_Scancode *)
-method receive_key ev =
-  if self#is_active then let
-    (* in principe, if not active, text-input events are already disabled, but
-       one could still receive keyboard input events. This is why we have to
-       double check here *)
-    open Sdl.Event in
-    match Trigger.event_kind ev with
-    | `Text_input -> (* a letter is recognized *)
-      let s = get ev text_input_text in
-      if filter s then self#insert s
-    | `Text_editing -> print_endline "Text composing mode"
-    (* TODO:
-       Update the composition text.
-       Update the cursor position.
-       Update the selection length (if any). *)
-    | `Key_down -> (match get ev keyboard_keycode with
-        | c when c = Sdl.K.backspace -> self#backspace
-        | c when c = Sdl.K.left -> self#left
-        | c when c = Sdl.K.right -> self#right
-        | c when c = Sdl.K.up -> self#home
-        | c when c = Sdl.K.home -> self#home
-        | c when c = Sdl.K.down -> self#last
-        | c when c = Sdl.K.kend -> self#last
-        | c when c = Sdl.K.return -> self#stop
-        | c when c = Sdl.K.a && ctrl_pressed () -> self#select_all
-        | c when c = Sdl.K.c && ctrl_pressed () -> self#copy (* : desactivate this for debugging the emacs problem *)
-        | c when c = Sdl.K.x && ctrl_pressed () -> self#kill
-        | c when c = Sdl.K.v && ctrl_pressed () -> self#paste
-        | c -> (printd debug_event "==> Key down event discarded.";
-                printd debug_event "Key=[%s], mod=%u, Keycode:%u" (Sdl.get_key_name c) (Sdl.get_mod_state ()) c)
-      )
-    | `Key_up -> (match get ev keyboard_keycode with
-        | c when c = Sdl.K.lshift -> self#make_selection
-        | c when c = Sdl.K.rshift -> self#make_selection
-        | c -> (printd debug_event "==> Key up event discarded.";
-                printd debug_event "Key=[%s], mod=%u, Keycode:%u" (Sdl.get_key_name c) (Sdl.get_mod_state ()) c)
-      )
-    | _ -> printd debug_warning "Warning: Event should not happen here"
-
-
 *)

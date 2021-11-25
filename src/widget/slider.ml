@@ -46,7 +46,7 @@ let slow k m x0 x =
   else x *. m
 
 (* value is ignored if a var is provided *)
-class t ?step ?(kind = Horizontal) ?(value = 0) ?(length = 200)
+class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 200)
     ?(thickness = 20) ?w ?h ?tick_size ?var ?(m = 100) () =
   let tick_size = default tick_size (match kind with
       | HBar -> 4
@@ -80,7 +80,7 @@ class t ?step ?(kind = Horizontal) ?(value = 0) ?(length = 200)
     (* used to avoid computing too many times the same value *)
     val cache = Var.create (Tvar.get var)
     method value = Var.get cache
-    method set x = Tvar.set var x; Var.set cache x
+    method set_value x = Tvar.set var x; Var.set cache x
 
     (* This has to be done for each external call to this module *)
     (* It will update the position of the slider by looking at the var. Hence, if
@@ -144,7 +144,7 @@ class t ?step ?(kind = Horizontal) ?(value = 0) ?(length = 200)
       | Circular -> imin w h
       | Vertical -> h
 
-    method unload =
+    method! unload =
       match Var.get render with
       | None -> ()
       | Some tex -> begin
@@ -158,7 +158,7 @@ class t ?step ?(kind = Horizontal) ?(value = 0) ?(length = 200)
 
     method guess_unset_keyboard_focus = false
 
-    method resize (w,h) =
+    method! resize (w,h) =
       self#unload;
       _size <- (w,h);
       thickness <- (match kind with
@@ -255,138 +255,164 @@ class t ?step ?(kind = Horizontal) ?(value = 0) ?(length = 200)
             ~angle:(360. *. (float (max - self#value)) /. (float max)) ~radius
             ~width:thickness (g.x + g.w/2) (g.y + g.h/2) in
         [sbox; tick]
+
+    (* TODO *)
+    (* create a slider with a simple Tvar that executes an action each time the
+       local value of the slider is modified by the slider *)
+    (* let create_with_action ?step ?kind ~value ?length ?thickness ?tick_size *)
+    (*     ~action max = *)
+    (*   let v = Var.create (Avar.var value) in *)
+    (*   let t_from a = Avar.get a in *)
+    (*   let t_to x = action x; Avar.var x in *)
+    (*   let var = Tvar.create v ~t_from ~t_to in *)
+    (*   create ?step ?kind ~var ?length ?thickness ?tick_size max *)
+
+
+    (* events *)
+
+    (* Compute the pre-value (in principle between 0 and max, but sometimes can be
+       outside if the tick is large) from the mouse position *)
+    method compute_value ev =
+      let w,h = size in
+      let x,y = Mouse.pointer_pos ev in
+      let v = match kind with
+        | Horizontal ->
+          if tick_size = w then 0 (* the value should be undefined here *)
+          else Var.get offset + (max * (x - tick_size/2 - (Var.get room_x))) / (w - tick_size)
+        | HBar ->
+          (max * (x - (Var.get room_x))) / w
+        | Vertical ->
+          if tick_size = h then 0 (* undefined *)
+          else Var.get offset + max - (max * (y - tick_size/2 - (Var.get room_y))) / (h - tick_size)
+        | Circular ->
+          let x0 = Var.get room_x + w/2 in
+          let y0 = Var.get room_y + h/2 in
+          if x = x0 then if y>y0 then 3 * max / 4 else max / 4
+          else
+            let a = (float max) *. atan (float (y0-y) /. (float (x-x0))) /. pi /. 2. in
+            let a' = if x > x0 then if y <= y0 then a else a +. (float max)
+              else a +. (float  max) /. 2. in
+            round a' in
+      (* printd debug_custom "Mouse (%d,%d), value=%d" x y v; *)
+      v
+
+    (* This should be called on mouse_button_down. *)
+    (* If the click is over the tick, we do *not* change value: this is the standard
+       behavious in most GUIs, and is a good idea imho. This requires storing an
+       offset. *)
+    method click ev =
+      if !debug then assert (Var.get offset = 0);
+      (* in some fast mouse motion it can happen that button_up is lost, so this
+         assertion fail *)
+      let old = value in
+      let mouse_v = self#compute_value ev in
+      let v =
+        if abs (mouse_v - old) * (length - tick_size) <= max * tick_size/2
+        then begin (* test à revoir: mouse over tick *)
+          (* printd debug_custom "OVER TICK"; *)
+          Var.set offset (old - mouse_v);
+          old
+        end
+        else (Stdlib.max 0 (min mouse_v max)) in
+      printd debug_board "Slider value : %d" v;
+      Var.set clicked_value (Some v);
+      (* Var.set keyboard_focus true; *)
+      self#set_value v
+    (* we add an animation to the original Avar. For this we need some
+       gymnastic to get the current and final value for it *)
+    (* TODO this works only for scrolling, because has_anim is detected for
+       scrolling.  Otherwise, has_anim does not detect this animation yet *)
+    (* let avar = var.Tvar.var in *)
+    (* let final = Avar.get (var.Tvar.t_to v) in *)
+    (* Var.set avar (Avar.fromto (Avar.get (Var.get avar)) final) *)
+
+    (* this should be called on mouse_button_up: *)
+    (* not necessary anymore, since keyboard_focus is treated by the main loop *)
+    (* let click_focus s ev = *)
+    (*  if Sdl.Event.(get ev mouse_button_state) = Sdl.pressed *)
+    (* (* = DIRTY trick, see bogue.ml *) *)
+    (*  then Var.set keyboard_focus true *)
+
+    (* This should be called on mouse_button_up: *)
+    method release =
+      Var.set clicked_value None;
+      pointer_motion <- false;
+      Var.set offset 0
+
+    (* on mouse motion: *)
+    method slide ev =
+      let v = self#compute_value ev in
+      let v = (Stdlib.max 0 (min v max)) in
+      printd debug_board "Slider value : %d" v;
+      pointer_motion <- true;
+      self#set_value v
+
+    (* Use this to increase the step when using keyboard. *)
+    method change_speed =
+      let t = Time.now () in
+      if Time.(t - (Var.get key_time)) > 200
+      (* delay too long, we return to initial speed. TODO: check that this is bigger
+         than system delay between two key repeats, otherwise this will always
+         apply *)
+      then Var.set key_speed 1.
+      else Var.set key_speed (Var.get key_speed *. 1.1);
+      Var.set key_time t;
+      let step = step * (round (Var.get key_speed)) in
+      step
+
+    method increase =
+      let step = self#change_speed in
+      self#set_value (min max (value + step))
+
+    method decrease =
+      let step = self#change_speed in
+      self#set_value (Stdlib.max 0 (value - step))
+
+
+    (* This should be called on key_down. *)
+    method receive_key ev =
+      (* TODO: we could use some animation to make it smoother *)
+      self#update_value;
+      if self#keyboard_focus then
+        begin
+          match Trigger.event_kind ev with
+          | `Key_down ->
+            (match Sdl.Event.(get ev keyboard_keycode) with
+             | c when c = Sdl.K.left -> self#decrease
+             | c when c = Sdl.K.down -> self#decrease
+             | c when c = Sdl.K.right -> self#increase
+             | c when c = Sdl.K.up -> self#increase
+             | c -> (printd debug_event "==> Key down event discarded.";
+                     printd debug_event "Key=[%s], mod=%u, Keycode:%u" (Sdl.get_key_name c) (Sdl.get_mod_state ()) c))
+          | _ -> printd debug_event "Warning: Event should not happen here"
+        end
+
+    (* use ~lock if the user is not authorized to slide *)
+    initializer
+      let w = self in
+      let c = connect_main w w w#click Trigger.buttons_down in
+      w#add_connection c;
+      let on_release _ = w#release in
+      let c = connect_main w w on_release Trigger.buttons_up in
+      w#add_connection c;
+      let slide ev =
+        if Trigger.mm_pressed ev || Trigger.event_kind ev = `Finger_motion
+        then (w#slide ev; w#update)
+      in
+      let c = connect ~priority ~update_target:false w w slide Trigger.pointer_motion in
+      w#add_connection c;
+      let c = connect ~priority w w w#receive_key [Sdl.Event.key_down] in
+      w#add_connection c
   end
 
 
-(* TODO *)
+(* FIXME might clash with normal initializer *)
 (* create a slider with a simple Tvar that executes an action each time the
    local value of the slider is modified by the slider *)
-(* let create_with_action ?step ?kind ~value ?length ?thickness ?tick_size *)
-(*     ~action max = *)
-(*   let v = Var.create (Avar.var value) in *)
-(*   let t_from a = Avar.get a in *)
-(*   let t_to x = action x; Avar.var x in *)
-(*   let var = Tvar.create v ~t_from ~t_to in *)
-(*   create ?step ?kind ~var ?length ?thickness ?tick_size max *)
-
-(*
-(* TODO: we could use some animation to make it smoother *)
-let increase ?step s =
-  let step = default step step in
-  set s (min max (value s + step));
-  refresh s
-
-let decrease ?step s =
-  let step = default step step in
-  set s (max 0 (value s - step));
-  refresh s
-
-(* events *)
-
-(* Compute the pre-value (in principle between 0 and max, but sometimes can be
-   outside if the tick is large) from the mouse position *)
-let compute_value s ev =
-  let w,h = size in
-  let x,y = Mouse.pointer_pos ev in
-  let v = match kind with
-    | Horizontal ->
-      if tick_size = w then 0 (* the value should be undefined here *)
-      else Var.get offset + (max * (x - tick_size/2 - (Var.get room_x))) / (w - tick_size)
-    | HBar ->
-      (max * (x - (Var.get room_x))) / w
-    | Vertical ->
-      if tick_size = h then 0 (* undefined *)
-      else Var.get offset + max - (max * (y - tick_size/2 - (Var.get room_y))) / (h - tick_size)
-    | Circular ->
-      let x0 = Var.get room_x + w/2 in
-      let y0 = Var.get room_y + h/2 in
-      if x = x0 then if y>y0 then 3 * max / 4 else max / 4
-      else
-        let a = (float max) *. atan (float (y0-y) /. (float (x-x0))) /. pi /. 2. in
-        let a' = if x > x0 then if y <= y0 then a else a +. (float max)
-          else a +. (float  max) /. 2. in
-        round a' in
-  (* printd debug_custom "Mouse (%d,%d), value=%d" x y v; *)
-  v
-
-(* This should be called on mouse_button_down. *)
-(* If the click is over the tick, we do *not* change value: this is the standard
-   behavious in most GUIs, and is a good idea imho. This requires storing an
-   offset. *)
-let click s ev =
-  if !debug then assert (Var.get offset = 0);
-  (* in some fast mouse motion it can happen that button_up is lost, so this
-     assertion fail *)
-  let old = value s in
-  let mouse_v = compute_value s ev in
-  let v =
-    if abs (mouse_v - old) * (length s - tick_size) <= max * tick_size/2
-    then begin (* test à revoir: mouse over tick *)
-      (* printd debug_custom "OVER TICK"; *)
-      Var.set offset (old - mouse_v);
-      old
-    end
-    else (max 0 (min mouse_v max)) in
-  printd debug_board "Slider value : %d" v;
-  Var.set clicked_value (Some v);
-  (* Var.set keyboard_focus true; *)
-  set s v
-(* we add an animation to the original Avar. For this we need some
-   gymnastic to get the current and final value for it *)
-(* TODO this works only for scrolling, because has_anim is detected for
-   scrolling.  Otherwise, has_anim does not detect this animation yet *)
-(* let avar = var.Tvar.var in *)
-(* let final = Avar.get (var.Tvar.t_to v) in *)
-(* Var.set avar (Avar.fromto (Avar.get (Var.get avar)) final) *)
-
-(* this should be called on mouse_button_up: *)
-(* not necessary anymore, since keyboard_focus is treated by the main loop *)
-(* let click_focus s ev = *)
-(*  if Sdl.Event.(get ev mouse_button_state) = Sdl.pressed *)
-(* (\* = DIRTY trick, see bogue.ml *\) *)
-(*  then Var.set keyboard_focus true *)
-
-(* This should be called on mouse_button_up: *)
-let release s =
-  Var.set clicked_value None;
-  pointer_motion <- false;
-  Var.set offset 0
-
-(* on mouse motion: *)
-let slide s ev =
-  let v = compute_value s ev in
-  let v = (max 0 (min v max)) in
-  printd debug_board "Slider value : %d" v;
-  pointer_motion <- true;
-  set s v
-
-(* Use this to increase the step when using keyboard. *)
-let change_speed s =
-  let t = Time.now () in
-  if Time.(t - (Var.get key_time)) > 200
-  (* delay too long, we return to initial speed. TODO: check that this is bigger
-     than system delay between two key repeats, otherwise this will always
-     apply *)
-  then Var.set key_speed 1.
-  else Var.set key_speed (Var.get key_speed *. 1.1);
-  Var.set key_time t;
-  let step = step * (round (Var.get key_speed)) in
-  step
-
-(* This should be called on key_down. *)
-let receive_key s ev =
-  update_value s;
-  if has_keyboard_focus s then
-    begin
-      match Trigger.event_kind ev with
-      | `Key_down ->
-        (match Sdl.Event.(get ev keyboard_keycode) with
-         | c when c = Sdl.K.left -> decrease ~step:(change_speed s) s
-         | c when c = Sdl.K.down -> decrease ~step:(change_speed s) s
-         | c when c = Sdl.K.right -> increase ~step:(change_speed s) s
-         | c when c = Sdl.K.up -> increase ~step:(change_speed s) s
-         | c -> (printd debug_event "==> Key down event discarded.";
-                 printd debug_event "Key=[%s], mod=%u, Keycode:%u" (Sdl.get_key_name c) (Sdl.get_mod_state ()) c))
-      | _ -> printd debug_event "Warning: Event should not happen here"
-    end
-*)
+let slider_with_action ?priority ?step ?kind ~value ?length ?thickness ?tick_size
+    ~action max =
+  let v = Var.create (Avar.var value) in
+  let t_from a = Avar.get a in
+  let t_to x = action x; Avar.var x in
+  let var = Tvar.create v ~t_from ~t_to in
+  new t ?priority ?step ?kind ~var ?length ?thickness ?tick_size max

@@ -29,7 +29,8 @@ class t ?w ?h ?(noscale = false)
       end in
   let size = if noscale
     then Draw.unscale_size size
-    else size in
+    else size
+  in
   object (self)
     inherit w size "Image" Cursor.Arrow
 

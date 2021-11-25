@@ -49,22 +49,6 @@ let of_id id =
   | Not_found -> (printd debug_error "Cannot find widget with id=%d" id;
                   raise Not_found);;
 
-(** create new connection *)
-(* if ~join:c, on donne le même id que la connexion c, ce qui permet
-   d'effectuer l'action conjointement avec celle de c (avec en général
-   la priorité Join pour effectuer à la suite de c). Attention dans ce
-   cas, ne pas déclancher plein de ces connexions à la suite... elles
-   s'attendent ! *)
-let connect source target action ?priority ?update_target ?join triggers =
-  new connection (source :> t) (target :> t) action ?priority ?update_target ?join triggers
-
-let connect_after source target action triggers =
-  match List.rev source#connections with
-  | [] -> connect source target action ~priority:Join triggers
-  | c::_ -> connect source target action ~priority:Join ~join:c triggers;;
-
-let connect_main = connect ~priority:Main;;
-
 (** creation of simple widgets *)
 let check_box ?state ?style () =
   (* let b = create_empty  (Check (Check.create ?state ?style ())) in *)
@@ -77,9 +61,6 @@ let check_box ?state ?style () =
 let rich_text ?font_size ?size paragraphs = new Text_display.t ?font_size ?size paragraphs
 
 (*
-let set_check_state b s =
-  Check.set (get_check b) s;;
-
 let text_display ?w ?h text =
   create_empty (TextDisplay (Text_display.create_from_string ?w ?h text));;
 
@@ -109,108 +90,8 @@ let image_from_svg ?w ?h ?bg file =
   let svg = Draw.convert_svg ?w ?h file in
   let w,h = Draw.unscale_size (Draw.image_size svg) in
   image ~w ~h ?bg svg;;
+ * FIXME *)
 
-let button ?(kind = Button.Trigger) ?label ?label_on ?label_off
-    ?fg ?bg_on ?bg_off ?bg_over ?state
-    ?border_radius ?border_color text =
-  let b = create_empty
-      (Button (Button.create ?label ?label_on ?label_off ?fg
-                 ?bg_on ?bg_off ?bg_over
-                 ?border_radius ?border_color ?state text)) in
-  let press = fun _ _ _ -> Button.press (get_button b) in
-  let c = connect_main b b press Trigger.buttons_down in
-  add_connection b c;
-  let release = match kind with (* move this test to Button ? *)
-    | Button.Trigger -> fun _ _ _ -> Button.release (get_button b)
-    | Button.Switch -> fun _ _ ev -> Button.switch (get_button b) ev
-  in
-  let c = connect_main b b release Trigger.buttons_up in
-  add_connection b c;
-  (* TODO FIXME disabled connections*)
-  (* let c = connect_main b b (fun b _ _ -> Button.mouse_enter (get_button b))
-   *     [Trigger.mouse_enter] in
-   * add_connection b c;
-   * let c = connect_main b b (fun b _ _ -> Button.mouse_leave (get_button b))
-   *     [Trigger.mouse_leave] in
-   * add_connection b c; *)
-  b;;
-(* TODO: actions *)
-
-(* use ~lock if the user is not authorized to slide *)
-let slider ?(priority=Main) ?step ?value ?kind ?var ?length ?thickness
-      ?tick_size ?(lock = false) ?w ?h maxi =
-  let w = create_empty (Slider (Slider.create ?step ?value ?kind ?var ?length
-                                  ?thickness ?tick_size ?w ?h maxi)) in
-  if not lock then begin
-    (* TODO FIXME disabled connections *)
-      (* let onbutton_down = fun w _ ev -> Slider.click (get_slider w) ev in
-       * let c = connect_main w w onbutton_down Trigger.buttons_down in
-       * add_connection w c; *)
-      (* let onclick = fun w _ ev -> Slider.click_focus (get_slider w) ev in *)
-      (* let c = connect_main w w onclick [Sdl.Event.mouse_button_up] in *)
-      (* add_connection w c; *)
-    (* TODO FIXME disabled connections*)
-      (* let on_release = fun w _ _ -> Slider.release (get_slider w) in
-       * let c = connect_main w w on_release Trigger.buttons_up in
-       * add_connection w c; *)
-      let slide = fun w _ ev ->
-        let ti = get_slider w in
-        if Trigger.mm_pressed ev || Trigger.event_kind ev = `Finger_motion
-        then (Slider.slide ti ev; update w)
-      in
-      (* let c = connect ~priority ~update_target:false w w slide Trigger.pointer_motion in
-       * add_connection w c; *)
-      let get_keys = fun w _ ev -> Slider.receive_key (get_slider w) ev
-      in
-      (* let c = connect ~priority w w get_keys [Sdl.Event.key_down] in
-       * add_connection w c *)
-      ()
-    end;
-  w;;
-
-(* create a slider with a simple Tvar that executes an action each time the
-   local value of the slider is modified by the slider *)
-let slider_with_action ?priority ?step ?kind ~value ?length ?thickness ?tick_size
-    ~action max =
-  let v = Var.create (Avar.var value) in
-  let t_from a = Avar.get a in
-  let t_to x = action x; Avar.var x in
-  let var = Tvar.create v ~t_from ~t_to in
-  slider ?priority ?step ?kind ~var ?length ?thickness ?tick_size max;;
-
-let text_input ?(text = "") ?prompt ?size ?filter ?max_size () =
-  let ti = Text_input.create ?size ?prompt ?filter ?max_size text in
-  let w = create_empty (TextInput ti) in
-  let onbutton_down = fun w _ ev ->
-    let ti = get_text_input w in (* = ti ! *)
-    Text_input.button_down ti ev in
-  (* let c = connect_main w w onbutton_down Trigger.buttons_down in
-   * add_connection w c; *)
-  let onclick = fun w _ ev ->
-    let ti = get_text_input w in (* = ti ! *)
-    Text_input.click ti ev in
-  (* let c = connect_main w w onclick Trigger.buttons_up in
-   * add_connection w c; *)
-  let ontab = fun w _ ev ->
-    let ti = get_text_input w in (* = ti ! *)
-    Text_input.tab ti ev in
-  (* let c = connect_main w w ontab [Sdl.Event.key_down] in
-   * add_connection w c; *)
-  let selection = fun w _ ev ->
-    let ti = get_text_input w in (* = ti ! *)
-    if Trigger.mm_pressed ev then (Text_input.mouse_select ti ev; update w)
-  in
-  (* let c = connect_main ~update_target:false w w selection [Sdl.Event.mouse_motion] in
-   * add_connection w c; *)
-  let get_keys = fun w _ ev -> Text_input.receive_key (get_text_input w) ev
-  in
-  (* let c2 = connect_main w w get_keys [Sdl.Event.text_editing; Sdl.Event.text_input; Sdl.Event.key_down; Sdl.Event.key_up] in
-   * add_connection w c2; *)
-  w;;
-(* TODO *)
-
-
- * *)
 (** creation of combined widgets *)
 let check_box_with_label text =
   let b = check_box () in

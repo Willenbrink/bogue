@@ -19,9 +19,9 @@ let fresh_id = fresh_int ()
 
 class virtual base size typ cursor =
   object (self)
-    val mutable _id = fresh_id ()
-    method id = _id
-    method set_id x = _id <- x
+    val mutable id = fresh_id ()
+    method id = id
+    method set_id x = id <- x
 
     method typ : string = typ
 
@@ -42,9 +42,9 @@ class virtual base size typ cursor =
     method connections = connections_
     method set_connections c = connections_ <- c
 
-    val mutable room_id_ : int option = None
-    method room_id = room_id_
-    method set_room_id rid = room_id_ <- rid
+    val mutable room_id : int option = None
+    method room_id = room_id
+    method set_room_id x = room_id <- x
 
     method set_keyboard_focus = ()
     method remove_keyboard_focus = ()
@@ -123,4 +123,9 @@ class virtual w size typ cursor =
   object (self)
     inherit base size typ cursor
     initializer WHash.add widgets_wtable (self :> base)
+
+    method! set_id x =
+      WHash.remove widgets_wtable (self :> base);
+      id <- x;
+      WHash.add widgets_wtable (self :> base)
   end

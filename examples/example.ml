@@ -203,11 +203,13 @@ let example10 () =
   L.set_window_pos l1 (200,200); L.set_window_pos l2 (400,200);
   run board
 
+(* FIXME Changes to window 2 block next update for window 1.
+    I.e. b2 -> b2 -> b1 (stays unchecked). Internal value is correct *)
 let desc11 = "two connected windows: the button in the first window sets the check_box in the second window"
 let example11 () = (* attention ne marche pas avec DEBUG=false !! OK problème résolu: le main thread ne laissait pas assez de temps aux autres *)
   let b1 = W.check_box () in
   let b2 = W.check_box () in
-  let action _ = b2#set_state b1#state in
+  let action _ = Printf.printf "%b\n" b1#state; b2#set_state b1#state in
   let c = W.connect b1 b2 action T.buttons_down in
   (* W.add_connection b1 c;  *)(* TODO à faire autom *)
   let l1 = L.flat_of_w [(b1 :> W.t); (new Label.t "Window 1 = the master" :> W.t)] in

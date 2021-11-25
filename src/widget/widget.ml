@@ -39,7 +39,6 @@ let is_fresh w = Var.get w#fresh;;
 let dummy_widget id =
   let open Base in
   let dummy = new Empty.t (0,0) in
-  WHash.add widgets_wtable dummy;
   dummy#set_id id;
   dummy
 
@@ -49,12 +48,6 @@ let of_id id =
   try WHash.find widgets_wtable (dummy_widget id) with
   | Not_found -> (printd debug_error "Cannot find widget with id=%d" id;
                   raise Not_found);;
-
-let create_empty () =
-  let open Base in
-  let w = new Empty.t (0,0) in
-  WHash.add widgets_wtable (w);
-  w
 
 (** create new connection *)
 (* if ~join:c, on donne le même id que la connexion c, ce qui permet
@@ -81,7 +74,7 @@ let add_connection w c =
 let check_box ?state ?style () =
   (* let b = create_empty  (Check (Check.create ?state ?style ())) in *)
   let b = new Check.t ?state ?style () in
-  let action ev = b#action in
+  let action _ = b#action in
   let c = connect_main (b :> t) (b :> t) action Trigger.buttons_down in
   add_connection b c;
   b

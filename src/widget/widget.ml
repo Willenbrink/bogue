@@ -65,18 +65,13 @@ let connect_after source target action triggers =
 
 let connect_main = connect ~priority:Main;;
 
-(* TODO: vérifier qu'on n'ajoute pas deux fois la même *)
-(* TODO à faire automatiquement après "connect" ? *)
-let add_connection w c =
-  w#set_connections (List.rev (c :: List.rev w#connections))
-
 (** creation of simple widgets *)
 let check_box ?state ?style () =
   (* let b = create_empty  (Check (Check.create ?state ?style ())) in *)
   let b = new Check.t ?state ?style () in
   let action _ = b#action in
   let c = connect_main (b :> t) (b :> t) action Trigger.buttons_down in
-  add_connection b c;
+  b#add_connection c;
   b
 
 let rich_text ?font_size ?size paragraphs = new Text_display.t ?font_size ?size paragraphs
@@ -222,7 +217,7 @@ let check_box_with_label text =
   let l = new Label.t text in
   let action = fun _ w _ -> w#action in
   let c = connect_main l b (action () b) Trigger.buttons_down in
-  add_connection l c;
+  l#add_connection c;
   b,l
 
 (****)
@@ -235,17 +230,17 @@ let check_box_with_label text =
 
 let mouse_over ?(enter = nop) ?(leave = nop) w =
   let c = connect w w (fun ev -> enter w) [Trigger.mouse_enter] in
-  add_connection w c;
+  w#add_connection c;
   let c' = connect w w (fun ev -> leave w) [Trigger.mouse_leave] in
-  add_connection w c';;
+  w#add_connection c'
 
 let on_click ~click w =
   let c = connect_main w w (fun ev -> click w) Trigger.buttons_down in
-  add_connection w c;;
+  w#add_connection c
 
 let on_release ~release w =
   let c = connect_main w w (fun ev -> release w) Trigger.buttons_up in
-  add_connection w c;;
+  w#add_connection c
 
 (****)
 

@@ -418,27 +418,27 @@ module Engine = struct
 
     let action _ = button_down screen entry in
     let c = Widget.connect_main widget widget action Trigger.buttons_down in
-    Widget.add_connection widget c;
+    widget#add_connection c;
 
     let action _ = button_up screen entry in
     let c = Widget.connect_main widget widget action Trigger.buttons_up in
-    Widget.add_connection widget c;
+    widget#add_connection c;
 
     let action _ = mouse_over screen entry in
     let c = Widget.connect_main widget widget action
         [(* Trigger.E.mouse_motion; *) Trigger.mouse_enter] in
     (* Warning do NOT add finger_motion, it will interfere with finger_down.
        TODO finger doesn't work well yet. *)
-    Widget.add_connection widget c;
+    widget#add_connection c;
 
     let action _ = mouse_leave entry in
     let c = Widget.connect_main widget widget action [Trigger.mouse_leave] in
-    Widget.add_connection widget c;
+    widget#add_connection c;
 
     let action ev = key_down screen entry
         Sdl.Event.(get ev keyboard_keycode) in
     let c = Widget.connect_main widget widget action [Trigger.E.key_down] in
-    Widget.add_connection widget c
+    widget#add_connection c
 
   let rec connect_loop screen layer menu =
     List.iter (fun entry ->

@@ -38,9 +38,9 @@ class virtual base size typ cursor =
 
     method fresh = Var.create false;
 
-    val mutable connections_ : connection list = []
-    method connections = connections_
-    method set_connections c = connections_ <- c
+    val mutable connections : connection list = []
+    method connections = connections
+    method add_connection c = connections <- connections @ [c]
 
     val mutable room_id : int option = None
     method room_id = room_id

@@ -918,7 +918,7 @@ let make ?(shortcuts = []) connections layouts =
   do_option (repeated Widget.equal widgets) (fun w ->
       print_endline (Print.widget w);
       failwith (Printf.sprintf "Widget is repeated: #%u" w#id));
-  List.iter (fun c -> Widget.(add_connection c#src c)) connections;
+  List.iter (fun c -> c#src#add_connection c) connections;
   (* = ou bien dans "run" ? (ça modifie les widgets) *)
   let shortcuts = Shortcut.create shortcuts in
   let shortcuts = (if !debug then add_debug_shortcuts shortcuts else shortcuts)

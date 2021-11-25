@@ -229,4 +229,4 @@ let tooltip ?background ?(position = Below) text ~target widget layout =
 
   Widget.mouse_over ~enter ~leave:hide_tooltip widget;
   let c = Widget.connect_main widget widget show_tooltip [Trigger.mouse_at_rest] in
-  Widget.add_connection widget c
+  widget#add_connection c

@@ -336,16 +336,16 @@ let update_voffset container dv =
 let update_room ll container o =
   let room, active_bg =
     let open Layout in
-    match container.content with
-    | Rooms [superp] ->
-      (match superp.content with
-       | Rooms [room; active_bg] -> room, active_bg
+    match container#content with
+    | List [superp] ->
+      (match superp#content with
+       | List [room; active_bg] -> room, active_bg
        | _ -> failwith "The container should contain a single layout with a list of 2 rooms !")
     | _ -> failwith "The container should contain a single layout with a list of 2 rooms !"
   in
   let h = Layout.height container in
   let ll_height = total_height ll in
-  Var.protect Layout.(container.geometry.voffset); (* useful ? *)
+  Var.protect Layout.((container#geometry : Layout.geometry).voffset); (* useful ? *)
   let offset = Avar.get (Var.get ll.offset) in
   let voffset = Layout.get_voffset container in
   let offset, o =
@@ -369,7 +369,7 @@ let update_room ll container o =
            mouse wheel scroll to go past the computed room. *)
         update_voffset container (voffset2 - voffset);  (* = offset - o *)
         (* ==> the new value of the container voffset is voffset2 *)
-        Var.release Layout.(container.geometry.voffset);
+        Var.release Layout.((container#geometry : Layout.geometry).voffset);
         ll.container_voffset <- voffset2;
       end
       else begin
@@ -386,7 +386,7 @@ let update_room ll container o =
             (* Avar.set (Var.get ll.offset) o; *) (* redundant with tvar... *)
             let new_voffset = voffset2 - dh in
             update_voffset container (new_voffset - voffset);
-            Var.release Layout.(container.geometry.voffset);
+            Var.release Layout.(container#geometry.voffset);
             ll.container_voffset <- new_voffset;
             room'
           end
@@ -407,7 +407,7 @@ let update_room ll container o =
             (* Avar.set (Var.get ll.offset) o; *)
             let new_voffset = voffset2 + dh in
             update_voffset container (new_voffset - voffset);
-            Var.release Layout.(container.geometry.voffset);
+            Var.release Layout.(container#geometry.voffset);
             ll.container_voffset <- new_voffset;
             room'
           end
@@ -549,15 +549,12 @@ let create ~w ~h ~length ?(first=0) ~generate ?height_fn
       ~thickness:scrollbar_width
       ~tick_size:(max min_tick_size ((h * h) / ll_height))
       ~var ~m:steps () in
-    let on_click sl _ _ =
-      clicked_value := sl#clicked_value in
-    let on_click _ _ _ = () in
-    (* let c = Widget.connect_main slider slider on_click Trigger.buttons_down in
-     * Widget.add_connection slider c; *)
-    let on_release _ _ _ =
+    let on_click _ =
+      clicked_value := slider#clicked_value in
+    Widget.connect_main slider ~target:slider on_click Trigger.buttons_down;
+    let on_release _ =
       clicked_value := None in
-    (* let c2 = Widget.connect_main slider slider on_release Trigger.buttons_up in
-     * Widget.add_connection slider c2; *)
+    Widget.connect_main slider ~target:slider on_release Trigger.buttons_up;
     let bar = Layout.(resident ~background:(Solid Draw.scrollbar_color) ((slider :> Widget.t))) in
     Layout.(flat ~name:"long_list" ~sep:0 ~hmargin:0 ~vmargin:0 [container; bar])
   end

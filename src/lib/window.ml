@@ -13,8 +13,8 @@ type t =
   }
 
 let create ?(is_fresh = false) ?(bogue = false) layout =
-  let g = layout.Layout.current_geom in
-  Layout.(layout.current_geom <- { g with x = not_specified; y = not_specified });
+  let g = layout#current_geom in
+  Layout.(layout#set_current_geom { g with x = not_specified; y = not_specified });
   { layout; is_fresh; bogue }
 
 let get_layout w =
@@ -59,7 +59,7 @@ let flip ?clear w =
     Layout.flip ~clear ~present w.layout;
     set_fresh w
   end
-  else Draw.clear_layers (Layout.get_layer w.layout)
+  else Draw.clear_layers (w.layout#layer)
 
 let make_sdl_window w =
   printd debug_board "Make_window for layout %s" (Layout.sprint_id w.layout);

@@ -44,7 +44,7 @@ let make_hfill_sync ?right_margin layout =
   let margin_right = ax - getx layout - width layout in
   (* The margin at the right end of the flat: *)
   let right_margin = default right_margin (if before = [] then margin_left else bx) in
-  let old_resize = layout.resize in
+  let old_resize = layout#resize in
   let resize (w,h) =
     let keep_resize = true in
     let available_width = w - aw - bw - bx
@@ -56,7 +56,7 @@ let make_hfill_sync ?right_margin layout =
     set_width ~keep_resize layout available_width;
     List.iter (fun r ->
         setx ~keep_resize r (getx r + offset)) after in
-  layout.resize <- resize
+  layout#set_resize resize
 
 let make_hfill ?right_margin layout =
   push layout (fun () ->
@@ -91,7 +91,7 @@ let make_vfill_sync ?bottom_margin layout =
     set_height ~keep_resize layout available_height;
     List.iter (fun r ->
         sety ~keep_resize r (gety r + offset)) after in
-  layout.resize <- resize
+  layout#set_resize resize
 
 let make_vfill ?bottom_margin layout =
   push layout (fun () ->
@@ -108,13 +108,13 @@ let full_width_sync ?right_margin ?left_margin layout =
   let left_margin = default left_margin (getx layout) in
   let right_margin = default right_margin left_margin in
   resize_fix_x layout;
-  let f = layout.resize in
+  let f = layout#resize in
   let resize (w,h) =
     let keep_resize = true in
     f (w,h);
     setx ~keep_resize layout left_margin;
     set_width ~keep_resize layout (w - left_margin - right_margin) in
-  layout.resize <- resize
+  layout#set_resize resize
 
 let full_width ?right_margin ?left_margin layout =
   push layout (fun () ->
@@ -126,13 +126,13 @@ let full_height_sync ?top_margin ?bottom_margin layout =
   let top_margin = default top_margin (gety layout) in
   let bottom_margin = default bottom_margin top_margin in
   resize_fix_y layout;
-  let f = layout.resize in
+  let f = layout#resize in
   let resize (w,h) =
     let keep_resize = true in
     f (w,h);
     sety ~keep_resize layout top_margin;
     set_height ~keep_resize layout (h - top_margin - bottom_margin) in
-  layout.resize <- resize
+  layout#set_resize resize
 
 let full_height ?top_margin ?bottom_margin layout =
   push layout (fun () ->

@@ -91,17 +91,19 @@ let make_title (c : column) =
 (* Warning: this depends on the way title is created in make_title *)
 let get_area title =
   let open Layout in
-  match title.content with
-  | Rooms [area; _] -> widget area
+  match title#content with
+  | List [area; _] -> widget area
   | _ -> failwith "table.ml: The title layout should contain [area;layout]"
 
 (* extracts the sort_indicator widget from the title layout *)
 (* Warning: this depends on the way title is created in make_title *)
 let get_indicator title =
   let open Layout in
-  match title.content with
-  | Rooms [_; { content = Rooms [_; _; sort_indicator]; _ }]
-    -> Some (widget sort_indicator)
+  match title#content with
+  | List [_; obj; _ ]
+    -> begin match obj#content with
+          List [_;_; sort_indicator] -> Some (widget sort_indicator)
+        | _ -> None end
   | _ -> None
 
 let get_row _ _ (* t i *) =
@@ -248,18 +250,18 @@ let refresh t =
   | Some r ->
     let w,h,g,titles_row =
       let open Layout in
-      match r.content with
-      | Rooms [titles_row; long_old] ->
+      match r#content with
+      | List [titles_row; long_old] ->
         width titles_row, height long_old,
-        long_old.geometry, titles_row
+        long_old#geometry, titles_row
       | _ -> failwith "table.ml: layout content is corrupted"
       (* TODO don't crash ? *)
     in
     let long = make_long_list ~w ~h t in
 
     (* this is the dangerous part: *)
-    Layout.(long.geometry <- g);
-    Layout.(long.current_geom <- to_current_geom g);
+    Layout.(long#set_geometry g);
+    Layout.(long#set_current_geom @@ to_current_geom g);
     (* = not really necessary, because I have removed do_adjust in set_rooms *)
     Layout.set_rooms r [titles_row; long];
 

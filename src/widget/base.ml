@@ -17,12 +17,16 @@ type active = {
 
 let fresh_id = fresh_int ()
 
-class virtual base size typ cursor =
+class virtual common =
   object (self)
     val mutable id = fresh_id ()
     method id = id
     method set_id x = id <- x
+  end
 
+class virtual base size typ cursor =
+  object (self)
+    inherit common
     method typ : string = typ
 
     val mutable _size : int * int = size

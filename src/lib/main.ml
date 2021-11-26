@@ -55,8 +55,8 @@ let get_mouse_focus board =
 
 let set_windows board windows =
   board.windows <- windows;
-  board.windows_house.Layout.content <-
-    Layout.Rooms (List.map Window.get_layout windows)
+  board.windows_house#set_content @@
+  Layout.List (List.map Window.get_layout windows)
 (* TODO connections ? widgets ? *)
 
 (* not used *)
@@ -149,7 +149,7 @@ let resize window =
   let layout = Window.get_layout window in
   if Window.size window <> Layout.get_physical_size layout
   then begin
-    printd debug_graphics "Resize window (Layout #%u)" layout.Layout.id;
+    printd debug_graphics "Resize window (Layout #%u)" layout#id;
     Layout.resize_from_window layout;
     Window.render window;
     Window.flip window;
@@ -205,7 +205,7 @@ let remove_window board window =
   set_windows board windows;
   let layout = Window.get_layout window in
   printd debug_board "** Remove window #%u (Layout #%u)"
-    (Window.id window) layout.Layout.id;
+    (Window.id window) layout#id;
   close_window_layout layout;
   (* We reset all focus for safety. TODO: one could reset only those that
      belonged to the removed window. *)
@@ -292,20 +292,20 @@ let check_mouse_motion ?target board =
     | None, None -> ()
     | Some r, None ->
       unset_focus r;
-      push_mouse_leave (r.Layout.id);
+      push_mouse_leave (r#id);
       set_cursor None;
     | None, Some r ->
       set_focus r;
-      push_mouse_enter (r.Layout.id);
+      push_mouse_enter (r#id);
       set_cursor (Some r);
     | Some w1, Some w2 ->
       if not (Widget.equal (widget w1) (widget w2))
       then (set_focus w2;
             unset_focus w1;
             (* we send mouse_leave to w1 *)
-            push_mouse_leave (w1.Layout.id);
+            push_mouse_leave (w1#id);
             (* we send mouse_enter to w2 *)
-            push_mouse_enter (w2.Layout.id);
+            push_mouse_enter (w2#id);
             (* TODO its is NOT good to send 2 events at the same time in case of
                animation... *)
             set_cursor (Some w2)
@@ -349,18 +349,6 @@ let is_fresh board =
   (* List.fold_left (fun yes b -> yes && (Layout.is_fresh b)) true
      board.layouts;; *)
   Layout.is_fresh board.windows_house
-
-(** display only widgets that need to be updated *)
-(* because of transparency effects, this is almost impossible to use *)
-let update_old board =
-  List.iter (fun w ->
-      if not (Window.is_fresh w) && Draw.window_is_shown (Window.window w)
-      then (Window.to_refresh w;
-            Layout.update_old (Window.get_layout w))
-      else printd debug_board "Window is hidden")
-    board.windows
-(* without the shown test, one could do directly: Layout.update
-   board.windows_house;; *)
 
 let has_anim board =
   (* !Avar.alive_animations > 0 || *)
@@ -450,11 +438,11 @@ let tab board =
       | None -> match layout_focus board with
         | Some l -> l
         | None -> Window.get_layout (List.hd board.windows) in
-  printd debug_board "Current room #%u" current_room.Layout.id;
+  printd debug_board "Current room #%u" current_room#id;
   Layout.keyboard_focus_before_tab := Some current_room;
   match Layout.next_keyboard current_room with
   | None -> printd debug_board " ==> No keyboard focus found !"
-  | Some r as ro -> printd debug_board "Activating next keyboard focus (room #%u)" r.Layout.id;
+  | Some r as ro -> printd debug_board "Activating next keyboard focus (room #%u)" r#id;
     set_keyboard_focus board ro
 
 (** open/close the debugging window *)
@@ -655,11 +643,11 @@ let one_step ?before_display anim (start_fps, fps) ?clear board =
                click *) (* TODO: use the full_click event instead *)
             (* Now we set keyboard_focus on "admissible" widgets: *)
             do_option (get_mouse_focus board) (fun x ->
-                printd debug_board "Mouse focus: %d" x.Layout.id);
+                printd debug_board "Mouse focus: %d" x#id);
             do_option board.keyboard_focus (fun x ->
-                printd debug_board "Keyboard focus: %d" x.Layout.id);
+                printd debug_board "Keyboard focus: %d" x#id);
             do_option board.button_down (fun x ->
-                printd debug_board "Set keyboard_focus to #%d" x.Layout.id;
+                printd debug_board "Set keyboard_focus to #%d" x#id;
                 Layout.set_keyboard_focus x);
             board.keyboard_focus <- board.button_down; (* OK ?? *)
           end
@@ -679,7 +667,7 @@ let one_step ?before_display anim (start_fps, fps) ?clear board =
                    printd debug_event "Total mouse wheels=%d" total;
                    let dy = - total * 50 in
                    Layout.scroll ~duration:500 dy room;
-                   Trigger.push_var_changed room.Layout.id))
+                   Trigger.push_var_changed room#id))
         | `Window_event ->
           let wid = get e window_event_id in
           printd debug_event "Window event [%d]" wid;
@@ -961,7 +949,7 @@ let run ?before_display ?after_display board =
          positionned at startup *)
       (* Widget.wake_up_all Trigger.(create_event mouse_enter) (Layout.widget l);
        * display board *)
-      Trigger.push_mouse_enter (l.Layout.id)
+      Trigger.push_mouse_enter (l#id)
     );
   flip ~clear:true board;
 

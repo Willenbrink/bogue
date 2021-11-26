@@ -368,7 +368,7 @@ module Engine = struct
   (* Init, attach the menu to a destination layout. *)
 
   let init ~dst t =
-    let dst_layer = Chain.last (Layout.get_layer dst) in
+    let dst_layer = Chain.last (dst#layer) in
     let entry_layer = Popup.new_layer_above dst_layer in
     add_menu_to_layer t entry_layer;
     let coating_layer = Popup.new_layer_above entry_layer in

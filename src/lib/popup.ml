@@ -17,14 +17,14 @@ let new_layer_above base =
    answer. Thus it's better to use Chain.last layer. OK see below ... *)
 let rec top_layer layout =
   let open Layout in
-  match layout.content with
-  | Resident _ -> get_layer layout
-  | Rooms r -> match list_max Chain.compare (List.map top_layer r) with
-    | None -> printd debug_error "Error: there should be a top layer"; get_layer layout
+  match layout#content with
+  | Leaf _ -> layout#layer
+  | List r -> match list_max Chain.compare (List.map top_layer r) with
+    | None -> printd debug_error "Error: there should be a top layer"; layout#layer
     | Some l -> l
 
 let global_top_layer layout : Draw.layer =
-  Chain.last (Layout.get_layer layout)
+  Chain.last (layout#layer)
 
 (* Register a resize function that will follow (size AND position) the model
    layout. For the position to work correctly, both layouts must be in the same
@@ -32,7 +32,7 @@ let global_top_layer layout : Draw.layer =
 let resize_same_as model room =
   let resize _ =
     let open Layout in
-    match model.house, room.house with
+    match model#house, room#house with
     | Some h1, Some h2 when Layout.equal h1 h2 ->
       let keep_resize = true in
       let size = get_size model in
@@ -45,7 +45,7 @@ let resize_same_as model room =
              "[resize_same_as] must apply to two rooms in the same house. Maybe \
               you should use [Layout.resize_follow_house]."
   in
-  room.resize <- resize
+  room#set_resize resize
 
 (* create a box of the dimension of the layout *)
 let filter_screen ?color ?layer ?keyboard_focus layout =
@@ -54,11 +54,11 @@ let filter_screen ?color ?layer ?keyboard_focus layout =
   let b = match color with
     | None -> (new Empty.t (w,h))
     | Some color -> (new Box.t ~size:(w,h) ~bg:(Style.Solid color)() :> Widget.t) in
-  let screen = (* Layout.(flat_of_w ~sep:0 layout.canvas [b]) in *)
-    Layout.(resident ~name:"filter" ?canvas:layout.canvas b) in
+  let screen = (* Layout.(flat_of_w ~sep:0 layout#canvas [b]) in *)
+    Layout.(resident ~name:"filter" ?canvas:layout#canvas b) in
   (* Layout.(screen.geometry <- {screen.geometry with w; h}); *)
   do_option layer (Layout.set_layer screen);
-  screen.Layout.keyboard_focus <- keyboard_focus;
+  screen#set_keyboard_focus keyboard_focus;
   screen
 
 (** add a screen on top of the layout. This can be useful to make the whole
@@ -99,10 +99,10 @@ let attach ?bg ?(show=true) house layout =
   Layout.scale_resize screen;
   Layout.add_room ~halign:Draw.Center ~valign:Draw.Center ~dst:house layout;
   Layout.scale_resize layout;
-  screen.Layout.show <- show;
-  layout.Layout.show <- show;
-  Trigger.push_keyboard_focus (screen.Layout.id);
-  Trigger.push_mouse_focus (screen.Layout.id); (* redundant *)
+  screen#set_show show;
+  layout#set_show show;
+  Trigger.push_keyboard_focus (screen#id);
+  Trigger.push_mouse_focus (screen#id); (* redundant *)
   (* When inserting new elements on the fly, one needs to ask to mouse to
      refresh its focus, see b_main.ml. *)
   screen
@@ -197,11 +197,11 @@ let tooltip ?background ?(position = Below) text ~target widget layout =
                     ~border ())) in
   let tooltip = Layout.tower_of_w ~sep:3 ~background [(t :> Widget.t)] in
   attach_on_top layout tooltip;
-  tooltip.Layout.show <- false;
+  tooltip#set_show false;
 
   let show_tooltip _ =
     let open Layout in
-    if not tooltip.show then begin
+    if not tooltip#show then begin
       let x,y = pos_from layout target in
       (* print_endline (Printf.sprintf "(%i,%i)" x y); *)
       let x',y' = match position with
@@ -212,18 +212,18 @@ let tooltip ?background ?(position = Below) text ~target widget layout =
         | Mouse -> let x,y = Trigger.mouse_pos () in (x+8,y+8) in
       sety tooltip y';
       setx tooltip x';
-      tooltip.show <- true;
+      tooltip#set_show true;
       Layout.fade_in tooltip
     end in
   let to_show = ref true in
   let hide_tooltip b =
     to_show := false;
     ignore (Timeout.add 200 (fun () ->
-        tooltip.Layout.show <- !to_show;
+        tooltip#set_show !to_show;
         Trigger.push_redraw b#id))
   in
   let enter _ =
-    if tooltip.Layout.show
+    if tooltip#show
     then to_show := true in (* this amounts to cancelling the timeout, which is
                                what we want to do when we re-enter the target *)
 

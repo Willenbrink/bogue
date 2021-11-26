@@ -56,7 +56,7 @@ let create () =
   W.connect b ~target:b (action b) [Sdl.Event.mouse_button_down];
 
   (* List.iter (fun c -> let src = c.source in W.(add_connection src c)) (c_boxes :: c :: connections); *)
-  panel.L.show <- !debug;
+  panel#set_show !debug;
   let layout = L.tower ~sep:0 [dbg_boxes; dbg_button; panel] in
   Draw.set_current_layer save_layer; (* DEBUG: not here ! *)
   layout;;

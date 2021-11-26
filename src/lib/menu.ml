@@ -134,7 +134,7 @@ module Engine = struct
     let f menu =
       Layout.add_room ~dst menu.room;
       set_menu_position menu;
-      menu.room.Layout.resize <- (fun _ ->
+      menu.room#set_resize (fun _ ->
           set_menu_position menu);
       if not menu.active && not menu.always_shown
       then Layout.set_show menu.room false
@@ -285,7 +285,7 @@ module Engine = struct
     let filter = Layout.get_rooms entry_layout
                  |> List.rev
                  |> List.hd in
-    if !debug then assert (filter.Layout.name = Some "filter");
+    if !debug then assert (filter#name = Some "filter");
     Layout.claim_keyboard_focus filter
 
   (* 2. Functions for reacting to events *)
@@ -450,7 +450,7 @@ module Engine = struct
      automatically attach to its house. *)
 
   let init ~dst t =
-    let dst_layer = Chain.last (Layout.get_layer dst) in
+    let dst_layer = Chain.last (dst#layer) in
     let entry_layer = Popup.new_layer_above dst_layer in
     add_menu_to_layer t entry_layer;
     let coating_layer = Popup.new_layer_above entry_layer in
@@ -545,7 +545,7 @@ let format_label ?w ?h = function
       ~margins:text_margin ~background [res]
   | Layout l ->
     let name = "formatted label" in
-    if !debug then assert (l.Layout.name <> Some name);
+    if !debug then assert (l#name <> Some name);
     (* this function should be applied only ONCE to the label *)
     Layout.superpose ~name [l] (* We preserve the (x,y) position. *)
 
@@ -566,7 +566,7 @@ let remove_icon_suffix ?(icon = "caret-right") layout =
     match List.rev (Layout.get_rooms layout) with
     | []
     | [_] -> ()
-    | filter::(this::others) -> assert (default this.Layout.name "" = icon);
+    | filter::(this::others) -> assert (default this#name "" = icon);
       Layout.set_rooms layout (List.rev (filter::others))
   end with
   | e -> printd debug_error "Menu: Cannot remove icon suffix";

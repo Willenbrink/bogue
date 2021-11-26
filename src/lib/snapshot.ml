@@ -32,7 +32,7 @@ let update box room =
      error otherwise *)
   Layout.display ~pos0:(-x,-y) room;
   let save = Draw.push_target renderer target in
-  Draw.render_all_layers (Layout.get_layer room);
+  Draw.render_all_layers (room#layer);
   Var.release Draw.current_layer;
   Draw.pop_target renderer save;
   printd debug_graphics "...rendering snapshot done.";

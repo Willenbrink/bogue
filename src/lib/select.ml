@@ -131,7 +131,7 @@ let create ?dst ?name ?(action = fun _ -> ()) ?fg
          let h = height menu_layout in
          setx ~keep_resize new_room x;
          sety ~keep_resize new_room (y+h) in
-       new_room.Layout.resize <- resize;
+       new_room#set_resize resize;
 
        (* We expand the screen to full size: *)
        let screen = Layout.relocate ~scroll:false

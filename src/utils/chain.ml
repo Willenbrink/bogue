@@ -16,7 +16,7 @@ type 'a element =
     mutable next : ('a element) option
   }
 
-let new_id = Utils.fresh_int ();;
+let new_id = Utils.fresh_int
 
 type 'a t = 'a element option (* None = empty chain *)
 
@@ -97,7 +97,7 @@ let compare t1 t2 =
   | None, Some _ -> raise Not_found
   | Some x1, Some x2 -> (
       if x1.id <> x2.id then failwith "Cannot compare chains in different \
-                                      components"
+                                       components"
       (* print_endline (Printf.sprintf "depths=%d,%d" x1.depth x2.depth); *)
       else comp x1.depth x2.depth);;
 
@@ -121,9 +121,9 @@ let evenize t =
   let dx = max_int / (size t + 2) in
   if dx = 0 then failwith "Chain too large" (* in principe this cannot happen *)
   else let rec loop d t =
-    match t with
-    | None -> ()
-    | Some a -> a.depth <- d; loop (d+dx) a.next in
+         match t with
+         | None -> ()
+         | Some a -> a.depth <- d; loop (d+dx) a.next in
     loop dx (first t);;
 
 (* the return value points to the inserted element *)
@@ -146,7 +146,7 @@ let insert_after t value =
 let insert_after t value =
   try insert_after t value with
   | Max_insert -> Utils.(printd debug_memory "Need to evenize chain...");
-                 evenize t; insert_after t value
+    evenize t; insert_after t value
   | e -> raise e;;
 
 let insert_before t value =
@@ -154,9 +154,9 @@ let insert_before t value =
   let id, depth = match t with
     | None -> new_id (), dx
     | Some x -> let d' =
-      match p with
-      | None -> 0
-      | Some x' -> x'.depth in
+                  match p with
+                  | None -> 0
+                  | Some x' -> x'.depth in
       let d = x.depth - d' in
       if d < 2 then raise Max_insert
       (* TODO: en fait on peut encore décaler le suivant ! *)
@@ -170,7 +170,7 @@ let insert_before t value =
 let insert_before t value =
   try insert_before t value with
   | Max_insert -> Utils.(printd debug_memory "Need to evenize chain...");
-                 evenize t; insert_before t value
+    evenize t; insert_before t value
   | e -> raise e;;
 
 

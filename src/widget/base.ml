@@ -8,16 +8,35 @@ type action_priority =
   | Replace (** kill the first action (if possible) and execute the second one *)
   | Main (** run in the main program. So this is blocking for all subsequent actions *)
 
-let fresh_id = fresh_int ()
+let equal x y = (x#id = y#id)
+
+module Hash = struct
+  type t = < id : int >
+  let equal = equal
+  let hash x = x#id
+end
+
+module WHash = Weak.Make(Hash)
+
+let common_wtable = WHash.create 100
+
+let of_id id =
+  try WHash.find common_wtable (object method id = id end) with
+  | Not_found ->
+    printd debug_error "Cannot find widget with id=%d" id;
+    raise Not_found
+
 
 class virtual common ?id ?(name = "") () =
-  let id = match id with None -> fresh_id () | Some id -> id in
+  let id = match id with None -> fresh_int () | Some id -> id in
   object (self)
     method id : int = id
     method name : string = name
+
+    initializer WHash.add common_wtable (self :> < id : int >)
   end
 
-class virtual base ?id size name cursor =
+class virtual w ?id size name cursor =
   object (self)
     inherit common ?id ~name ()
 
@@ -70,7 +89,7 @@ class virtual base ?id size name cursor =
 
 and connection src ?target action ?(priority=Forget) ?join triggers =
   object
-    method src : base = src
+    method src : w = src
     method action (ev : Sdl.event) : unit =
       if !debug
       then
@@ -88,32 +107,12 @@ and connection src ?target action ?(priority=Forget) ?join triggers =
     method triggers = triggers
 
     method id = match join with
-      | None -> fresh_id ()
+      | None -> fresh_int ()
       | Some c -> c#id
 
     initializer
       if Option.is_some target && (List.mem Sdl.Event.user_event triggers)
       then printd debug_warning "one should not 'connect' with 'update_target'=true if the trigger list contains 'user_event'. It may cause an infinite display loop";
-  end
-
-let equal w1 w2 =
-  w1#id = w2#id
-let (==) = equal
-
-module Hash = struct
-  type t = base
-  let equal = equal
-  let hash x = x#id
-end
-
-module WHash = Weak.Make(Hash)
-
-let widgets_wtable = WHash.create 100
-
-class virtual w ?id size name cursor =
-  object (self)
-    inherit base ?id size name cursor
-    initializer WHash.add widgets_wtable (self :> base)
   end
 
 (** create new connection *)
@@ -124,7 +123,7 @@ class virtual w ?id size name cursor =
    s'attendent ! *)
 let connect self ?target action ?priority ?join triggers =
   let target = Option.map (fun x -> (x :> w)) target in
-  let c = new connection (self :> base) action ?priority ?target ?join triggers in
+  let c = new connection (self :> w) action ?priority ?target ?join triggers in
   self#add_connection c
 
 let connect_after self target action triggers =

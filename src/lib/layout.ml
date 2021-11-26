@@ -447,7 +447,7 @@ let iter_rooms f house =
    disappeared in the air)*)
 let of_wid wid =
   let w = Widget.of_id wid in
-  let id = Widget.get_room_id w in
+  let id = w#room_id |> Option.get in
   of_id_opt id
 
 (* returns the list of rooms of the layout, or Not_found if there is a

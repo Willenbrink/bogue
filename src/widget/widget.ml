@@ -20,10 +20,6 @@ let test () = [
   `Image (new Image.t "/non_existing.png")
 ]
 
-let get_room_id w = match w#room_id with
-  | None -> failwith "The widget does not belong to a room yet"
-  | Some id -> id;;
-
 let is_fresh w = Var.get w#fresh;;
 
 (* let canvas w = match w.canvas with *)
@@ -35,18 +31,6 @@ let is_fresh w = Var.get w#fresh;;
 
 (* let set_canvas canvas w = *)
 (*   w.canvas <- Some canvas;; *)
-
-let dummy_widget id =
-  let open Base in
-  let dummy = new Empty.t ~id (0,0) in
-  dummy
-
-(*let of_id id = Hashtbl.find widgets_table id;;*)
-let of_id id =
-  let open Base in
-  try WHash.find widgets_wtable (dummy_widget id) with
-  | Not_found -> (printd debug_error "Cannot find widget with id=%d" id;
-                  raise Not_found);;
 
 (** creation of simple widgets *)
 let check_box ?state ?style () =

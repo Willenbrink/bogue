@@ -20,7 +20,7 @@ type t = {
   action : action
 }
 
-let new_id = Utils.fresh_int ();;
+let new_id = Utils.fresh_int
 
 let create timeout action =
   { id = new_id (); timeout; action};;

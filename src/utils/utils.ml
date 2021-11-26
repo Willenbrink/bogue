@@ -124,7 +124,7 @@ let startswith s sub =
   end
 
 (* create function for generating integers, starting from 1 *)
-let fresh_int () =
+let fresh_int =
   let id = ref 0 in
   fun () ->
     if !id < max_int then (incr id; !id)

@@ -54,7 +54,7 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
     method state = Var.get state
     method set_state x = Var.set state x
 
-    method press = self#set_state (not self#state)
+    method press = if switch then self#set_state (not self#state) else self#set_state true
     method release = if not switch then self#set_state false
 
     method! unload =

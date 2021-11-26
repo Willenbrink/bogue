@@ -202,7 +202,7 @@ let example10 () =
   L.set_window_pos l1 (200,200); L.set_window_pos l2 (400,200);
   run board
 
-(* FIXME Changes to window 2 block next update for window 1.
+(* BUG Changes to window 2 block next update for window 1.
     I.e. b2 -> b2 -> b1 (stays unchecked). Internal value is correct *)
 let desc11 = "two connected windows: the button in the first window sets the check_box in the second window"
 let example11 () = (* attention ne marche pas avec DEBUG=false !! OK problème résolu: le main thread ne laissait pas assez de temps aux autres *)
@@ -365,15 +365,16 @@ let example21 () =
   let close_btn = new Button.t ~border_r:3 ~border_c:Draw.(opaque blue) "Close" in
   let popup = L.tower_of_w [(l :> W.t);(ti :> W.t);(close_btn :> W.t)] in
   let layout = L.tower_of_w [(b :> W.t);(td :> W.t)] in
-  let screen = Popup.attach ~show:false ~bg:(Draw.(set_alpha 220 (pale green))) layout popup in
-  (* FIXME Switch *)
-  let button = new Button.t ~border_r:4 ~border_c:Draw.(opaque grey) "Popup" in
+  let screen = Popup.attach ~show:false ~bg:(Draw.(set_alpha 240 dark_grey)) layout popup in
+  let button = new Button.t ~switch:true ~border_r:4 ~border_c:Draw.(opaque grey) "Popup" in
   let release b =
     L.set_show popup b#state;
-    L.set_show screen b#state in
+    L.set_show screen b#state
+  in
   W.on_release ~release button;
-  let close b = b#release; release b  in
+  let close b = b#set_state false; release b  in
   let c = W.connect_main close_btn button (fun _ -> close button) T.buttons_up in
+  close_btn#add_connection c;
 
   let global = L.tower [L.resident button; layout] in
   let board = make [c] [global] in
@@ -466,6 +467,7 @@ let example24 () =
   let board = make [c] [layout] in
   run board
 
+(* BUG checkbox layout broken? *)
 let desc25 = "a menu bar"
 let example25 () =
 

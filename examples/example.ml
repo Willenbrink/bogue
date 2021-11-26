@@ -1099,7 +1099,9 @@ let _ =
   Printexc.record_backtrace true;
   (try
      main ()
-   with e -> Printexc.print_backtrace stdout; Printexc.to_string e |> print_endline);
+   with
+   | Layout.Fatal_error (_,str) -> print_endline str
+   | e -> Printexc.print_backtrace stdout; Printexc.to_string e |> print_endline);
 
   Stdlib.exit 0
 

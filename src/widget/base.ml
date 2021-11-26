@@ -8,13 +8,6 @@ type action_priority =
   | Replace (** kill the first action (if possible) and execute the second one *)
   | Main (** run in the main program. So this is blocking for all subsequent actions *)
 
-type active = {
-  thread : Thread.t; (** this is the thread launched by the connection with given id *)
-  event : Sdl.event; (* this is the event passed to the "action".  It is used
-                        also for communication *)
-  connect_id : int
-}
-
 let fresh_id = fresh_int ()
 
 class virtual common ?id ?(name = "") () =
@@ -35,9 +28,6 @@ class virtual base ?id size name cursor =
     val mutable _cursor : Cursor.t = cursor
     method cursor = _cursor
     method set_cursor x = _cursor <- x
-
-    val mutable actives_ : active list Var.t = Var.create []
-    method actives = actives_
 
     method fresh = Var.create false;
 

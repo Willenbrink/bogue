@@ -119,19 +119,8 @@ class room ?id ?name ?(set_house = true) ?(adjust = Fit)
     ?mask ?background ?shadow ?house ?keyboard_focus ?(mouse_focus=false)
     ?(show = true) ?(clip = false) ?(draggable = false) ?canvas
     _geometry content =
-  let lock = Mutex.create () in
   object (self)
     inherit Base.common ?id ?name ()
-    (* Only for debugging purposes*)
-    method lock = lock
-    (* Lock for concurrent access to mutable fields. Instead, we could use
-       Var.t to encapsulate the layout (or all the mutable fields, if we think
-       that blocking one field should not block the others), but maybe that
-       would be heavier *)
-
-    val mutable thread_id = Thread.(id (self ()))
-    method thread_id = thread_id
-    method set_thread_id x = thread_id <- x
 
     (* TODO unimplemented *)
     (* should we adjust the size of this room to fit its content ? *)
@@ -527,34 +516,6 @@ let check_cemetery () =
   cemetery := newlist;
   empty
 
-(* lock the layout to make it available only by the locking thread. Hence two
-   consecutive locks by the same thread will not block. *)
-let lock l =
-  if Mutex.try_lock l#lock
-  then begin
-    let id = Thread.(id (self ())) in
-    printd debug_thread "Locking room %s for thread #%i." (sprint_id l) id;
-    l#set_thread_id id
-  end
-  else (* then it was already locked *)
-  if Thread.(id (self ())) <> l#thread_id (* not same thread, we must wait *)
-  then begin
-    let id = Thread.(id (self ())) in
-    printd debug_thread "Waiting for thread #%i to remove lock for room %s"
-      id (sprint_id l);
-    Mutex.lock l#lock;
-    l#set_thread_id id
-  end
-  else printd debug_thread
-      "Layout %s was locked, but by the same thread: we continue."
-      (sprint_id l)
-
-let unlock l =
-  printd debug_thread "Unlocking layout %s" (sprint_id l);
-  if Mutex.try_lock l#lock
-  then printd debug_thread " (but layout %s was already unlocked)." (sprint_id l);
-  Mutex.unlock l#lock
-
 (* get the renderer of the layout *)
 let renderer t = match t#canvas with
   | Some c -> c.Draw.renderer
@@ -620,9 +581,7 @@ let compute_background ?(mustlock = true) room =
       let box = match bg with
         | Solid c ->
           let b = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) () in
-          if mustlock then lock room;
           room#set_background (Some (Box b));
-          if mustlock then unlock room;
           b
         | Box b -> b#unload; b in
       ignore (box#display (get_canvas room) room#layer
@@ -633,15 +592,11 @@ let compute_background ?(mustlock = true) room =
 (* TODO it should not be allowed to use a background of type Box in case the box
    already belongs to another room... *)
 let set_background l b =
-  lock l;
   unload_background l;
-  l#set_background b;
-  unlock l
+  l#set_background b
 
 let set_shadow l s =
-  lock l;
-  l#set_shadow s;
-  unlock l
+  l#set_shadow s
 
 (** get size of layout *)
 let get_size l =
@@ -696,7 +651,6 @@ let adjust_window_size l =
    use [keep_resize:true].  *)
 (* TODO faire un module Resize avec keep_resize=true par défaut. *)
 let set_size ?(keep_resize = false) ?(check_window = true) ?(update_bg = false) ?w ?h (l : t) =
-  lock l;
   let () = match w,h with
     | Some w, Some h ->
       l#set_current_geom { l#current_geom with w; h };
@@ -714,7 +668,6 @@ let set_size ?(keep_resize = false) ?(check_window = true) ?(update_bg = false) 
   (* = ou plutot unload_background ?? *)
   if not keep_resize then disable_resize l;
   if check_window && is_top l then adjust_window_size l;
-  unlock l;
   resize_content l
 
 let set_height ?keep_resize ?check_window ?update_bg l h =
@@ -778,31 +731,31 @@ let get_oldy (l : t) =
 (* this is the x coordinate wrt the containing house *)
 (* this won't work if there is an animation running (see Avar.set) *)
 let setx ?(keep_resize = false) l x =
-  lock l;
+
   let x0 = getx l in
   l#set_current_geom { l#current_geom with x = l#current_geom.x + x - x0 };
   Avar.set l#geometry.x x;
   if not keep_resize then disable_resize l; (* TODO à vérifier, cf dans "flat" et "tower" *)
-  unlock l
+  ()
 
 (** change y of layout, without adjusting parent house *)
 (* see above *)
 let sety ?(keep_resize = false) l y =
-  lock l;
+
   let y0 = get_oldy l in
   l#set_current_geom { l#current_geom with y = l#current_geom.y + y - y0 };
   Avar.set l#geometry.y y;
   if not keep_resize then disable_resize l;
-  unlock l
+  ()
 
 (* see above *)
 (* warning, it the animation is not finished, using Avar.set has almost no
    effect *)
 let set_voffset (l : t) vo =
-  lock l;
+
   Avar.set (Var.get l#geometry.voffset) vo;
   l#set_current_geom  { l#current_geom with voffset = vo };
-  unlock l
+  ()
 
 (* use this to shift the voffset by a constant amount without stopping an
    animation *)
@@ -819,12 +772,12 @@ let shift_voffset_unsafe = shift_voffset_generic Var.unsafe_set
 
 (* not used... *)
 let reset_pos l =
-  lock l;
+
   let w,h = get_size l in
   let g = geometry ~w ~h () in (* or modify l#geometry fields in-place ? *)
   l#set_geometry g;
   l#set_current_geom to_current_geom g;
-  unlock l
+  ()
 
 (* a special use of current_geom is to indicate the desired window position
    within the desktop at startup. It should be set *after* Bogue.make and
@@ -1313,13 +1266,13 @@ let resize_fix_y room =
 let maximize l =
   setx l 0;
   sety l 0;
-  lock l;
+
   let w,h = get_size (top_house l) in
   l#set_current_geom { l#current_geom with h; w };
   Avar.set l#geometry.h h;
   Avar.set l#geometry.w w;
   scale_resize_list (w,h) [l];
-  unlock l;
+  ();
   resize_content l
 
 (** check if a sublayer is deeper (= below = Chain.<) than the main layer, which
@@ -1349,16 +1302,16 @@ let check_layers room =
 (*       | Leaf _ -> () *)
 (*   end;; *)
 let set_canvas canvas room =
-  lock room;
+
   room#set_canvas (Some canvas);
   if !debug then check_layers room;
-  unlock room
+  ()
 
 (** Set the canvas for layout and all children *)
 let global_set_canvas ?(mustlock=true) room canvas =
-  if mustlock then lock room;
-  iter (fun r -> r#set_canvas @@ Some canvas) room;
-  if mustlock then unlock room
+  if mustlock then
+    iter (fun r -> r#set_canvas @@ Some canvas) room;
+  if mustlock then ()
 
 let check_layer_error room house =
   if not (Chain.same_component room#layer house#layer)
@@ -1383,19 +1336,19 @@ let detach_rooms layout =
 
 (* Detach a room from its house. See detach_rooms *)
 let detach room =
-  lock room;
+
   let () = match room#house with
     | None -> printd debug_error "Cannot detach because room %s has no house"
                 (sprint_id room)
     | Some h ->
-      lock h;
+
       room#set_house None;
       let rooms = List.filter (fun r -> not (r == room)) (get_rooms h) in
       h#set_content (List rooms);
       printd debug_warning "Room %s was detached from House %s."
         (sprint_id room) (sprint_id h);
-      unlock h in
-  unlock room
+      () in
+  ()
 
 (* modify the layout content by setting new rooms *)
 (* old ones are *not* freed, but they are *detached* from house *)
@@ -1446,8 +1399,8 @@ let set_rooms layout ?(sync=true) rooms =
 (* Warning: the old content is not freed from memory *)
 (* TODO: move everything to Sync (not only set_rooms) ? *)
 let copy ~src ~dst =
-  lock src;
-  lock dst;
+
+
   let dx = dst#current_geom.x - src#current_geom.x in
   let dy = dst#current_geom.y - src#current_geom.y in
   global_translate src dx dy;
@@ -1462,8 +1415,8 @@ let copy ~src ~dst =
   end;
   dst#set_keyboard_focus @@ src#keyboard_focus;
   dst#set_draggable @@ src#draggable;
-  unlock src;
-  unlock dst
+  ();
+  ()
 
 (* Add a room to the dst layout content (END of the list). The resize function
    of the room is cancelled. *)
@@ -1479,8 +1432,8 @@ let add_room ?valign ?halign ~dst room =
   then printd debug_error "Room %s should not be added to %s because it already \
                            belongs to a house." (sprint_id room) (sprint_id dst);
   check_layer_error room dst;
-  lock dst;
-  lock room;
+
+
   let wmax = (getx room) + (width room) in
   if wmax > width dst
   then (printd debug_error "The attached Room #%u is too wide" room#id;
@@ -1503,13 +1456,13 @@ let add_room ?valign ?halign ~dst room =
   (* we cannot add room to layout which already contains a Resident *)
   dst#set_content @@ List (List.rev (room :: (List.rev rooms)));
   (*  fit_content dst;; *)
-  unlock dst;
-  unlock room
+  ();
+  ()
 
 let set_layer ?(debug = !debug) room layer =
-  lock room;
+
   room#set_layer layer;
-  unlock room;
+  ();
   if debug then check_layers room
 
 (* TODO: do some "move layer" or translate layer instead *)
@@ -1695,35 +1648,35 @@ let rec ask_update room =
 (* animations with Anim are deprecated, use Avar instead *)
 
 let animate_x room x =
-  lock room;
+
   let g : geometry = room#geometry in
   Avar.stop g.x;
   room#set_geometry { g with x };
-  unlock room
+  ()
 
 let animate_y room y =
-  lock room;
+
   let g : geometry = room#geometry in
   Avar.stop g.y;
   room#set_geometry { g with y };
-  unlock room
+  ()
 
 let animate_w room w =
-  lock room;
+
   let g : geometry = room#geometry in
   Avar.stop g.w;
   room#set_geometry { g with w };
-  unlock room
+  ()
 
 let animate_h room h =
-  lock room;
+
   let g : geometry = room#geometry in
   Avar.stop g.h;
   room#set_geometry { g with h };
-  unlock room
+  ()
 
 let animate_voffset room voffset =
-  lock room;
+
   let g : geometry = room#geometry in
   let avar = Var.get g.voffset in
   let is_current = Avar.started avar && not (Avar.finished avar) in
@@ -1733,30 +1686,30 @@ let animate_voffset room voffset =
      otherwise the value that we set here will be valid only for the next
      iteration, which may cause non-immediate transitions: useful ???*)
   if is_current then ignore (get_voffset room);
-  unlock room
+  ()
 
 let animate_alpha room alpha =
-  lock room;
+
   let g : geometry = room#geometry in
   Avar.stop g.transform.alpha;
   room#set_geometry { g with transform = { g.transform with alpha }};
-  unlock room;
+  ();
   ask_update room
 
 let animate_angle room angle =
-  lock room;
+
   let g : geometry = room#geometry in
   Avar.stop g.transform.angle;
   room#set_geometry { g with transform = { g.transform with angle }};
-  unlock room
+  ()
 
 let stop_pos room =
   printd debug_graphics "Stop position animation for layout %s." (sprint_id room);
-  lock room;
+
   let g : geometry = room#geometry in
   Avar.stop g.x;
   Avar.stop g.y;
-  unlock room
+  ()
 
 (** get desired room (relative) geometry after applying animation *)
 let geom r =
@@ -2206,8 +2159,8 @@ let replace_room ?house ~by room =
   | Some h, None -> begin
       printd debug_warning "Replacing room %s by room %s"
         (sprint_id room) (sprint_id by);
-      lock h;
-      lock by;
+
+
       let rooms_before_rev, rooms_after =
         let rec loop rb = function
           | [] ->
@@ -2223,8 +2176,8 @@ let replace_room ?house ~by room =
       (* are there other things to copy ?? *)
       h#set_content @@
       List (List.rev_append (by::rooms_before_rev) rooms_after);
-      unlock by;
-      unlock h
+      ();
+      ()
     end
 
 (* move a room to a new house, trying to keep the same visual
@@ -2234,7 +2187,7 @@ let replace_room ?house ~by room =
 (* WARNING this doesn't take voffset into account, so it won't work if a 'hide'
    animation was used to the room. *)
 let relocate ~dst ?(scroll=true) ?(auto_scale=false) room =
-  lock room;
+
   (* TODO check they have the same top_house? *)
   let x0,y0 = compute_pos dst in
   let x1,y1 = compute_pos room in
@@ -2258,7 +2211,7 @@ let relocate ~dst ?(scroll=true) ?(auto_scale=false) room =
   setx room2 (x1-x0);
   sety room2 (y1-y0);
   if auto_scale then scale_resize room2;
-  unlock room;
+  ();
   room2
 
 
@@ -2334,9 +2287,9 @@ let display ?pos0 room =
                 | Solid c ->
                   (* let c = Draw.random_color () in *)  (* DEBUG *)
                   let b = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) ?shadow:r#shadow () in
-                  lock r;
+
                   r#set_background @@ (Some (Box b));
-                  unlock r;
+                  ();
                   b
                 | Box b -> b in
               let blits = box#display (get_canvas r) (r#layer)

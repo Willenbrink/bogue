@@ -32,15 +32,15 @@ let execute t =
   else false;;
 
 (* the global stack variable *)
-let stack = Var.create [];;
+let stack = ref []
 
 let clear () =
-  if Var.get stack <> [] then
+  if !stack <> [] then
     begin
       Utils.(printd debug_warning "Clearing the remaining %u Timeouts"
-               (List.length (Var.get stack)));
-      Var.set stack []
-    end;;
+               (List.length (!stack)));
+      stack := []
+    end
 
 (* insert t at the right place in list *)
 let insert t list =
@@ -59,18 +59,18 @@ let insert t list =
 let insert_sublist sublist list =
   if sublist = [] then list
   else begin
-  let rec loop sub final_rev rest =
-    let rec insert t before_rev after =
-      match after with
-      | [] -> (t :: before_rev), []
-      | a :: rest -> if a.timeout > t.timeout
-        then (t :: before_rev), after
-        else insert t (a :: before_rev) rest in
-    match sub with
-    | [] -> List.rev_append final_rev rest
-    | t :: subrest -> let before_rev, after =  insert t final_rev list in
-      loop subrest before_rev after in
-  loop sublist [] list
+    let rec loop sub final_rev rest =
+      let rec insert t before_rev after =
+        match after with
+        | [] -> (t :: before_rev), []
+        | a :: rest -> if a.timeout > t.timeout
+          then (t :: before_rev), after
+          else insert t (a :: before_rev) rest in
+      match sub with
+      | [] -> List.rev_append final_rev rest
+      | t :: subrest -> let before_rev, after =  insert t final_rev list in
+        loop subrest before_rev after in
+    loop sublist [] list
   end;;
 
 (* Immediately registers a new timeout and returns it. In general it's better to
@@ -79,10 +79,9 @@ let insert_sublist sublist list =
 let add timeout action =
   let timeout = Time.now () + timeout in
   let t = create timeout action in
-  Var.protect_fn stack (fun () ->
-      let list = Var.unsafe_get stack in
-      Var.unsafe_set stack (insert t list));
-  t;;
+  let list = !stack in
+  stack := (insert t list);
+  t
 
 (* Push a timeout to be registered at the next iteration of the main loop. *)
 let push timeout action =
@@ -94,9 +93,7 @@ let not_equal t1 t2 =
 
 (* remove a Timeout from stack *)
 let remove t stack =
-  Var.protect_fn stack (fun () ->
-      let list = Var.unsafe_get stack in
-      Var.unsafe_set stack (List.filter (not_equal t) list));;
+  stack := (List.filter (not_equal t) !stack)
 
 (** cancel a Timeout from the global stack *)
 let cancel t =
@@ -105,10 +102,8 @@ let cancel t =
 let iter stack =
   (* we pop the whole list and push back an empty stack in case some thread want
      to add new timeouts while we are processing *)
-  let list = Var.protect_fn stack (fun () ->
-      let list = Var.unsafe_get stack in
-      Var.unsafe_set stack [];
-      list) in
+  let list = !stack in
+  stack := [];
   let rec loop l =
     match l with
     | [] -> []
@@ -117,10 +112,8 @@ let iter stack =
       else l (* the action t was not executed, we leave it in the stack *)
   in
   let remaining = loop list in
-  Var.protect_fn stack (fun () ->
-      let modified = Var.unsafe_get stack in
-      Var.unsafe_set stack (insert_sublist modified remaining));;
+  stack := (insert_sublist !stack remaining)
 
 let run () =
   (* the stack should be empty most of the time, so we add a test to be faster *)
-  if Var.get stack <> [] then iter stack;;
+  if !stack <> [] then iter stack;;

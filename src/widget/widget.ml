@@ -118,119 +118,15 @@ let on_release ~release w =
 
 (****)
 
-(** check if connection is in the active list, and return the most
-    recent (=first in list) active, or None *)
-let is_active alist c =
-  let rec loop = function
-    | [] -> None
-    | a::rest -> if a.connect_id = c#id then Some a else loop rest
-  in loop alist;;
-
-(** remove an 'active' from the active list of the widget *)
-(* it should occur only once in the list *)
-let remove widget thread_id =
-  let rec loop list acc = match list with
-    | [] -> acc
-    | a::rest -> (* if a.connect_id = active.connect_id *)
-      (* test inutile, le suivant suffit *)
-      if Thread.id a.thread = thread_id
-      then List.concat [List.rev rest; acc]
-      else loop rest (a::acc)
-  in Var.set widget#actives (List.rev (loop (Var.get widget#actives) []));;
-
-let add widget active =
-  Var.set widget#actives (active :: (Var.get widget#actives));;
-
-(** ask a thread to remove itself from a widget *)
-let remove_me c_id widget =
-  printd debug_thread "Removing connection #%d" c_id;
-  remove widget (Thread.id (Thread.self ()));
-  decr threads_created;;
-
-(* check if connection is terminated *)
-(* (only if the thread decided to signal this, for instance by setting the event
-   to Trigger.stopped) *)
-let has_terminated active =
-  Sdl.Event.(get active.event typ) <> Trigger.stop;;
-
-(* indicate to an active connection that its thread should terminate *)
-(* TODO protect this with mutex or Var *)
-let terminate ?(timeout = 50) active =
-  printd debug_thread "Ask for terminating connection #%u" active.connect_id;
-  Sdl.Event.(set active.event typ) Trigger.stop;
-  ignore (Timeout.add timeout (fun () ->
-      if not (has_terminated active)
-      then printd debug_thread "Cannot terminate thread for connection #%u after %u ms." active.connect_id timeout
-    ));;
-
-(* ask for terminate and wait (blocking) until it really terminates by itself *)
-let wait_terminate active =
-  terminate active;
-  Thread.join active.thread;;
-
-(** activate an action (via a thread) on the connection *)
-let add_action c action ev =
-  printd debug_thread "Create thread for connection #%d" c#id;
-  (* Trigger.renew_my_event (); *)
-  (* we used to create a new event for the main loop, so that "ev" can be safely
-     sent to the thread, and the thread can examine later, even after several
-     main loops, without it being altered (except when exiting is required) *)
-  (* Now we use a more natural, solution would be to copy the event before
-     sending it to the thread, but there is no "copy_event" function
-     available... *)
-  (* WARNING: at this point it is not possible to copy the drop_file_file field *)
-  let e_copy = Trigger.copy_event ev in
-  incr threads_created;
-  let src = c#src in
-  add src
-    { thread = Thread.create action e_copy;
-      event = e_copy;
-      connect_id = c#id };;
-
 (** check if the trigger can wake up a connection, and if so, run the action *)
 let wake_up event (c : connection) =
   if List.mem (Trigger.of_event event) c#triggers then
     begin
       printd debug_thread "Activating connection #%d" c#id;
-      (* TODO add a more precise ~test before launching the thread ? *)
-      if c#priority = Main then c#action event
-      (* = direct action, no thread !. Should we still add it to the active list
-         ? *)
-      else begin
-        let action ev =
-          c#action ev;
-          remove_me c#id c#src
-        in
-        let alist = Var.get c#src#actives in
-        let tho = is_active alist c in
-        if alist = [] || tho = None then add_action c action event
-        else match c#priority, tho with
-          | Forget, _ -> printd debug_thread "Forgetting connection #%d" c#id
-          | Join, Some a ->
-            let action ev = Thread.join a.thread; action ev in
-            add_action c action event
-          | Replace, Some a -> begin
-              (*printd debug_thread "Killing connection #%d" a.connect_id;*)
-              (* Thread.kill a.thread; *) (* Thread.kill is in fact NOT
-                                             implemented... ! *)
-              terminate a;
-              remove c#src (Thread.id a.thread);
-              add_action c action event
-            end
-          | _ -> failwith "This should not happen"
-      end
-    end;;
+      c#action event
+    end
 
-let wake_up_all ev w =
-  List.iter (wake_up ev) w#connections;;
-
-(** remove all active connections from this widget and ask for the threads to
-    terminate *)
-let remove_active_connections widget =
-  let actives = Var.get widget#actives in
-  List.iter wait_terminate actives;
-  Var.set widget#actives [];;
-
+let wake_up_all ev w = List.iter (wake_up ev) w#connections
 
 (*******************)
 

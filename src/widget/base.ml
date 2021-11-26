@@ -17,17 +17,16 @@ type active = {
 
 let fresh_id = fresh_int ()
 
-class virtual common =
+class virtual common ?id ?(name = "") () =
+  let id = match id with None -> fresh_id () | Some id -> id in
   object (self)
-    val mutable id = fresh_id ()
-    method id = id
-    method set_id x = id <- x
+    method id : int = id
+    method name : string = name
   end
 
-class virtual base size typ cursor =
+class virtual base ?id size name cursor =
   object (self)
-    inherit common
-    method typ : string = typ
+    inherit common ?id ~name ()
 
     val mutable _size : int * int = size
     method size = _size
@@ -121,15 +120,10 @@ module WHash = Weak.Make(Hash)
 
 let widgets_wtable = WHash.create 100
 
-class virtual w size typ cursor =
+class virtual w ?id size name cursor =
   object (self)
-    inherit base size typ cursor
+    inherit base ?id size name cursor
     initializer WHash.add widgets_wtable (self :> base)
-
-    method! set_id x =
-      WHash.remove widgets_wtable (self :> base);
-      id <- x;
-      WHash.add widgets_wtable (self :> base)
   end
 
 (** create new connection *)

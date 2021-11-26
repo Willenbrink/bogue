@@ -38,8 +38,7 @@ let is_fresh w = Var.get w#fresh;;
 
 let dummy_widget id =
   let open Base in
-  let dummy = new Empty.t (0,0) in
-  dummy#set_id id;
+  let dummy = new Empty.t ~id (0,0) in
   dummy
 
 (*let of_id id = Hashtbl.find widgets_table id;;*)

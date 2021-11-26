@@ -285,7 +285,7 @@ module Engine = struct
     let filter = Layout.get_rooms entry_layout
                  |> List.rev
                  |> List.hd in
-    if !debug then assert (filter#name = Some "filter");
+    if !debug then assert (filter#name = "filter");
     Layout.claim_keyboard_focus filter
 
   (* 2. Functions for reacting to events *)
@@ -545,7 +545,7 @@ let format_label ?w ?h = function
       ~margins:text_margin ~background [res]
   | Layout l ->
     let name = "formatted label" in
-    if !debug then assert (l#name <> Some name);
+    if !debug then assert (l#name <> name);
     (* this function should be applied only ONCE to the label *)
     Layout.superpose ~name [l] (* We preserve the (x,y) position. *)
 
@@ -566,7 +566,7 @@ let remove_icon_suffix ?(icon = "caret-right") layout =
     match List.rev (Layout.get_rooms layout) with
     | []
     | [_] -> ()
-    | filter::(this::others) -> assert (default this#name "" = icon);
+    | filter::(this::others) -> assert (this#name = icon);
       Layout.set_rooms layout (List.rev (filter::others))
   end with
   | e -> printd debug_error "Menu: Cannot remove icon suffix";

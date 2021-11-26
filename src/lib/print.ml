@@ -4,7 +4,7 @@ module L = Layout
 
 let widget w =
   let open Widget in
-  sprintf "wid: #%u, kind: %s" w#id (w#typ)
+  sprintf "wid: #%u, kind: %s" w#id (w#name)
 
 let color (r,g,b,a) =
   sprintf "(r=%u, g=%u, b=%u, a=%u)" r g b a

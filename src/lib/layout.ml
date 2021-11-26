@@ -111,19 +111,18 @@ let to_current_geom (g : geometry) : current_geom =
 
 let sprint_id r =
   Printf.sprintf "#%u%s" r#id (match r#name with
-      | None -> ""
-      | Some s -> Printf.sprintf " (%s)" s)
+      | "" -> ""
+      | s -> Printf.sprintf " (%s)" s)
 
-class room ?name ?(set_house = true) ?(adjust = Fit)
+class room ?id ?name ?(set_house = true) ?(adjust = Fit)
     ?(resize = fun _ -> ()) ?(layer = Draw.get_current_layer ())
     ?mask ?background ?shadow ?house ?keyboard_focus ?(mouse_focus=false)
     ?(show = true) ?(clip = false) ?(draggable = false) ?canvas
     _geometry content =
   let lock = Mutex.create () in
   object (self)
-    inherit Base.common
+    inherit Base.common ?id ?name ()
     (* Only for debugging purposes*)
-    method name = name
     method lock = lock
     (* Lock for concurrent access to mutable fields. Instead, we could use
        Var.t to encapsulate the layout (or all the mutable fields, if we think
@@ -258,7 +257,7 @@ class room ?name ?(set_house = true) ?(adjust = Fit)
       (* we update the resident room_id field *)
       (* we update the content's house field *)
       let () = match content with
-        | Leaf w -> w#set_room_id (Some id)
+        | Leaf w -> w#set_room_id (Some self#id)
         | List list -> if set_house
           then List.iter (fun r -> r#set_house (Some (self :> room))) list
       in
@@ -288,13 +287,13 @@ module WHash = Weak.Make(Hash)
 let rooms_wtable = WHash.create 50
 
 
-class t ?name ?(set_house = true) ?(adjust = Fit)
+class t ?id ?name ?(set_house = true) ?(adjust = Fit)
     ?(resize = fun _ -> ()) ?(layer = Draw.get_current_layer ())
     ?mask ?background ?shadow ?house ?keyboard_focus ?(mouse_focus=false)
     ?(show = true) ?(clip = false) ?(draggable = false) ?canvas
     _geometry content =
   object (self)
-    inherit room ?name ~set_house ~adjust ~resize ~layer ?mask ?background
+    inherit room ?id ?name ~set_house ~adjust ~resize ~layer ?mask ?background
         ?shadow ?house ?keyboard_focus ~mouse_focus ~show ~clip ~draggable ?canvas _geometry
         content
 
@@ -401,8 +400,7 @@ let create = new t ~set_house:true
 
 (* the dummy room is only used to search the Weak table *)
 let dummy_room id =
-  let x = create (geometry ()) (List []) in
-  x#set_id id;
+  let x = create ~id (geometry ()) (List []) in
   x
 
 let of_id_unsafe id : room =
@@ -2060,7 +2058,7 @@ let follow_mouse ?dx ?dy ?modifierx ?modifiery room =
 let make_clip ?w ?(scrollbar = true) ?(scrollbar_inside = false) ?(scrollbar_width = 10)
     ~h room =
   (* iter_rooms disable_resize room; *)
-  let name = (default room#name "") ^ ":clip" in
+  let name = room#name ^ ":clip" in
   if w <> None
   then printd debug_error "Horizontal scrolling is not implemented yet";
   let w = default w (width room) in
@@ -2516,7 +2514,7 @@ let make_window ?window layout =
   let w = min w wmax in
   let h = min h hmax in
   let x,y = get_window_pos layout in
-  let canvas = Draw.init ?window ?name:layout#name ?x ?y ~w ~h () in
+  let canvas = Draw.init ?window ~name:layout#name ?x ?y ~w ~h () in
   global_set_canvas top canvas
 
 (* adjust the window size to the top layout *)

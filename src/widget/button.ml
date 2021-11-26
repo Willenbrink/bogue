@@ -119,13 +119,9 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
       in List.concat [box_blit; label_blit]
 
     initializer
-      let c = connect_main self self (fun _ -> self#press) Trigger.buttons_down in
-      self#add_connection c;
-      let c = connect_main self self (fun _ -> self#release) Trigger.buttons_up in
-      self#add_connection c;
-      let c = connect_main self self (fun _ -> self#mouse_enter) [Trigger.mouse_enter] in
-      self#add_connection c;
-      let c = connect_main self self (fun _ -> self#mouse_leave) [Trigger.mouse_leave] in
-      self#add_connection c
+      connect_main self ~target:self (fun _ -> self#press) Trigger.buttons_down;
+      connect_main self ~target:self (fun _ -> self#release) Trigger.buttons_up;
+      connect_main self ~target:self (fun _ -> self#mouse_enter) [Trigger.mouse_enter];
+      connect_main self ~target:self (fun _ -> self#mouse_leave) [Trigger.mouse_leave];
 
   end

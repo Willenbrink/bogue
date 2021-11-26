@@ -665,21 +665,15 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
         | _ -> printd debug_warning "Warning: Event should not happen here"
 
     initializer
-      let c = connect_main self self self#button_down Trigger.buttons_down in
-      self#add_connection c;
-      let c = connect_main self self self#click Trigger.buttons_up in
-      self#add_connection c;
-      let c = connect_main self self self#tab [Sdl.Event.key_down] in
-      self#add_connection c;
+      connect_main self ~target:self self#button_down Trigger.buttons_down;
+      connect_main self ~target:self self#click Trigger.buttons_up;
+      connect_main self ~target:self self#tab [Sdl.Event.key_down];
       let selection ev =
         if Trigger.mm_pressed ev then (self#mouse_select ev; self#update)
       in
-      let c = connect_main ~update_target:false self self selection [Sdl.Event.mouse_motion] in
-      self#add_connection c;
-      let get_keys ev = self#receive_key ev
-      in
-      let c2 = connect_main self self get_keys [Sdl.Event.text_editing; Sdl.Event.text_input; Sdl.Event.key_down; Sdl.Event.key_up] in
-      self#add_connection c2;
+      connect_main self selection [Sdl.Event.mouse_motion];
+      connect_main self self#receive_key
+        [Sdl.Event.text_editing; Sdl.Event.text_input; Sdl.Event.key_down; Sdl.Event.key_up];
   end
 
       (*

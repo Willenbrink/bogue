@@ -40,7 +40,7 @@ let debug_code =
        (* + debug_io *)
        (* + debug_board *)
        (* + debug_memory *)
-       (* + debug_event *)
+       + debug_event
        (* + debug_custom *)
       )
 

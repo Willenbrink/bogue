@@ -36,8 +36,7 @@ let create_one ?slide title room dest_room =
       b#update (* or refresh only layout ? *)
     end
   in
-  let c = W.connect_main b b onpress Trigger.buttons_down in
-  b#add_connection c;
+  W.connect_main b ~target:b onpress Trigger.buttons_down;
   b
 
 (** create tabs from a assoc list ("title"; layout) *)
@@ -73,9 +72,7 @@ let create (*?(circular = true)*) ?slide ?(adjust = Layout.Fit) ?(expand = true)
       List.iter (fun b ->
           if not (W.equal w b) then b#release) labels;
       (* + refresh ? *) in
-    List.iter (fun l ->
-        let c =  W.connect_main l l (reset_other_labels l) Trigger.buttons_down in
-        l#add_connection c) labels;
+    List.iter (fun l ->W.connect_main l ~target:l (reset_other_labels l) Trigger.buttons_down) labels;
     (* we activate the first label (TODO: choose which one) *)
     let first_l = List.hd labels in
     first_l#press;

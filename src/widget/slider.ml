@@ -390,19 +390,15 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
     (* use ~lock if the user is not authorized to slide *)
     initializer
       let w = self in
-      let c = connect_main w w w#click Trigger.buttons_down in
-      w#add_connection c;
+      connect_main w ~target:w w#click Trigger.buttons_down;
       let on_release _ = w#release in
-      let c = connect_main w w on_release Trigger.buttons_up in
-      w#add_connection c;
+      connect_main w ~target:w on_release Trigger.buttons_up;
       let slide ev =
         if Trigger.mm_pressed ev || Trigger.event_kind ev = `Finger_motion
         then (w#slide ev; w#update)
       in
-      let c = connect ~priority ~update_target:false w w slide Trigger.pointer_motion in
-      w#add_connection c;
-      let c = connect ~priority w w w#receive_key [Sdl.Event.key_down] in
-      w#add_connection c
+      connect ~priority w slide Trigger.pointer_motion;
+      connect ~priority w ~target:w w#receive_key [Sdl.Event.key_down];
   end
 
 

@@ -228,5 +228,4 @@ let tooltip ?background ?(position = Below) text ~target widget layout =
                                what we want to do when we re-enter the target *)
 
   Widget.mouse_over ~enter ~leave:hide_tooltip widget;
-  let c = Widget.connect_main widget widget show_tooltip [Trigger.mouse_at_rest] in
-  widget#add_connection c
+  Widget.connect_main widget ~target:widget show_tooltip [Trigger.mouse_at_rest]

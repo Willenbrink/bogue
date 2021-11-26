@@ -897,7 +897,7 @@ let make_sdl_windows ?windows board =
 
 (* make the board. Each layout in the list will be displayed in a different
    window. *)
-let make ?(shortcuts = []) connections layouts =
+let make ?(shortcuts = []) layouts =
   let windows = List.map (Window.create ~bogue:true) layouts in
   (* let canvas = match layouts with *)
   (*   | [] -> failwith "At least one layout is needed to make the board" *)
@@ -911,7 +911,6 @@ let make ?(shortcuts = []) connections layouts =
   do_option (repeated Widget.equal widgets) (fun w ->
       print_endline (Print.widget w);
       failwith (Printf.sprintf "Widget is repeated: #%u" w#id));
-  List.iter (fun c -> c#src#add_connection c) connections;
   (* = ou bien dans "run" ? (ça modifie les widgets) *)
   let shortcuts =
     let open Shortcut in
@@ -942,7 +941,6 @@ let run ?before_display ?after_display board =
   Trigger.flush_all ();
   if not (Sync.is_empty ()) then Trigger.push_action ();
   if not (Update.is_empty ()) then Update.push_all ();
-  Trigger.main_tread_id := Thread.(id (self ()));
   let fps = Time.adaptive_fps 60 in
   make_sdl_windows board;
   show board;
@@ -971,8 +969,12 @@ let run ?before_display ?after_display board =
   (* List.iter (fun l -> List.iter (Widget.wake_up ev) *)
   (*               (List.flatten (List.map Widget.connections (Layout.get_widgets l)))) *)
   (*   board.layouts; *)
-  List.iter (Widget.wake_up (Trigger.startup_event ())) (* TODOOOOO this event can be modified by a thread ??!!! *)
-    (List.flatten (List.map (fun x -> x#connections) (Layout.get_widgets board.windows_house)));
+  Layout.get_widgets board.windows_house
+  |> List.map (fun x -> x#connections)
+  |> List.flatten
+  (* TODO this event can be modified by a thread ??!!! *)
+  |> List.iter (Widget.wake_up (Trigger.startup_event ())) ;
+
   Trigger.renew_my_event ();
   let rec loop anim =
     let anim' = one_step ?before_display ~clear:true anim fps board in

@@ -73,13 +73,11 @@ class virtual base size typ cursor =
        all textures) *)
     method unload = ()
     method virtual display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list
-
   end
 
-and connection src dst action ?(priority=Forget) ?(update_target=true) ?join triggers =
+and connection src ?target action ?(priority=Forget) ?join triggers =
   object
     method src : base = src
-    method dst : base = dst
     method action (ev : Sdl.event) : unit =
       if !debug
       then
@@ -91,7 +89,7 @@ and connection src dst action ?(priority=Forget) ?(update_target=true) ?join tri
         action ev;
 
       (* TODO ajouter Trigger.will_exit ev ?? *)
-      if update_target then dst#update
+      do_option target (fun x -> x#update)
 
     method priority = priority
     method triggers = triggers
@@ -101,7 +99,7 @@ and connection src dst action ?(priority=Forget) ?(update_target=true) ?join tri
       | Some c -> c#id
 
     initializer
-      if update_target && (List.mem Sdl.Event.user_event triggers)
+      if Option.is_some target && (List.mem Sdl.Event.user_event triggers)
       then printd debug_warning "one should not 'connect' with 'update_target'=true if the trigger list contains 'user_event'. It may cause an infinite display loop";
   end
 
@@ -136,12 +134,14 @@ class virtual w size typ cursor =
    la priorité Join pour effectuer à la suite de c). Attention dans ce
    cas, ne pas déclancher plein de ces connexions à la suite... elles
    s'attendent ! *)
-let connect source target action ?priority ?update_target ?join triggers =
-  new connection (source :> w) (target :> w) action ?priority ?update_target ?join triggers
+let connect self ?target action ?priority ?join triggers =
+  let target = Option.map (fun x -> (x :> w)) target in
+  let c = new connection (self :> base) action ?priority ?target ?join triggers in
+  self#add_connection c
 
-let connect_after source target action triggers =
-  match List.rev source#connections with
-  | [] -> connect source target action ~priority:Join triggers
-  | c::_ -> connect source target action ~priority:Join ~join:c triggers
+let connect_after self target action triggers =
+  match List.rev self#connections with
+  | [] -> connect self ?target action ~priority:Join triggers
+  | c::_ -> connect self ?target action ~priority:Join ~join:c triggers
 
 let connect_main = connect ~priority:Main

@@ -41,7 +41,7 @@ let create () =
       let bb = W.check_box ~state:(is_set code) () in
       let ll = new Label.t var in
       let btn = L.flat_of_w ~sep:0 W.[(bb :> W.t); (ll :> W.t)] in
-      let c = W.connect ((bb :> W.t)) (bb :> W.t) (action code bb) [Sdl.Event.mouse_button_down] in
+      let c = W.connect bb ~target:bb (action code bb) [Sdl.Event.mouse_button_down] in
       loop rest (btn :: rooms) (c :: connections) in
 
   let rooms, connections = loop debug_vars [] [] in
@@ -53,7 +53,7 @@ let create () =
     if ok
     then (L.show panel; L.fade_in panel)
     else (L.hide panel; L.fade_out panel)  in
-  let c = W.connect (b :> W.t) (b :> W.t) (action b) [Sdl.Event.mouse_button_down] in
+  W.connect b ~target:b (action b) [Sdl.Event.mouse_button_down];
 
   (* List.iter (fun c -> let src = c.source in W.(add_connection src c)) (c_boxes :: c :: connections); *)
   panel.L.show <- !debug;

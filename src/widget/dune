@@ -1,5 +1,5 @@
 (library
  (name widget)
-  (libraries tsdl utils)
+  (libraries utils)
    (wrapped false)
 )

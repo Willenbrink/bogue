@@ -1,6 +1,5 @@
 open Str
 open Utils
-open Tsdl
 open Tsdl_ttf
 open Base
 

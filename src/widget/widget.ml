@@ -1,7 +1,6 @@
 (* each widget contains its personal data, and the list of connections from
    it *)
 
-open Tsdl
 open Utils
 include Base
 

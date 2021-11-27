@@ -1,5 +1,4 @@
-open Tsdl;;
-open Utils;;
+open Utils
 
 type t = int (* 1/1000 sec *)
 

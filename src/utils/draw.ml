@@ -1,5 +1,5 @@
 open Printf
-open Tsdl
+
 open Utils
 open Result
 module TImage = Tsdl_image.Image

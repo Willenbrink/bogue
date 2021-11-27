@@ -3,7 +3,7 @@
 (* f : parameterize the boundary *)
 (* h : distance from boundary (<0 inside) *)
 
-open Tsdl
+
 open Utils
 
 type physicalpoint = Sdl.point

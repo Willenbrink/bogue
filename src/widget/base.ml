@@ -1,5 +1,4 @@
 open Utils
-open Tsdl
 
 (** what to do when the same action (= same connection id) is already running ? *)
 type action_priority =

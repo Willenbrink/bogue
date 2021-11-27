@@ -1,5 +1,5 @@
 (library
  (name utils)
- (libraries str tsdl tsdl-image tsdl-ttf)
+ (libraries str sdl)
    (wrapped false)
 )

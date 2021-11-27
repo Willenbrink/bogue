@@ -9,7 +9,7 @@
    them. *)
 
 open Utils
-open Tsdl
+
 open Base
 
 let default_size = (256,64)

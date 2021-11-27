@@ -7,7 +7,7 @@
 (* in principle this should be just a particular case of Menu, but this is
    not what we do here. *)
 
-open Tsdl
+
 open Utils
 module W = Widget
 

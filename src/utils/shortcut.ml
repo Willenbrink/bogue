@@ -1,5 +1,5 @@
 (* Keyboard shortcuts for the main loop *)
-open Tsdl
+
 
 module K = Sdl.K
 

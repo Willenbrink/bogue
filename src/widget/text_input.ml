@@ -7,7 +7,7 @@
 (* cf:
    https://wiki.libsdl.org/Tutorials/TextInput#CandidateList
 *)
-open Tsdl
+
 open Utils
 open Base
 

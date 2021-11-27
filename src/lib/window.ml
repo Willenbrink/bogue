@@ -1,6 +1,6 @@
 (* a 'window' is in fine just a layout *)
 (* Do not mistake it with a hardware (SDL) window *)
-open Tsdl
+
 open Utils
 
 type t =

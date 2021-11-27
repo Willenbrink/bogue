@@ -1,7 +1,7 @@
 (** Utilities *)
 (* Function names should be unambiguous enough to make it safe to open this
    module anywhere. *)
-open Tsdl
+
 
 exception Sdl2_error of string
 

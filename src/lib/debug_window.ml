@@ -1,5 +1,5 @@
 (** an interactive window to select the Debug level *)
-open Tsdl
+
 open Utils
 module W = Widget
 module L = Layout

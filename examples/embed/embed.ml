@@ -5,7 +5,6 @@
 
 (* press TAB to show GUI *)
 
-open Tsdl
 open Bogue
 open Utils
 module W = Widget

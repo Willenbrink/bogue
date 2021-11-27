@@ -1,5 +1,5 @@
 (** all sorts of examples *)
-open Tsdl
+
 open Bogue
 open Main
 module W = Widget
@@ -598,7 +598,8 @@ let example28 () =
   let select = Select.create (Array.sub europe 0 4) 0 in
   let select_fruit = Select.create fruits 2 in
   let layout = L.tower [L.flat [l; select; select_fruit]; box] in
-  let board = make [layout] in
+  let shortcuts = [Shortcut.exit_on_escape] in
+  let board = make ~shortcuts [layout] in
   let _ = Timeout.add 5000 (fun () -> print_endline "HELLO!---------------------") in
   run board
 

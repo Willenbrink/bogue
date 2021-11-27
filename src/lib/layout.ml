@@ -15,7 +15,7 @@
    widgets with a connection between them to synchronize the data *)
 
 
-open Tsdl
+
 open Utils
 
 type background = (* TODO instead we should keep track of how the box was created... in case we want to recreate (eg. use it for another window... ?) *)

@@ -4,7 +4,7 @@
 (* TODO implement the resize function *)
 
 open Utils
-open Tsdl
+
 
 let pre = if !debug
   then fun s -> print_endline ("[Menu] " ^ s) (* for local debugging *)

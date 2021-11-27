@@ -1,8 +1,7 @@
 (library
  (name bogue)
  ; (public_name bogue)
- (libraries str tsdl tsdl-image tsdl-ttf
-            widget utils lib))
+ (libraries str widget utils lib))
 
 (install
  (section share)

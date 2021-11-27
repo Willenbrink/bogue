@@ -5,7 +5,7 @@
 (* ==> label_on, label_off ? *)
 
 open Utils
-open Tsdl
+
 open Base
 
 let color_on = Draw.find_color Theme.button_color_on

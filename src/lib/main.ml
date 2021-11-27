@@ -8,7 +8,7 @@
 *)
 
 open Utils
-open Tsdl
+
 module E = Sdl.Event
 
 exception Exit

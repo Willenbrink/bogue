@@ -1,7 +1,6 @@
 (library
  (name lib)
- (libraries str tsdl tsdl-image tsdl-ttf
-            widget)
+ (libraries str sdl widget)
  (preprocess
   (pps ppx_deriving.show))
   (wrapped false)

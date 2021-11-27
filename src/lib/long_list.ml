@@ -78,7 +78,7 @@
 (* TODO BUG deal with resizing layout to include more/less rows in the
    container. Its works at startup but as soon as we scroll it stops working *)
 
-open Tsdl
+
 open Utils
 
 type entry = | Void

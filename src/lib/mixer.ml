@@ -4,7 +4,7 @@
 
 open Bigarray
 open Utils (* can easily make this independent of Utils if needed *)
-open Tsdl
+
 
 type audio_spec = (*(int, Bigarray.int16_signed_elt)*) Sdl.audio_spec
 

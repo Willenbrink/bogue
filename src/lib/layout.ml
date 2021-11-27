@@ -2333,17 +2333,6 @@ let set_cursor roomo =
       | Leaf (w) -> Cursor.get w#cursor in
   Sdl.set_cursor (Some cursor)
 
-(** check is the room has some non-fresh components. *)
-(* optimize (Bogue) ? *)
-let rec is_fresh room =
-  match room#content with
-  | List list -> let rec loop = function
-      | [] -> true
-      | r::h -> if not (is_fresh r) then false
-        else loop h in
-    loop list
-  | Leaf (w) -> Widget.is_fresh w
-
 let room_has_anim room =
   Avar.has_anim room#geometry.transform.alpha ||
   Avar.has_anim room#geometry.transform.center ||

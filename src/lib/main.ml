@@ -347,12 +347,6 @@ let target_widget board ev =
               (get_mouse_focus board)) in
   map_option roomo Layout.widget
 
-(** are all the widgets rendered up-to-date ? *)
-let is_fresh board =
-  (* List.fold_left (fun yes b -> yes && (Layout.is_fresh b)) true
-     board.layouts;; *)
-  Layout.is_fresh board.windows_house
-
 let has_anim board =
   (* !Avar.alive_animations > 0 || *)
   (* useful ? only if we have some animated variables that are not used in the

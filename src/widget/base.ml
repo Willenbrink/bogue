@@ -59,11 +59,6 @@ class virtual w ?id size name cursor =
     method cursor = _cursor
     method set_cursor x = _cursor <- x
 
-    (* FIXME Never set true? *)
-    val mutable fresh : bool = false
-    method fresh = fresh
-    method set_fresh x = fresh <- x
-
     val mutable connections : connection list = []
     method connections = connections
     method add_connection c = connections <- connections @ [c]
@@ -79,7 +74,6 @@ class virtual w ?id size name cursor =
       (* anyway, it is not clear if the user_window_id field for created event types
          is really supported by (T)SDL *)
       printd debug_board "Please refresh";
-      fresh <- false;
       (* if !draw_boxes then Trigger.(push_event refresh_event) *)
       (* else *)
       Trigger.push_redraw self#id (*TODO... use wid et/ou window_id...*)

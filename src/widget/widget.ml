@@ -19,8 +19,6 @@ let test () = [
   `Image (new Image.t "/non_existing.png")
 ]
 
-let is_fresh w = w#fresh
-
 (* let canvas w = match w.canvas with *)
 (*   | Some c -> c *)
 (*   | None -> failwith "Canvas not defined";; *)

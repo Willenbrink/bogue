@@ -33,12 +33,18 @@ class virtual common ?id ?(name = "") () =
     method id : int = id
     method name : string = name
 
+    method virtual children : common list
+    method virtual canvas : Draw.canvas option
+
     initializer WHash.add common_wtable (self :> < id : int >)
   end
 
 class virtual w ?id size name cursor =
   object (self)
     inherit common ?id ~name ()
+
+    method children = []
+    method canvas = None
 
     val mutable _size : int * int = size
     method size = _size
@@ -53,10 +59,6 @@ class virtual w ?id size name cursor =
     val mutable connections : connection list = []
     method connections = connections
     method add_connection c = connections <- connections @ [c]
-
-    val mutable room_id : int option = None
-    method room_id = room_id
-    method set_room_id x = room_id <- x
 
     method set_keyboard_focus = ()
     method remove_keyboard_focus = ()

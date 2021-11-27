@@ -241,16 +241,19 @@ let layout_focus board =
 (** which window corresponds to the event ? *)
 let window_of_event board ev =
   try
-    let ido = match Trigger.event_kind ev with
+    let w_id = match Trigger.event_kind ev with
       | `Bogue_redraw ->
-        let wid = E.(get ev user_code) in
-        map_option (Layout.of_wid wid) (fun r ->
-            let id = Sdl.get_window_id (Layout.window r) in
+        let id = E.(get ev user_code) in
+        board.windows
+        |> List.map (fun x -> (x,x.Window.layout#children))
+        |> List.find (fun (w,cs) -> List.mem id (List.map (fun x -> x#id) cs))
+        |> (fun (r,_) ->
+            let id = Sdl.get_window_id (Layout.window r.Window.layout) in
             printd debug_event "Redraw event window_id=%d" id;
             id)
-      | _ -> Some (Trigger.window_id ev) in
-    check_option ido (fun id ->
-        list_check_ok (fun w -> id = Window.id w) board.windows)
+      | _ -> Trigger.window_id ev
+    in
+    list_check_ok (fun w -> w_id = Window.id w) board.windows
   with Not_found ->
     printd debug_error "Search window for event %s caused an error" (Trigger.sprint_ev ev);
     None

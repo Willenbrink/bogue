@@ -36,7 +36,7 @@ let get_submenu menu =
    makes it easier to modify its text, but in principle we could also use the
    automatically generated layout and recover its resident widget. *)
 
-let new_id = fresh_int ()
+let new_id = fresh_int
 
 (* Return [dst] (created if necessary). [name] will be the name of the selected
    entry, not the name of the whole [dst] layout. *)

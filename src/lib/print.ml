@@ -4,7 +4,7 @@ module L = Layout
 
 let widget w =
   let open Widget in
-  sprintf "wid: #%u, kind: %s" w#id (w#name)
+  sprintf "wid: #%u, name: %s" w#id (w#name)
 
 let color (r,g,b,a) =
   sprintf "(r=%u, g=%u, b=%u, a=%u)" r g b a
@@ -16,7 +16,7 @@ let geometry g =
 let content c =
   match c with
   | L.List list -> sprintf "Rooms (%u)" (List.length list) (* do not call recursively all rooms, because we have a circular type *)
-  | L.Leaf w -> sprintf "Resident (%s)" (widget w)
+  | L.Leaf w -> widget w
 
 let house h =
   sprintf "%s" (L.sprint_id h)
@@ -70,7 +70,7 @@ let rec layout_down ?(indent = "") r =
   String.concat "" list
 
 and full_content ?(indent = "") = function
-  | L.Leaf (w) -> sprintf "Resident (%s)" (widget w)
+  | L.Leaf (w) -> widget w
   | L.List list -> "Rooms:" ^ (String.concat "," (List.map (layout_down ~indent) list));;
 
 

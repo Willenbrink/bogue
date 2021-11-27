@@ -190,6 +190,12 @@ class room ?id ?name ?(set_house = true) ?(adjust = Fit)
     method content = content
     method set_content x = content <- x
 
+    method children =
+      match self#content with
+      | Leaf x -> [(x :> Widget.common)]
+      | List xs -> List.map (fun x -> (x :> Widget.common)) xs
+                   @ List.concat_map (fun x -> (x :> Widget.common)#children) xs
+
     (* : the particular layer = chain element of this layout. If a room
        contains other Rooms, its layer should be at least as deep as the layers
        of the Rooms, otherwise the "background" might end-up not being at the
@@ -246,7 +252,7 @@ class room ?id ?name ?(set_house = true) ?(adjust = Fit)
       (* we update the resident room_id field *)
       (* we update the content's house field *)
       let () = match content with
-        | Leaf w -> w#set_room_id (Some self#id)
+        | Leaf w -> ()
         | List list -> if set_house
           then List.iter (fun r -> r#set_house (Some (self :> room))) list
       in
@@ -441,14 +447,6 @@ let iter_rooms f house =
   match house#content with
   | Leaf _ -> printd (debug_error + debug_board) "Layout %s has no rooms: cannot iter." (sprint_id house)
   | List list -> List.iter f list
-
-
-(* find the room containing a widget given by the wid (or None if the room has
-   disappeared in the air)*)
-let of_wid wid =
-  let w = Widget.of_id wid in
-  let id = w#room_id |> Option.get in
-  of_id_opt id
 
 (* returns the list of rooms of the layout, or Not_found if there is a
    resident *)
@@ -1179,9 +1177,7 @@ let change_resident ?w ?h room widget =
     let w = default w w' in
     let h = default h h' in
     room#set_content (Leaf widget);
-    widget#set_room_id (Some room#id);
     room#set_keyboard_focus (widget#guess_unset_keyboard_focus |> (fun b -> if b then None else Some false));
-    resid#set_room_id None;
     set_size room (w,h)
   | _ -> printd debug_event "[change_resident]: but target room has no resident!"
 
@@ -1399,24 +1395,20 @@ let set_rooms layout ?(sync=true) rooms =
 (* Warning: the old content is not freed from memory *)
 (* TODO: move everything to Sync (not only set_rooms) ? *)
 let copy ~src ~dst =
-
-
   let dx = dst#current_geom.x - src#current_geom.x in
   let dy = dst#current_geom.y - src#current_geom.y in
   global_translate src dx dy;
-  dst#set_geometry @@ { dst#geometry with w = src#geometry.w; h = src#geometry.h };
+  dst#set_geometry { dst#geometry with w = src#geometry.w; h = src#geometry.h };
   let w,h = get_size src in
-  dst#set_current_geom @@ { dst#current_geom with w; h };
-  dst#set_clip @@ src#clip;
-  dst#set_background @@ src#background;
+  dst#set_current_geom { dst#current_geom with w; h };
+  dst#set_clip src#clip;
+  dst#set_background src#background;
   begin match src#content with
-    | Leaf (r) as c -> r#set_room_id (Some dst#id); dst#set_content @@ c
+    | Leaf (r) as c -> dst#set_content c
     | List rooms -> set_rooms dst rooms
   end;
-  dst#set_keyboard_focus @@ src#keyboard_focus;
-  dst#set_draggable @@ src#draggable;
-  ();
-  ()
+  dst#set_keyboard_focus src#keyboard_focus;
+  dst#set_draggable src#draggable
 
 (* Add a room to the dst layout content (END of the list). The resize function
    of the room is cancelled. *)
@@ -2317,8 +2309,8 @@ let display ?pos0 room =
                 blit_to_layer { rect with clip; transform = t }
               end;
               List.iter (display_loop x y voffset clip transform) h
-            | Leaf (w) ->
-              let blits = w#display (get_canvas r) (r#layer)
+            | Leaf w ->
+              let blits = w#display (get_canvas r) r#layer
                   Draw.({x; y; w = g.w; h = g.h; voffset}) in
               let blits = match bg with
                 | None -> blits

@@ -265,6 +265,7 @@ let example14 () =
   let board = make [lay] in
   run board
 
+(* FIXME no parallelism inherently supported. *)
 let desc15 = "two (independent) clocks in text label; one is starting \
               automatically"
 let example15 () =

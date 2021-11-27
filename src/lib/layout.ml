@@ -50,7 +50,7 @@ type geometry = {
      house). Origin is top-left. *)
   w : int Avar.t;
   h : int Avar.t;
-  voffset : int Avar.t ref;
+  voffset : int Avar.t;
   (* the voffset is the vertical offset = the y value of where the content of
      the layout will be drawn. It is typically used for scrolling. It is similar
      to the 'y' variable', except that:
@@ -84,7 +84,7 @@ let geometry ?(x=0) ?(y=0) ?(w=0) ?(h=0) ?(voffset=0) ?transform () : geometry =
     y = Avar.var y;
     w = Avar.var w;
     h = Avar.var h;
-    voffset = ref (Avar.var voffset);
+    voffset = Avar.var voffset;
     transform = default transform { angle = Avar.var 0.;
                                     center = Avar.var None;
                                     flip = Avar.var Sdl.Flip.none;
@@ -93,7 +93,7 @@ let geometry ?(x=0) ?(y=0) ?(w=0) ?(h=0) ?(voffset=0) ?transform () : geometry =
 
 (** list of all integer dynamical variables *)
 let get_int_avars room =
-  let g = (room#geometry : geometry) in [g.x; g.y; g.w; g.h; !(g.voffset)]
+  let g = (room#geometry : geometry) in [g.x; g.y; g.w; g.h; g.voffset]
 
 let current_geom ?(x=0) ?(y=0) ?(w=0) ?(h=0) ?(voffset=0) () : current_geom =
   { x; y; w; h; voffset}
@@ -105,7 +105,7 @@ let to_current_geom (g : geometry) : current_geom =
     y = Avar.get g.y;
     w = Avar.get g.w;
     h = Avar.get g.h;
-    voffset = Avar.get !(g.voffset) }
+    voffset = Avar.get g.voffset }
 
 let sprint_id r =
   Printf.sprintf "#%u%s" r#id (match r#name with
@@ -676,7 +676,7 @@ let set_size ?keep_resize ?check_window ?update_bg l (w,h) =
   set_size ?keep_resize ?check_window ?update_bg ~w ~h l
 
 (** get voffset *)
-let get_voffset (l : t) = Avar.get !(l#geometry.voffset)
+let get_voffset (l : t) = Avar.get l#geometry.voffset
 
 (** get current absolute x position (relative to the top-left corner of the
     window). Not necessarily up-to-date. *)
@@ -745,18 +745,18 @@ let sety ?(keep_resize = false) l y =
 (* warning, it the animation is not finished, using Avar.set has almost no
    effect *)
 let set_voffset (l : t) vo =
-  Avar.set !(l#geometry.voffset) vo;
+  Avar.set l#geometry.voffset vo;
   l#set_current_geom  { l#current_geom with voffset = vo }
 
 (* use this to shift the voffset by a constant amount without stopping an
    animation *)
 let shift_voffset (l : t) dv =
-  let av = !(l#geometry.voffset) in
+  let av = l#geometry.voffset in
   if Avar.finished av
   then set_voffset l (Avar.get av + dv)
   else let av_new = Avar.apply (fun y -> y + dv) av in
     (* let _ = Avar.get av_new in *) (* in order to start the animation. Useful ?? *)
-    l#geometry.voffset := av_new
+    l#set_geometry {l#geometry with voffset = av_new}
 
 (* not used... *)
 let reset_pos l =
@@ -804,7 +804,7 @@ let rec rec_set_show b l =
 let compute_pos room =
   let rec loop x0 y0 (r : t) =
     let x,y = x0 + (Avar.get r#geometry.x),
-              y0 + (Avar.get r#geometry.y) + (Avar.get !(r#geometry.voffset)) in
+              y0 + (Avar.get r#geometry.y) + (Avar.get r#geometry.voffset) in
     match r#house with
     | None -> x,y
     | Some h -> loop x y h in
@@ -1643,10 +1643,10 @@ let animate_h room h =
 
 let animate_voffset room voffset =
   let g : geometry = room#geometry in
-  let avar = !(g.voffset) in
+  let avar = g.voffset in
   let is_current = Avar.started avar && not (Avar.finished avar) in
   Avar.stop avar;
-  g.voffset := voffset;
+  room#set_geometry {g with voffset};
   (* if the animation was already running we need to start immediately,
      otherwise the value that we set here will be valid only for the next
      iteration, which may cause non-immediate transitions: useful ???*)
@@ -1692,7 +1692,7 @@ let default_duration = 300
    animation *)
 (* 2. if the room is shown and without animation, we do nothing *)
 let show ?(duration=default_duration) ?from room =
-  if room#show && Avar.finished !((room#geometry : geometry).voffset)
+  if room#show && Avar.finished (room#geometry : geometry).voffset
   then printd (debug_board + debug_warning)
       "Room %s is already shown, we don't run the show animation"
       (sprint_id room)
@@ -1786,7 +1786,7 @@ let scroll_delay = ref 0.5
 let scroll_old2 ?(duration=default_duration) dy room =
   do_option room#house (fun house ->
       let current_vo = get_voffset house in
-      let avar = !(house#geometry.voffset) in
+      let avar = house#geometry.voffset in
       let jump_vo = Avar.final_value avar in
       let final_vo = - (max 0 (min (dy - jump_vo) (height room - height house))) in
       let duration = duration * (abs(final_vo - current_vo) + 1) / (abs (jump_vo - dy - current_vo) + 1) in
@@ -1820,7 +1820,7 @@ let last_time = ref (Time.now ());; (* TODO replace this by the time of the Avar
 let scroll ?(duration=default_duration) dy room =
   do_option room#house (fun house ->
       let current_vo = get_voffset house in
-      let avar = !(house#geometry.voffset) in
+      let avar = house#geometry.voffset in
       let jump_vo = Avar.final_value avar in (* à vérifier *)
       let final_vo = - (max 0 (min (dy - jump_vo) (height room - height house))) in
       let elapsed = Time.(now () - !last_time) in
@@ -1846,7 +1846,7 @@ let scroll ?(duration=default_duration) dy room =
 
 let scroll_old ?(duration=300) dy room =
   do_option room#house (fun house ->
-      Avar.finish !((house#geometry : geometry).voffset); (* TODO: do something smoother *)
+      Avar.finish (house#geometry : geometry).voffset; (* TODO: do something smoother *)
       let previous_vo = get_voffset house in
       printd debug_graphics "Scroll room #%u, dy=%d, previous_vo=%d" room#id dy previous_vo;
       scroll_to ~duration (dy - previous_vo) room)

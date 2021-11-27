@@ -512,8 +512,7 @@ let create ~w ~h ~length ?(first=0) ~generate ?height_fn
     let clicked_value = ref None (* TODO protect this *) in
     let steps = max ll.length h in (* TODO can do better, taking tick size into
                                       account *)
-    (* FIXME Be !very! careful with ref here. Does that work as intended? *)
-    let var = Tvar.create (ref ll.offset) (* the var for the scrollbar (slider) *)
+    let var = Tvar.create ll.offset (* the var for the scrollbar (slider) *)
         ~t_from: (* from offset we set slider new position *)
           (fun v -> let o = Avar.get v in
             (* here we just have to verify if the user

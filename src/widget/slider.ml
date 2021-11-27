@@ -63,7 +63,7 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
     | Circular -> thickness in
   let step = default step (max 1 (m/100)) in
   let var = default var (Tvar.create
-                           (ref (Avar.var value))
+                           (Avar.var value)
                            ~t_from:(Avar.get)
                            ~t_to:(Avar.var)) in
   object (self)
@@ -407,7 +407,7 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
    local value of the slider is modified by the slider *)
 let slider_with_action ?priority ?step ?kind ~value ?length ?thickness ?tick_size
     ~action max =
-  let v = ref (Avar.var value) in
+  let v = Avar.var value in
   let t_from a = Avar.get a in
   let t_to x = action x; Avar.var x in
   let var = Tvar.create v ~t_from ~t_to in

@@ -33,7 +33,7 @@ type column_private = {
 type t = {
   length : int;
   data : column_private array;
-  selection : Selection.t ref; (* selection of rows *)
+  mutable selection : Selection.t; (* selection of rows *)
   mutable last_selected : int option;
   order : int array; (* we keep here the bijection ith entry --> jth displayed *)
   titles : Layout.t array;
@@ -135,7 +135,7 @@ let make_table ?row_height (columns : column list) =
   {
     length;
     data;
-    selection = ref Selection.empty;
+    selection = Selection.empty;
     last_selected = None;
     order = Array.init length (fun i -> i);
     titles = Array.of_list titles; (* useful ? we have the layout below *)
@@ -145,7 +145,7 @@ let make_table ?row_height (columns : column list) =
 
 (* entry number i in the original array and in position ii in the display *)
 let get_background t i ii =
-  if Selection.mem !(t.selection) i
+  if Selection.mem t.selection i
   then Some row_selected
   else
   if ii mod 2 = 1
@@ -194,8 +194,8 @@ let make_long_list ~w ~h t  =
                      recompute the how long list to update all backgrounds. This
                      will have to be added afterwards. For the moment we only
                      toggle: *)
-         Selection.toggle !(t.selection) i in
-       t.selection := new_sel;
+         Selection.toggle t.selection i in
+       t.selection <- new_sel;
        Layout.set_background row (get_background t i ii);
       ) in
     Widget.on_click ~click click_area;
@@ -307,11 +307,11 @@ let make_selection_tvar t =
   let t_from sel = sel in (* the user can access the selection via this *)
   let t_to sel = (* this is what is done when the user will modifiy the
                     selection using Tvar.set *)
-    t.selection := sel; (* this is redundant with Tvar.set, but we need it
+    t.selection <- sel; (* this is redundant with Tvar.set, but we need it
                                 to be done *before* refresh... *)
     refresh t;
     sel in
-  Tvar.create (t.selection) ~t_from ~t_to
+  Tvar.create t.selection ~t_from ~t_to
 
 
 (* this returns the main layout and the selection variable *)

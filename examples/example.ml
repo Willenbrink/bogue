@@ -589,13 +589,13 @@ let example27 () =
 
   run board
 
-(* FIXME select bulgaria -> select banana -> crashes *)
+(* FIXME Select menu crashes with more than 5 entries *)
 let desc28 = "select list + Timeout"
 let example28 () =
   let l = L.resident (new Label.t "Please select your country") in
   let fruits = [| "apple"; "orange"; "banana"; "strawberry" |] in
   let box = L.flat_of_w ~sep:0 [new Box.t ~size:(500,100) ()] in
-  let select = Select.create europe 0 in
+  let select = Select.create (Array.sub europe 0 4) 0 in
   let select_fruit = Select.create fruits 2 in
   let layout = L.tower [L.flat [l; select; select_fruit]; box] in
   let board = make [layout] in

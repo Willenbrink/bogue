@@ -508,7 +508,7 @@ let create ~w ~h ~length ?(first=0) ~generate ?height_fn
                             [superpose [room; resident ~name:"active_bg" (active_bg)]]) in
   Layout.fix_content container;
   Layout.set_size container (w,h);
-  Layout.set_clip container; (* this allows the mouse wheel to change the
+  container#set_clip true; (* this allows the mouse wheel to change the
                                 container.voffset *)
   if h >= ll_height && i_final = ll.length - 1
   then container (* no need for scrollbar *)

@@ -14,8 +14,6 @@
    associated to a geometry in a layout. Instead one should use two differents
    widgets with a connection between them to synchronize the data *)
 
-
-
 open Utils
 
 type background = (* TODO instead we should keep track of how the box was created... in case we want to recreate (eg. use it for another window... ?) *)
@@ -122,7 +120,6 @@ class room ?id ?name ?(set_house = true) ?(adjust = Fit)
   object (self)
     inherit Base.common ?id ?name ()
 
-    (* TODO unimplemented *)
     (* should we adjust the size of this room to fit its content ? *)
     method adjust = adjust
 
@@ -252,7 +249,7 @@ class room ?id ?name ?(set_house = true) ?(adjust = Fit)
       (* we update the resident room_id field *)
       (* we update the content's house field *)
       let () = match content with
-        | Leaf w -> ()
+        | Leaf _ -> ()
         | List list -> if set_house
           then List.iter (fun r -> r#set_house (Some (self :> room))) list
       in
@@ -571,7 +568,7 @@ let unload_background room =
       | Solid _ -> ())
 
 (* force compute background at current size. Canvas must be created *)
-let compute_background ?(mustlock = true) room =
+let compute_background room =
   do_option room#background (
     fun bg ->
       let g = room#current_geom in
@@ -662,7 +659,7 @@ let set_size ?(keep_resize = false) ?(check_window = true) ?(update_bg = false) 
       Avar.set l#geometry.h h
     | None, None -> () in
 
-  if update_bg && l#canvas <> None then compute_background ~mustlock:false l;
+  if update_bg && l#canvas <> None then compute_background l;
   (* = ou plutot unload_background ?? *)
   if not keep_resize then disable_resize l;
   if check_window && is_top l then adjust_window_size l;
@@ -801,22 +798,6 @@ let get_transform l =
 
 let get_alpha l =
   Avar.get l#geometry.transform.alpha
-
-let draggable l =
-  l#draggable
-
-(* we don't lock because it will be modified only by the main loop *)
-let set_draggable l =
-  l#set_draggable true
-
-let set_clip l =
-  l#set_clip true
-
-let unset_clip l =
-  l#set_clip false
-
-let set_show l b =
-  l#set_show b
 
 let rec rec_set_show b l =
   l#set_show b;
@@ -1729,7 +1710,7 @@ let show ?(duration=default_duration) ?from room =
     let clip = ref false in
     let init () =
       clip := room#clip;
-      set_clip room
+      room#set_clip true
     in
     (* it is important to do this AFTER the ending() of the previous
        animation. *)
@@ -1763,7 +1744,7 @@ let hide ?(duration=default_duration) ?(towards = Avar.Bottom) room =
     let clip = ref false in
     let init () =
       clip := room#clip;
-      set_clip room
+      room#set_clip true
     in
     let h = height room in
     let current_vo = get_voffset room in

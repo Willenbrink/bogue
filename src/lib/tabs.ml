@@ -29,8 +29,8 @@ let create_one ?slide title room dest_room =
     if not b#state
     then begin
       b#press;
-      Layout.iter_rooms (fun l -> Layout.set_show l false) dest_room;
-      Layout.set_show room true;
+      Layout.iter_rooms (fun l -> l#set_show false) dest_room;
+      room#set_show true;
 
       do_option slide (fun from -> Layout.slide_in ~from ~dst:dest_room room);
       b#update (* or refresh only layout ? *)
@@ -47,8 +47,8 @@ let create (*?(circular = true)*) ?slide ?(adjust = Layout.Fit) ?(expand = true)
   else begin
     let _, first_room = List.hd list in
     let all_rooms = List.map snd list in
-    List.iter (fun l -> Layout.set_show l false) all_rooms;
-    Layout.set_show first_room true;
+    List.iter (fun l -> l#set_show false) all_rooms;
+    first_room#set_show true;
     let dest_room = (* Layout.flat ~sep:0 ~adjust ?canvas [first_room] in *)
       Layout.superpose ?canvas all_rooms in
     (* begin (\* we fix initial geometry *\)

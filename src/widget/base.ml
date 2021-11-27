@@ -25,7 +25,6 @@ let of_id id =
     printd debug_error "Cannot find widget with id=%d" id;
     raise Not_found
 
-
 class virtual common ?id ?(name = "") () =
   let id = match id with None -> fresh_int () | Some id -> id in
   object (self)

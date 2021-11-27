@@ -366,8 +366,8 @@ let example21 () =
   let screen = Popup.attach ~show:false ~bg:(Draw.(set_alpha 240 dark_grey)) layout popup in
   let button = new Button.t ~switch:true ~border_r:4 ~border_c:Draw.(opaque grey) "Popup" in
   let release b =
-    L.set_show popup b#state;
-    L.set_show screen b#state
+    popup#set_show b#state;
+    screen#set_show b#state
   in
   W.on_release ~release button;
   let close b = b#set_state false; release b  in

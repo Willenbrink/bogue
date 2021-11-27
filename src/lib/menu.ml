@@ -70,11 +70,11 @@ module Engine = struct
      top layer dynamically.  *)
   let screen_enable screen =
     pre "ENABLE";
-    Layout.set_show screen true
+    screen#set_show true
 
   let screen_disable screen =
     pre "DISABLE";
-    Layout.set_show screen false
+    screen#set_show false
 
   let entry_is_open entry =
     match entry.kind with
@@ -108,7 +108,7 @@ module Engine = struct
     let f menu =
       Layout.add_room ~dst menu.room;
       if not menu.active && not menu.always_shown
-      then Layout.set_show menu.room false
+      then menu.room#set_show false
 
     in
     List.iter (fun entry -> match entry.kind with
@@ -137,7 +137,7 @@ module Engine = struct
       menu.room#set_resize (fun _ ->
           set_menu_position menu);
       if not menu.active && not menu.always_shown
-      then Layout.set_show menu.room false
+      then menu.room#set_show false
     in
     iter f menu
 

@@ -246,7 +246,7 @@ let window_of_event board ev =
         let id = E.(get ev user_code) in
         board.windows
         |> List.map (fun x -> (x,x.Window.layout#children))
-        |> List.find (fun (w,cs) -> List.mem id (List.map (fun x -> x#id) cs))
+        |> List.find (fun (_,cs) -> List.mem id (List.map (fun x -> x#id) cs))
         |> (fun (r,_) ->
             let id = Sdl.get_window_id (Layout.window r.Window.layout) in
             printd debug_event "Redraw event window_id=%d" id;
@@ -741,7 +741,7 @@ let one_step ?before_display anim (start_fps, fps) ?clear board =
       (* | None -> (print_debug "No layout for this event !"; Some e) *)
       (* | Some _ ->  *)
       (match board.button_down with
-       | Some room -> if Layout.draggable room
+       | Some room -> if room#draggable
          then drag board e room (*Layout.drag_n_drop e room*)
          else Some e
        | None -> printd debug_board "No board.button_down"; Some e)

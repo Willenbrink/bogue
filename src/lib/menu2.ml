@@ -60,11 +60,11 @@ module Engine = struct
 
   let screen_enable screen =
     print_endline "ENABLE";
-    Layout.set_show screen true
+    screen#set_show true
 
   let screen_disable screen =
     print_endline "DISABLE";
-    Layout.set_show screen false
+    screen#set_show false
 
   let entry_is_open entry =
     match entry.kind with
@@ -96,7 +96,7 @@ module Engine = struct
     let f menu =
       Layout.add_room ~dst menu.room;
       if not menu.active && not menu.always_shown
-      then Layout.set_show menu.room false
+      then menu.room#set_show false
 
     in
     List.iter (fun entry -> match entry.kind with
@@ -120,7 +120,7 @@ module Engine = struct
           Layout.sety menu.room (y+dy));
 
       if not menu.active && not menu.always_shown
-      then Layout.set_show menu.room false
+      then menu.room#set_show false
     in
     iter f menu
 

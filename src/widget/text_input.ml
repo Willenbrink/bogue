@@ -79,57 +79,59 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
   object (self)
     inherit w size "TextInput" Cursor.Ibeam
     initializer Draw.ttf_init ()
-    val keys = Var.create keys
-    val cursor = Var.create None
-    val cursor_font = Var.create (Label.File Theme.fa_font)
-    val cursor_pos = Var.create 0
+    val mutable keys = keys
+    val mutable cursor = None
+    val cursor_font = ref (Label.File Theme.fa_font)
+    val mutable cursor_pos = 0
     val cursor_char = Theme.fa_symbol "tint"
-    val render = Var.create None
-    val offset = Var.create 0
-    val font = Var.create font
+    val mutable render = None
+    val mutable offset = 0
+    val font = ref font
     method font = Label.get_font_var font (Theme.scale_int font_size)
 
-    val active = Var.create false
-    method is_active = Var.get active
+    val mutable active = false
+    method is_active = active
     method clear =
-      let texo = Var.get render in
-      Var.set render None;
-      do_option texo Draw.forget_texture
+      do_option render Draw.forget_texture;
+      render <- None
+
     method stop =
       printd debug_event "Stopping text input";
       if Sdl.is_text_input_active () then Sdl.stop_text_input ();
       self#clear;
-      Var.set active false
+      active <- false
 
-    val room_x = Var.create 0
-    val selection = Var.create Empty
+    val mutable room_x = 0
+    val mutable selection = Empty
     val max_size = max_size
     val prompt = prompt
     val filter = filter
 
-    method unload =
-      do_option (Var.get render) Draw.forget_texture;
-      Var.set render None;
-      do_option (Var.get cursor) Draw.forget_texture;
-      Var.set cursor None;
+    method! unload =
+      do_option render Draw.forget_texture;
+      render <- None;
+      do_option cursor Draw.forget_texture;
+      cursor <- None
 
-    method resize x = self#unload (* TODO seems wrong *)
+    method! resize _ = self#unload (* TODO seems wrong *)
 
 
-    method text = String.concat "" (Var.get keys)
+    method text = String.concat "" keys
     (* because there is a length test, it should be placed ad the end of
        all modifications of ti *)
 
     method set_text_raw _keys =
-      if _keys <> Var.get keys
+      if _keys <> keys
       then begin
         let _keys = if List.length _keys > max_size
-          then (printd debug_memory "Warning: text_input was truncated because it should not exceed %u symbols" max_size;
-                Var.set cursor_pos (min (Var.get cursor_pos) max_size);
+          then (printd debug_memory
+                  "Warning: text_input was truncated because it\
+                   should not exceed %u symbols" max_size;
+                cursor_pos <- (min cursor_pos max_size);
                 self#stop;
                 let head, _ = split_list _keys max_size in head)
           else _keys in
-        Var.set keys _keys;
+        keys <- _keys;
         self#clear
       end
     method set_text x =
@@ -145,33 +147,33 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
       then begin
         printd debug_event "Activating text_input";
         Sdl.start_text_input ();
-        Var.set active true;
+        active <- true;
         self#clear;
       end
 
     method start_selection =
-      let n = Var.get cursor_pos in
+      let n = cursor_pos in
       printd debug_board "Starting text selection at %d" n;
-      Var.set selection (Start n)
+      selection <- (Start n)
 
 
     (** validate selection from starting point to current cursor_pos *)
     method make_selection =
-      match Var.get selection with
+      match selection with
       | Empty -> ()
       | Start n0 ->
-        let n = Var.get cursor_pos in
+        let n = cursor_pos in
         if n <> n0 then (printd debug_board "Make selection [%d,%d]" n0 n;
-                         Var.set selection (Active (min n0 n, max n0 n)))
-        else (Var.set selection Empty)
-      | Active _ -> Var.set selection Empty
+                         selection <- (Active (min n0 n, max n0 n)))
+        else (selection <- Empty)
+      | Active _ -> selection <- Empty
 
     (*** clipboard ***)
 
     (* retrieve the string corresponding to the selection *)
     method selection_text =
-      match Var.get selection with
-      | Active (n1,n2) -> let _, tail = split_list (Var.get keys) n1 in
+      match selection with
+      | Active (n1,n2) -> let _, tail = split_list (keys) n1 in
         let head, _ = split_list tail (n2-n1) in
         String.concat "" head
       | _ -> ""
@@ -252,9 +254,9 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
        individual glyphs. *)
     (* initial size of the widget *)
     (* not scaled, in order to conform to all widgets size functions *)
-    method size = (* TODO *)
+    method! size = (* TODO *)
       let w,h =
-        match Var.get render with
+        match render with
         | Some tex -> Draw.tex_size tex
         | None -> text_dims (self#font) (prompt) in
       let w,h = Draw.unscale_size (w,h) in
@@ -265,17 +267,17 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
     (** return the cursor position with respect to the total text surface *)
     (* warning: this is already scaled... (physical pixels) *)
-    method cursor_xpos ?(n = Var.get cursor_pos) () =
-      let head, _ = split_list (Var.get keys) n in
+    method cursor_xpos ?(n = cursor_pos) () =
+      let head, _ = split_list (keys) n in
       List.fold_left (fun s key -> s + text_width (self#font) key) 0 head
 
     (** Return cursor_pos corresponding to the x position *)
     method x_to_cursor x0 =
-      let room_x = Var.get room_x in
+      let room_x = room_x in
       let char_offset = font_size/3 in
       (* TODO, this should be roughly the half size of a char *)
       let x0 = x0 - room_x - (Theme.scale_int (left_margin + char_offset))
-               + (Var.get offset) in
+               + (offset) in
       let rec loop list cx n =
         match list with
         | [] -> n
@@ -283,7 +285,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
           if cx >= x0 then n else
             let advance, _ = text_dims (self#font) key in
             loop rest (cx + advance) (n+1) in
-      loop (Var.get keys) 0 0
+      loop (keys) 0 0
 
 
     (* Recall that none of the functions that are called by threads should call
@@ -294,7 +296,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
       printd debug_event "Click cursor";
       let x0u, _ = Mouse.pointer_pos ev in
       let x0 = Theme.scale_int x0u in (* on pourrait éviter de faire unscale-scale *)
-      Var.set cursor_pos (self#x_to_cursor x0);
+      cursor_pos <- (self#x_to_cursor x0);
       self#clear
 
     (* This should be called on mouse_button_down *)
@@ -305,7 +307,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
     method select_word =
       let sel = self#find_word
-      in Var.set selection sel;
+      in selection <- sel;
       self#clear
 
     (* This should be called on mouse_button_up *)
@@ -330,31 +332,31 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
 
     method kill_selection =
-      match Var.get selection with
-      | Active (n1,n2) -> let head1, tail1 = split_list (Var.get keys) n1 in
+      match selection with
+      | Active (n1,n2) -> let head1, tail1 = split_list (keys) n1 in
         let _, tail2 = split_list tail1 (n2-n1) in
-        Var.set cursor_pos n1;
-        Var.set selection Empty;
+        cursor_pos <- n1;
+        selection <- Empty;
         self#set_text_raw (List.flatten [head1; tail2]);
       | _ -> ()
 
     (* better to inline ? *)
     method unselect =
       printd debug_board "Removing selection";
-      Var.set selection Empty
+      selection <- Empty
 
     method select_all =
       printd debug_board "Select all text";
-      let l = List.length (Var.get keys) in
-      Var.set selection (Active (0,l));
+      let l = List.length (keys) in
+      selection <- (Active (0,l));
       self#clear
 
     (* insert a list of letters *)
     method insert_list list =
       self#kill_selection;
-      let x = Var.get cursor_pos in
-      let head, tail = split_list (Var.get keys) x in
-      Var.set cursor_pos (x + (List.length list));
+      let x = cursor_pos in
+      let head, tail = split_list (keys) x in
+      cursor_pos <- (x + (List.length list));
       self#set_text_raw (List.flatten [head; list; tail])
 
     (** insert a letter *)
@@ -368,8 +370,8 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
     (* find a word containg the cursor position *)
     method find_word =
-      let n = Var.get cursor_pos in
-      let daeh, tail = split_list_rev (Var.get keys) n in
+      let n = cursor_pos in
+      let daeh, tail = split_list_rev (keys) n in
       let rec find_sep ~complement list pos =
         match list with
         | [] -> pos
@@ -428,7 +430,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
     (* REMARK: instead of blitting surfaces, one could also use textures and SDL
        RenderTarget ? *)
     method display canvas layer g = (* TODO mettre un lock global ? *)
-      let cursor = match Var.get cursor with
+      let cursor = match cursor with
         | Some s -> s
         | None ->
           let csize = 2*(Theme.scale_int font_size)/3 in
@@ -436,16 +438,16 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
           let s = self#draw_keys cfont [cursor_char] ~fg:Draw.(opaque cursor_color) in
           (* TODO use render_key, it should be faster *)
           let tex = Draw.create_texture_from_surface canvas.Draw.renderer s in
-          Var.set cursor (Some tex);
+          cursor <- (Some tex);
           Draw.free_surface s;
           tex
       in
       let cw, _ = Draw.tex_size cursor in
-      let tex = match Var.get render with
+      let tex = match render with
         | Some t -> t
         | None ->
           let start_time = Unix.gettimeofday () in (* =for debug only *)
-          let keys = Var.get keys in
+          let keys = keys in
           let fg = if keys <> [] then Draw.(opaque text_color) else
               (* if self#is_active then Draw.(opaque pale_grey) else *) Draw.(opaque faint_color) in
           let keys = if keys = [] && not (self#is_active) then [prompt] else keys in
@@ -465,7 +467,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
           go (Sdl.blit_surface ~src:surf None ~dst:box (Some rect));
 
           (* draw selection background: this will erase the corresponding text... *)
-          (match Var.get selection with
+          (match selection with
            | Active (n1,n2) ->
              let x1 = self#cursor_xpos ~n:n1 () in
              let x2 = self#cursor_xpos ~n:n2 () in
@@ -480,7 +482,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
              go (Sdl.blit_surface ~src:sel (Some sel_rect) ~dst:box (Some sel_rect_cw))
            | Start n1 ->
              let x1 = self#cursor_xpos ~n:n1 () in
-             let n2 = Var.get cursor_pos in
+             let n2 = cursor_pos in
              let x2 = self#cursor_xpos ~n:n2 () in
              let sel_rect = Sdl.Rect.create ~x:(min x1 x2) ~y:0
                  ~w:(abs (x2-x1)) ~h:th in
@@ -493,7 +495,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
            | _ -> ());
 
           Draw.free_surface surf;
-          if Var.get active then begin
+          if active then begin
             (* draw underline *)
             let thick = Theme.scale_int 1 in
             let hline = Sdl.Rect.create ~x:(cw/2) ~y:(th (*+ bmargin - thick*)) ~w:tw ~h:thick in
@@ -504,19 +506,19 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
             (* move the offset to have the cursor in the visible area *)
             let cx = self#cursor_xpos () in
-            let _offset = Var.get offset in
+            let _offset = offset in
             let _offset = if cx <= _offset+cw then max 0 (cx-cw)
               else if cx - _offset >= g.Draw.w - cw - cw/2
               then min tw (cx - g.Draw.w + cw + cw/2)
               else _offset in
-            Var.set offset _offset
+            offset <- _offset
           end;
           (* we extract the visible part and save it as a texture, with all
              transparency info (no blending) *)
           (* note: if we don't clip to the visible part, it is easy to reach the max
              allowed texure width = 4096 *)
           let bw, bh = Sdl.get_surface_size box in
-          let _offset = Var.get offset in
+          let _offset = offset in
           let rect_b = Sdl.Rect.create ~x:_offset ~y:0 ~w:(min g.Draw.w (bw - _offset)) ~h:bh in
           let visible = Draw.create_surface ~like:box ~color:Draw.none (Sdl.Rect.w rect_b) bh in
           (* this surface (converted to texture) will be *blended* on the canvas *)
@@ -524,7 +526,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
           let tex = Draw.create_texture_from_surface canvas.Draw.renderer visible in
           Draw.free_surface box;
           Draw.free_surface visible;
-          Var.set render (Some tex);
+          render <- (Some tex);
           printd debug_graphics "Time for creating texture = %f s" (Unix.gettimeofday () -.  start_time);
           tex
       in
@@ -533,7 +535,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
       let open Draw in
       let area = geom_to_rect g in
       Sdl.set_text_input_rect (Some area);
-      Var.set room_x g.x;
+      room_x <- g.x;
       let text_blit = copy_tex_to_layer ~overlay:(Draw.Xoffset 0) ~voffset:g.voffset
           canvas layer tex area (g.x + (Theme.scale_int left_margin))
           (g.y + (Theme.scale_int bottom_margin)) in
@@ -550,7 +552,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
         let _,bh = tex_size tex in
         let voff = Theme.scale_int 4 in
         let cursor_g = { g with x = g.x + Theme.scale_int left_margin +
-                                    self#cursor_xpos () - Var.get offset;
+                                    self#cursor_xpos () - offset;
                                 y = g.y + bh - voff } in
         [text_blit; tex_to_layer canvas layer cursor cursor_g]
       else [text_blit]
@@ -559,45 +561,45 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
     (* start selection on pressing SHIFT *)
     method shift_check_sel =
       if Trigger.shift_pressed () then
-        (if Var.get selection = Empty then self#start_selection)
+        (if selection = Empty then self#start_selection)
       else self#unselect
 
     method backspace =
-      if Var.get selection <> Empty then self#kill_selection
-      else let x = Var.get cursor_pos in
+      if selection <> Empty then self#kill_selection
+      else let x = cursor_pos in
         if x > 0 then
-          let head, tail = split_list (Var.get keys) (x-1) in
+          let head, tail = split_list (keys) (x-1) in
           let tail' = match tail with
             | [] -> printd debug_error "This should not happen in backspace"; []
             | _::rest -> rest in
-          Var.set cursor_pos (x-1);
+          cursor_pos <- (x-1);
           self#set_text_raw (List.flatten [head; tail'])
 
     (* move cursor to the left *)
     method left =
       self#shift_check_sel;
-      let x = Var.get cursor_pos in
+      let x = cursor_pos in
       self#clear;
-      Var.set cursor_pos (max 0 (x-1))
+      cursor_pos <- (max 0 (x-1))
 
     (* move cursor to the right *)
     method right =
       self#shift_check_sel;
-      let x = Var.get cursor_pos in
+      let x = cursor_pos in
       self#clear;
-      Var.set cursor_pos (min (List.length (Var.get keys)) (x+1))
+      cursor_pos <- (min (List.length (keys)) (x+1))
 
     (* move to beginning of line *)
     method home =
       self#shift_check_sel;
       self#clear;
-      Var.set cursor_pos 0
+      cursor_pos <- 0
 
     (* move to end of line *)
     method last =
       self#shift_check_sel;
       self#clear;
-      Var.set cursor_pos (List.length (Var.get keys))
+      cursor_pos <- (List.length (keys))
 
     (* copy to clipboard *)
     method copy =

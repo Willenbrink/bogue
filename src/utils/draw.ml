@@ -38,7 +38,7 @@ let textures_in_memory = ref 0;;
 let surfaces_in_memory = ref 0;;
 let ttf_surfaces_in_memory = ref 0;;
 
-let textures_to_destroy = Var.create (Queue.create ());;
+let textures_to_destroy = ref (Queue.create ())
 (* TODO this should be attached to a window. Make sure all textures that
    belonged to a renderer are removed from this queue when the renderer is
    detroyed. Otherwise we will be destroying a new texture! *)
@@ -152,22 +152,21 @@ let sdl_image_load file =
 (* SDL TTF *)
 
 (* TODO: use a proper cache (delete unused fonts ?) *)
-let font_cache : (((string * int), Tsdl_ttf.Ttf.font) Hashtbl.t) Var.t =
-  Var.create (Hashtbl.create 10)
+let font_cache : ((string * int), Tsdl_ttf.Ttf.font) Hashtbl.t =
+  Hashtbl.create 10
 (* obviously we don't need the mutability of Var.t here for a Hashtbl... *)
 
 let rec open_font file size =
   (* first we check if it is available in memory *)
-  try let f = Hashtbl.find (Var.get font_cache) (file,size) in
+  try let f = Hashtbl.find font_cache (file,size) in
     printd debug_memory "Font %s (%u) was found in cache" file size; f
   with
   | Not_found -> begin
       printd debug_io "Loading font %s (%u)" file size;
       match Tsdl_ttf.Ttf.open_font file size with
       | Result.Ok f ->
-        Var.protect_fn font_cache (fun () ->
-            Hashtbl.add (Var.unsafe_get font_cache) (file,size) f;
-            f);
+        Hashtbl.add font_cache (file,size) f;
+        f
       | Result.Error _ ->  (* use default font if error *)
         if file = Theme.label_font
         then begin
@@ -214,7 +213,7 @@ let rect_translate r (x0,y0) =
 (* TODO try to remove all of this, and instead invoque Gc.finalise on every
    texture creation ? Bad idea in fact. *)
 let destroy_textures () =
-  let queue = Var.get textures_to_destroy in
+  let queue = !textures_to_destroy in
   let rec loop i =
     if Queue.is_empty queue
     then (if i > 0
@@ -248,9 +247,7 @@ let destroy_textures () =
 
    If a widget is not used anymore, it is necessary to call forget_texture. *)
 (* This is thread-safe. *)
-let forget_texture tex =
-  Var.protect_fn textures_to_destroy (fun () ->
-      Queue.push tex (Var.get textures_to_destroy));;
+let forget_texture tex = Queue.push tex !textures_to_destroy
 
 (* prints some memory info *)
 let memory_info () =
@@ -532,15 +529,14 @@ let tex_size tex =
 let new_layer () : blit Queue.t =
   Queue.create ();;
 
-let current_layer = Var.create (Chain.singleton (new_layer ()));;
+let current_layer = ref (Chain.singleton (new_layer ()))
 (* TODO, how to get rid of this global variable ? *)
-(* the mutex is used in Layout.flip *)
 
-let get_current_layer () = Var.get current_layer;;
+let get_current_layer () = !current_layer
 
-let set_current_layer layer = Var.set current_layer layer;;
+let set_current_layer layer = current_layer := layer
 
-let use_new_layer () = Var.set current_layer (Chain.singleton (new_layer ()));;
+let use_new_layer () = current_layer := Chain.singleton (new_layer ())
 
 let set_get_current_layer layer =
   set_current_layer layer;
@@ -571,10 +567,10 @@ let layer_below layer =
   in set_get_current_layer l;;
 
 let top_layer () =
-  set_get_current_layer (Chain.last (Var.get current_layer));;
+  set_get_current_layer (Chain.last !current_layer)
 
 let deepest_layer () =
-  set_get_current_layer (Chain.first (Var.get current_layer));;
+  set_get_current_layer (Chain.first !current_layer)
 
 
 

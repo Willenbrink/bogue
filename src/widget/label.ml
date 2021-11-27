@@ -12,16 +12,17 @@ type style = Tsdl_ttf.Ttf.Style.t
 (* open font with specified size. Here this is the true size, it will not be
          scaled. *)
 (* This can be used by all widgets requiring a font. *)
+(* FIXME remove this/ replace by lazy.t *)
 let get_font font size =
   match font with
   | Font f -> f
   | File file -> Draw.open_font file size
 
 let get_font_var v size =
-  match Var.get v with
+  match !v with
   | Font f -> f
   | File file -> let f = Draw.open_font file size in
-    Var.set v (Font f); f
+    v := Font f; f
 
 let physical_size_text font text =
   (* Attention, SDL_ttf n'est peut-être pas encore initialisé... *)
@@ -40,32 +41,26 @@ class t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
     inherit w size typ Cursor.Arrow
     initializer Draw.ttf_init ()
 
-    val _text = Var.create text
-    val render : (Draw.texture option) Var.t = Var.create None
-    val font = Var.create font
+    val mutable text = text
+    method text = text
+    method set_text x =
+      if text <> x then self#unload;
+      text <- x
+
+    val mutable render : Draw.texture option = None
+    val font = ref font
     val style = style
     val font_size = font_size
-    val fg = Var.create fg
+    val mutable fg = fg
 
     method! unload =
-      let tex = Var.get render in
-      Var.set render None;
+      let tex = render in
+      render <- None;
       do_option tex Draw.forget_texture
 
-    method text = Var.get _text
-    method set_text x =
-      if self#text <> x
-      then begin
-        Var.set _text x;
-        self#unload
-      end
-
-    method set_fg_color x = Var.set fg x
+    method set_fg_color x = fg <- x
 
     method display canvas layer geom =
-      let text = self#text in
-      let fg = Var.get fg in
-
       let ttffont = get_font_var font (Theme.scale_int font_size) in
       (* physical size *)
 
@@ -85,12 +80,12 @@ class t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
         tex
       in
 
-      let tex = match Var.get render with
+      let tex = match render with
         | Some t -> t
         | None ->
           Printf.printf "Creating renderer\n";
           let tex = render_text canvas.Draw.renderer ttffont style text in
-          Var.set render (Some tex); tex
+          render <- Some tex; tex
       in
       [Draw.center_tex_to_layer canvas layer tex geom]
 

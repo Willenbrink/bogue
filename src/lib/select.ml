@@ -42,11 +42,11 @@ let new_id = fresh_int
    entry, not the name of the whole [dst] layout. *)
 let create ?dst ?name ?(action = fun _ -> ()) ?fg entries selected =
   let name = default name (Printf.sprintf "selected_%i" (new_id ())) in
-  let selected = Var.create selected in
-  let action = Var.create action in
+  let selected = ref selected in
+  let action = ref action in
 
   (* let background = Layout.Solid(Draw.(transp white)) in *)
-  let selected_widget = new Label.t ?fg entries.(Var.get selected) in
+  let selected_widget = new Label.t ?fg entries.(!selected) in
   let selected_layout = Layout.flat_of_w ~name (* ~background *)
       ~sep:0 [(selected_widget :> Widget.t)] in
 
@@ -55,8 +55,8 @@ let create ?dst ?name ?(action = fun _ -> ()) ?fg entries selected =
     |> List.mapi (fun i s ->
         let action () =
           selected_widget#set_text entries.(i);
-          Var.set selected i;
-          Var.get action i
+          selected := i;
+          !action i
         in
         Menu.{ label = Text s; content = Action action })
   in

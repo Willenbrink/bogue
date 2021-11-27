@@ -19,7 +19,7 @@ let test () = [
   `Image (new Image.t "/non_existing.png")
 ]
 
-let is_fresh w = Var.get w#fresh;;
+let is_fresh w = w#fresh
 
 (* let canvas w = match w.canvas with *)
 (*   | Some c -> c *)
@@ -90,14 +90,14 @@ let check_box_with_label text =
    very fast actions. *)
 
 let mouse_over ?(enter = nop) ?(leave = nop) w =
-  connect w ~target:w (fun ev -> enter w) [Trigger.mouse_enter];
-  connect w ~target:w (fun ev -> leave w) [Trigger.mouse_leave]
+  connect w ~target:w (fun _ -> enter w) [Trigger.mouse_enter];
+  connect w ~target:w (fun _ -> leave w) [Trigger.mouse_leave]
 
 let on_click ~click w =
-  connect_main w ~target:w (fun ev -> click w) Trigger.buttons_down
+  connect_main w ~target:w (fun _ -> click w) Trigger.buttons_down
 
 let on_release ~release w =
-  connect_main w ~target:w (fun ev -> release w) Trigger.buttons_up
+  connect_main w ~target:w (fun _ -> release w) Trigger.buttons_up
 
 (****)
 

@@ -33,12 +33,12 @@ type column_private = {
 type t = {
   length : int;
   data : column_private array;
-  selection : Selection.t Var.t; (* selection of rows *)
+  selection : Selection.t ref; (* selection of rows *)
   mutable last_selected : int option;
   order : int array; (* we keep here the bijection ith entry --> jth displayed *)
   titles : Layout.t array;
   row_height : int;
-  layout : (Layout.t option) Var.t (* the global layout *)
+  layout : Layout.t option ref(* the global layout *)
 }
 
 let title_margin = 5;;
@@ -135,17 +135,17 @@ let make_table ?row_height (columns : column list) =
   {
     length;
     data;
-    selection = Var.create Selection.empty;
+    selection = ref Selection.empty;
     last_selected = None;
     order = Array.init length (fun i -> i);
     titles = Array.of_list titles; (* useful ? we have the layout below *)
     row_height;
-    layout = Var.create None (* will be computed afterwards *)
-  };;
+    layout = ref None (* will be computed afterwards *)
+  }
 
 (* entry number i in the original array and in position ii in the display *)
 let get_background t i ii =
-  if Selection.mem (Var.get t.selection) i
+  if Selection.mem !(t.selection) i
   then Some row_selected
   else
   if ii mod 2 = 1
@@ -194,8 +194,8 @@ let make_long_list ~w ~h t  =
                      recompute the how long list to update all backgrounds. This
                      will have to be added afterwards. For the moment we only
                      toggle: *)
-         Selection.toggle (Var.get t.selection) i in
-       Var.set t.selection new_sel;
+         Selection.toggle !(t.selection) i in
+       t.selection := new_sel;
        Layout.set_background row (get_background t i ii);
       ) in
     Widget.on_click ~click click_area;
@@ -242,8 +242,7 @@ let set_indicator t j =
 
 (* refreshes the table by creating a new long_list *)
 let refresh t =
-  Var.protect t.layout;
-  match (Var.get t.layout) with
+  match !(t.layout) with
   | None -> failwith "table.ml: field t.layout should not be None"
   (* TODO don't crash here and provide a default ? But this should never
        happen *)
@@ -263,9 +262,7 @@ let refresh t =
     Layout.(long#set_geometry g);
     Layout.(long#set_current_geom @@ to_current_geom g);
     (* = not really necessary, because I have removed do_adjust in set_rooms *)
-    Layout.set_rooms r [titles_row; long];
-
-    Var.release t.layout;;
+    Layout.set_rooms r [titles_row; long]
 
 (* changes sorting order. We don't try to modify the long_list in-place, we
    create a new one *)
@@ -310,11 +307,11 @@ let make_selection_tvar t =
   let t_from sel = sel in (* the user can access the selection via this *)
   let t_to sel = (* this is what is done when the user will modifiy the
                     selection using Tvar.set *)
-    Var.set t.selection sel; (* this is redundant with Tvar.set, but we need it
+    t.selection := sel; (* this is redundant with Tvar.set, but we need it
                                 to be done *before* refresh... *)
     refresh t;
     sel in
-  Tvar.create (t.selection) ~t_from ~t_to;;
+  Tvar.create (t.selection) ~t_from ~t_to
 
 
 (* this returns the main layout and the selection variable *)
@@ -323,7 +320,7 @@ let create ?w ~h ?row_height ?(name="table") (columns : column list) =
   let titles_row, long = make_layout ?w ~h t in
   let layout = Layout.tower ~sep:0 ~hmargin:0 ~vmargin:0 ~name
       [titles_row; long] in
-  Var.set t.layout (Some layout);
+  t.layout := (Some layout);
   for j = 0 to List.length columns - 1 do
     connect_title t j
   done;

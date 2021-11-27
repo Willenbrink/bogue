@@ -34,26 +34,26 @@ class t ?w ?h ?(noscale = false)
   object (self)
     inherit w size "Image" Cursor.Arrow
 
-    val file = Var.create file
+    val mutable file = file
     val background = bg (* idem *)
-    val render : (Draw.texture option) Var.t = Var.create None
-    method render = Var.get render
+    val mutable render : Draw.texture option = None
+    method render = render
 
     method! unload =
-      match Var.get render with
+      match render with
       | None -> ()
       | Some tex -> begin
           Draw.forget_texture tex;
-          Var.set render None
+          render <- None
         end
 
     (* FIXME somehow, this is flipped*)
     method display canvas layer g =
       let open Draw in
-      let tex = match Var.get render with
+      let tex = match render with
         | Some t -> t
         | None ->
-          let file = Theme.get_path (Var.get file) in
+          let file = Theme.get_path file in
           (* printd debug_io "Image: Loading image file %s" file; *)
           (* let surf = sdl_image_load file in *)
           (* let box = create_surface ~like:surf ~color:img.background g.w g.h in *)
@@ -73,7 +73,7 @@ class t ?w ?h ?(noscale = false)
           (* Var.set img.render (Some tex); *)
           (* tex *)
           let tex = Draw.load_image canvas.renderer file in
-          Var.set render (Some tex);
+          render <- Some tex;
           tex
           (* TODO render on background *)
 

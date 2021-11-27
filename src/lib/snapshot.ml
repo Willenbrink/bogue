@@ -27,25 +27,23 @@ let update box room =
   let x,y = Layout.(getx room, gety room) in
   let target = Draw.create_target renderer w h in
   printd debug_graphics "Rendering snapshot...";
-  Var.protect Draw.current_layer;
   (* Now we assume that the blits are empty... TODO check this and issue an
      error otherwise *)
   Layout.display ~pos0:(-x,-y) room;
   let save = Draw.push_target renderer target in
   Draw.render_all_layers (room#layer);
-  Var.release Draw.current_layer;
   Draw.pop_target renderer save;
   printd debug_graphics "...rendering snapshot done.";
 
   (* essai blur *)
   (* let target = Draw.blur_texture renderer target 24 in *)
 
-  do_option (Var.get box#render) Draw.forget_texture;
-  Var.set box#render (Some target);;
+  do_option box#render Draw.forget_texture;
+  box#set_render (Some target)
 
 let create ?border room =
   let size = Layout.get_size room in
   let box = new Box.t ~size ?border () in
   (* let c = Widget.connect_main box box (fun w _ _ -> update w room) [Trigger.startup] in
    * Widget.add_connection box c; *)
-  box;;
+  box

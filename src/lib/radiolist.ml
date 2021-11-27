@@ -12,7 +12,7 @@ open Utils
 module W = Widget
 
 type widgets = {
-  index : (int option) Var.t; (* the index of selected entry *)
+  index : int option ref; (* the index of selected entry *)
   data : (W.t * W.t) array
 }
 
@@ -36,7 +36,7 @@ let active_widgets t =
 
 (* return the checlk widget of the selected entry, or None *)
 let get_button widgets =
-  map_option (Var.get widgets.index) (fun i ->
+  map_option !(widgets.index) (fun i ->
       let (b,_) = widgets.data.(i) in b);;
 
 (* string -> label *)
@@ -59,7 +59,7 @@ let select_action widgets i b _=
     b#set_check_state true;
     (* do_option (get_button widgets) (fun old_b ->
      *     W.set_check_state old_b false); *)
-    Var.set widgets.index (Some i);
+    widgets.index := Some i;
     (*Update.push b*)
   end;;
 
@@ -80,9 +80,9 @@ let make_widgets ?selected ?(click_on_label=true) entries =
   (* do_option selected (fun i ->
    *     let (b,_) = data.(i) in
    *     W.set_check_state b true); *)
-  let widgets = { index = Var.create selected; data } in
+  let widgets = { index = ref selected; data } in
   (* make_connections widgets; *)
-  widgets;;
+  widgets
 
 (* create a vertical (ie. standard) layout *)
 let vertical ?(name = "radiolist") ?(click_on_label=true) ?selected entries =
@@ -94,8 +94,7 @@ let vertical ?(name = "radiolist") ?(click_on_label=true) ?selected entries =
   {widgets; layout; click_on_label};;
 
 (* get index of selected entry, or None *)
-let get_index t =
-  Var.get t.widgets.index;;
+let get_index t = !(t.widgets.index)
 
 (* sets the selected entry to i and directly activate the button's connections
    with the var_changed event. *)

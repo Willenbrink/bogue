@@ -22,11 +22,9 @@ class t ?(state = false) ?(style = Square) () =
 
   object (self)
     inherit w size "Check" Cursor.Hand
+    inherit [bool] stateful state
     val style = style
     method get_style = style
-    val state = Var.create state
-    method state = Var.get state
-    method set_state x = Var.set state x
     method action = self#set_state (not self#state)
 
     (* TODO load the symbol at run-time so that we can change color *)

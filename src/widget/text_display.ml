@@ -145,41 +145,37 @@ class t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font = defa
     inherit w size "TextDisplay" Cursor.Arrow
     initializer Draw.ttf_init ()
 
-    val _paragraphs = Var.create (List.rev ([Style Ttf.Style.normal] :: (List.rev paragraphs))) (* we add normal style at the end *)
-    val render = Var.create None
-    val font = Var.create font
+    val mutable _paragraphs = List.rev ([Style Ttf.Style.normal] :: (List.rev paragraphs)) (* we add normal style at the end *)
+    val mutable render = None
+    val font = ref font
 
-    method paragraphs = Var.get _paragraphs
+    method paragraphs = _paragraphs
     method text = unsplit self#paragraphs
 
     (** change the content of the text on the fly *)
     method set_text x =
       let x = paragraphs_of_string x in
-      Var.protect render;
-      let texo = Var.get render in
-      Var.unsafe_set render None;
-      do_option texo Draw.forget_texture;
-      Var.set _paragraphs x;
-      Var.release render
+      do_option render Draw.forget_texture;
+      render <- None;
+      _paragraphs <- x
 
     method! resize x =
       self#unload;
       _size <- x
 
     method! unload =
-      match Var.get render with
+      match render with
       | None -> ()
       | Some tex -> begin
           Draw.forget_texture tex;
-          Var.set render None
+          render <- None
         end
 
     method get_font = Label.get_font_var font (Theme.scale_int font_size)
 
     method display canvas layer g =
       let open Draw in
-      Var.protect render;
-      let tex = match Var.get render with
+      let tex = match render with
         | Some t -> t
         | None ->
           begin
@@ -228,10 +224,9 @@ class t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font = defa
             loop (paragraphs) 0 0;
             let tex = create_texture_from_surface canvas.renderer target_surf in
             free_surface target_surf;
-            Var.unsafe_set render (Some tex); tex
+            render <- Some tex; tex
           end
       in
-      Var.release render;
       let dst = geom_to_rect g in
       [make_blit ~voffset:g.voffset ~dst canvas layer tex]
 

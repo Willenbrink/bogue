@@ -63,7 +63,7 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
     | Circular -> thickness in
   let step = default step (max 1 (m/100)) in
   let var = default var (Tvar.create
-                           (Var.create (Avar.var value))
+                           (ref (Avar.var value))
                            ~t_from:(Avar.get)
                            ~t_to:(Avar.var)) in
   object (self)
@@ -78,15 +78,15 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
        0 and max. The origin is an arbitrary 'external' integer Avar. *)
     (* TODO: (int Avar.t) is here to make smoother transition not done yet *)
     (* used to avoid computing too many times the same value *)
-    val cache = Var.create (Tvar.get var)
-    method value = Var.get cache
-    method set_value x = Tvar.set var x; Var.set cache x
+    val mutable cache = Tvar.get var
+    method value = cache
+    method set_value x = Tvar.set var x; cache <- x
 
     (* This has to be done for each external call to this module *)
     (* It will update the position of the slider by looking at the var. Hence, if
        the var has a nontrivial transformation, it might be that the value differs
        from the value initially computed from the mouse position. See example 34. *)
-    method update_value = Var.set cache (Tvar.get var)
+    method update_value = cache <- (Tvar.get var)
 
     val mutable pointer_motion = false
 
@@ -95,13 +95,13 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
     method max = max
     method set_max x = max <- check_max x
 
-    val clicked_value : (int option) Var.t = Var.create None
-    method clicked_value = Var.get clicked_value
+    val mutable clicked_value : int option = None
+    method clicked_value = clicked_value
 
     (* If offset=0, the tick will place itself with the mouse pointer exactly in
        its middle point. Offset is used to not move the tick if one clicks at
        any other position of the tick. *)
-    val offset = Var.create 0
+    val mutable offset = 0
     val step = step
     val mutable thickness = thickness(* in pixels *)
     val mutable tick_size = tick_size(* in pixel Size of the handle *)
@@ -118,23 +118,23 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
 
     val kind = kind
     (* we store here the room position (unscaled) *)
-    val room_x = Var.create 0
-    val room_y = Var.create 0
+    val mutable room_x = 0
+    val mutable room_y = 0
 
     (* we need to replicate here the keyboard_focus field of the layout, because
        we use it to render the widget differently if it has keyboard_focu It
        acts similarly as the .active field of Text_input. It is set by
        Widget.set_keyboard_focu *)
-    val keyboard_focus = Var.create false
-    method keyboard_focus = Var.get keyboard_focus
-    method focus = Var.set keyboard_focus true
-    method unfocus = Var.set keyboard_focus false
+    val mutable keyboard_focus = false
+    method keyboard_focus = keyboard_focus
+    method focus = keyboard_focus <- true
+    method unfocus = keyboard_focus <- false
 
-    val key_speed = Var.create 1.
-    val key_time = Var.create (Time.now ())
+    val mutable key_speed = 1.
+    val mutable key_time = Time.now ()
     (* TODO render is only used for circular. Otherwise all textures are created and
        destroyed on the fly. Change this ? *)
-    val render : (Draw.texture option) Var.t = Var.create None
+    val mutable render : Draw.texture option = None
 
     method length =
       let w,h = self#size in
@@ -145,11 +145,11 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
       | Vertical -> h
 
     method! unload =
-      match Var.get render with
+      match render with
       | None -> ()
       | Some tex -> begin
           Draw.forget_texture tex;
-          Var.set render None
+          render <- None
         end
 
     method set_keyboard_focus = self#focus
@@ -167,11 +167,11 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
           | Circular -> thickness)
 
     method private x_pos =
-      Var.get room_x + (self#value) * (self#length - tick_size) / max
+      room_x + (self#value) * (self#length - tick_size) / max
 
     method private y_pos =
-      Var.get room_y + self#length - tick_size - (self#value)
-                                                 * (self#length - tick_size) / max
+      room_y + self#length - tick_size - (self#value)
+                                         * (self#length - tick_size) / max
 
     method display canvas layer g =
       (* We use y_pos before updating to display a gradient box at the real mouse
@@ -186,8 +186,8 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
       let renderer = canvas.renderer in
       let gx = Theme.unscale_int g.x
       and gy = Theme.unscale_int g.y in
-      if Var.get room_x <> gx then Var.set room_x gx;
-      if Var.get room_y <> gy then Var.set room_y gy;
+      if room_x <> gx then room_x <- gx;
+      if room_y <> gy then room_y <- gy;
       let focus = self#keyboard_focus in
       let shadow = true (* for testing *) in
       let c = if shadow then opaque Button.color_on
@@ -234,7 +234,7 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
         make_box_blit ~dst ~shadow ~focus g.voffset canvas layer box
       | Circular ->
         let radius = (imin g.w g.h)/2 - 2 in
-        let tex = match Var.get render with
+        let tex = match render with
           | Some t -> t
           | None ->
             let t' = ring_tex renderer ~color:(lighter (transp grey))
@@ -243,7 +243,7 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
                render_copy, mais apparemment ça ne fait pas d'antialiasing *)
             (* let t' = convolution ~emboss:false renderer *)
             (*            (gaussian_blur ~radius:3) 3 t in *)
-            Var.set render (Some t'); t' in
+            render <- (Some t'); t' in
         let w',h' = tex_size tex in
         let dst = Sdl.Rect.create ~x:(g.x) ~y:(g.y) ~w:w' ~h:h' in
         (* go (Sdl.render_copy ~dst renderer tex); *)
@@ -278,15 +278,15 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
       let v = match kind with
         | Horizontal ->
           if tick_size = w then 0 (* the value should be undefined here *)
-          else Var.get offset + (max * (x - tick_size/2 - (Var.get room_x))) / (w - tick_size)
+          else offset + (max * (x - tick_size/2 - (room_x))) / (w - tick_size)
         | HBar ->
-          (max * (x - (Var.get room_x))) / w
+          (max * (x - (room_x))) / w
         | Vertical ->
           if tick_size = h then 0 (* undefined *)
-          else Var.get offset + max - (max * (y - tick_size/2 - (Var.get room_y))) / (h - tick_size)
+          else offset + max - (max * (y - tick_size/2 - (room_y))) / (h - tick_size)
         | Circular ->
-          let x0 = Var.get room_x + w/2 in
-          let y0 = Var.get room_y + h/2 in
+          let x0 = room_x + w/2 in
+          let y0 = room_y + h/2 in
           if x = x0 then if y>y0 then 3 * max / 4 else max / 4
           else
             let a = (float max) *. atan (float (y0-y) /. (float (x-x0))) /. pi /. 2. in
@@ -301,7 +301,7 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
        behavious in most GUIs, and is a good idea imho. This requires storing an
        offset. *)
     method click ev =
-      if !debug then assert (Var.get offset = 0);
+      if !debug then assert (offset = 0);
       (* in some fast mouse motion it can happen that button_up is lost, so this
          assertion fail *)
       let old = value in
@@ -310,13 +310,13 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
         if abs (mouse_v - old) * (length - tick_size) <= max * tick_size/2
         then begin (* test à revoir: mouse over tick *)
           (* printd debug_custom "OVER TICK"; *)
-          Var.set offset (old - mouse_v);
+          offset <- (old - mouse_v);
           old
         end
         else (Stdlib.max 0 (min mouse_v max)) in
       printd debug_board "Slider value : %d" v;
-      Var.set clicked_value (Some v);
-      (* Var.set keyboard_focus true; *)
+      clicked_value <- (Some v);
+      (* keyboard_focus <- true; *)
       self#set_value v
     (* we add an animation to the original Avar. For this we need some
        gymnastic to get the current and final value for it *)
@@ -324,20 +324,20 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
        scrolling.  Otherwise, has_anim does not detect this animation yet *)
     (* let avar = var.Tvar.var in *)
     (* let final = Avar.get (var.Tvar.t_to v) in *)
-    (* Var.set avar (Avar.fromto (Avar.get (Var.get avar)) final) *)
+    (* avar <- (Avar.fromto (Avar.get (avar)) final) *)
 
     (* this should be called on mouse_button_up: *)
     (* not necessary anymore, since keyboard_focus is treated by the main loop *)
     (* let click_focus s ev = *)
     (*  if Sdl.Event.(get ev mouse_button_state) = Sdl.pressed *)
     (* (* = DIRTY trick, see bogue.ml *) *)
-    (*  then Var.set keyboard_focus true *)
+    (*  then keyboard_focus <- true *)
 
     (* This should be called on mouse_button_up: *)
     method release =
-      Var.set clicked_value None;
+      clicked_value <- None;
       pointer_motion <- false;
-      Var.set offset 0
+      offset <- 0
 
     (* on mouse motion: *)
     method slide ev =
@@ -350,14 +350,14 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
     (* Use this to increase the step when using keyboard. *)
     method change_speed =
       let t = Time.now () in
-      if Time.(t - (Var.get key_time)) > 200
+      if Time.(t - (key_time)) > 200
       (* delay too long, we return to initial speed. TODO: check that this is bigger
          than system delay between two key repeats, otherwise this will always
          apply *)
-      then Var.set key_speed 1.
-      else Var.set key_speed (Var.get key_speed *. 1.1);
-      Var.set key_time t;
-      let step = step * (round (Var.get key_speed)) in
+      then key_speed <- 1.
+      else key_speed <- (key_speed *. 1.1);
+      key_time <- t;
+      let step = step * (round (key_speed)) in
       step
 
     method increase =
@@ -407,7 +407,7 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
    local value of the slider is modified by the slider *)
 let slider_with_action ?priority ?step ?kind ~value ?length ?thickness ?tick_size
     ~action max =
-  let v = Var.create (Avar.var value) in
+  let v = ref (Avar.var value) in
   let t_from a = Avar.get a in
   let t_to x = action x; Avar.var x in
   let var = Tvar.create v ~t_from ~t_to in

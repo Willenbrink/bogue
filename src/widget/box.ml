@@ -21,12 +21,12 @@ class t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
 
     val border : Style.border option = border
     val shadow : Style.shadow option = shadow
-    val render : (Draw.texture option) Var.t = Var.create None
+    val mutable render : Draw.texture option = None
 
-    val bg : Style.background Var.t = Var.create bg
+    val mutable bg : Style.background = bg
     method set_bg x =
       self#unload;
-      Var.set bg x (* TODO This can't be right? We are also deleting our texture *)
+      bg <- x (* TODO This can't be right? We are also deleting our texture *)
 
     method! resize x =
       self#unload;
@@ -34,13 +34,13 @@ class t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
 
     method! unload =
       begin
-        match Var.get render with
+        match render with
         | None -> ()
         | Some tex ->
           Draw.forget_texture tex;
-          Var.set render None
+          render <- None
       end;
-      match Var.get bg with
+      match bg with
       | Style.Image img -> img#unload
       | _ -> ()
 
@@ -48,14 +48,14 @@ class t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
     method display canvas layer geom=
       let open Draw in
       (* TODO: make sure hoffset <= h *)
-      let tex = match Var.get render with
+      let tex = match render with
         | Some t -> t
         | None ->
           let target = create_target canvas.renderer geom.w geom.h in
           let save_target = push_target canvas.renderer target in
 
           (* draw background *)
-          begin match Var.get bg with
+          begin match bg with
             | Style.Image img ->
               printd debug_graphics "Create pattern background";
               let pattern = match img#render with
@@ -170,7 +170,7 @@ class t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
               pop_target canvas.renderer save_target
             );
 
-          Var.set render (Some tex);
+          render <- Some tex;
           tex
 
       in

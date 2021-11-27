@@ -50,9 +50,9 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
     val box_off = new Box.t ~bg:bg_off ?border:border_off ()
     val box_over = map_option bg_over (fun bg -> new Box.t ~bg ())
 
-    val state = Var.create state
-    method state = Var.get state
-    method set_state x = Var.set state x
+    val mutable state = state
+    method state = state
+    method set_state x = state <- x
 
     method press = if switch then self#set_state (not self#state) else self#set_state true
     method release = if not switch then self#set_state false

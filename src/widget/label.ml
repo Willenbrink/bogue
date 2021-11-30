@@ -1,6 +1,5 @@
 (** a simple text display in one line *)
 open Utils
-open Ttf
 open Base
 
 type style = Ttf.Style.t
@@ -17,7 +16,7 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
    *   match w#kind with
    *   | Label l -> let x,y = Label.size l in (x+2,y+2)*)
   let () = Draw.ttf_init () in
-  let size = physical_size_text (Ttf.open_font font font_size) text (* TODO missing calculation *) in
+  let size = physical_size_text (Draw.get_font font font_size) text (* TODO missing calculation *) in
   object (self)
     inherit ['a] w size typ Cursor.Arrow
     initializer Draw.ttf_init ()
@@ -38,10 +37,9 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
     method set_fg_color x = fg <- x
 
     method display canvas layer geom =
-      let ttffont = Ttf.open_font font (Theme.scale_int font_size) in
-      (* physical size *)
+      let font = Draw.get_font font (Theme.scale_int font_size) in
 
-      let render_text_surf font style text =
+      let surf =
         let text = if text = "" then " " else text in
         printd debug_graphics "render_text:%s" text;
         let color = Draw.create_color fg in
@@ -49,8 +47,7 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
         Draw.ttf_render font text color
       in
 
-      let render_text renderer font style text =
-        let surf = render_text_surf font style text in
+      let render_text renderer =
         printd debug_graphics "convert to texture";
         let tex = Draw.create_texture_from_surface renderer surf in
         Draw.free_surface surf;
@@ -61,7 +58,7 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
         | Some t -> t
         | None ->
           Printf.printf "Creating renderer\n";
-          let tex = render_text canvas.Draw.renderer ttffont style text in
+          let tex = render_text canvas.Draw.renderer in
           render <- Some tex; tex
       in
       [Draw.center_tex_to_layer canvas layer tex geom]

@@ -4,6 +4,8 @@ open Utils
 open Result
 module TImage = Tsdl_image.Image
 
+let get_font = Ttf.get_font ~default:Theme.label_font
+
 type color = int * int * int * int (* RGBA *)
 type rgb = int * int * int
 type texture = Sdl.texture
@@ -301,13 +303,6 @@ let window_is_shown w =
   let flags = Sdl.get_window_flags w in
   Sdl.Window.(test flags shown);;
 
-let max_texture_size_old ?canvas () =
-  match canvas with
-  | Some c -> let info = go(Sdl.get_renderer_info c.renderer) in
-    info.Sdl.ri_max_texture_width, info.Sdl.ri_max_texture_height
-  | None -> (* go(Sdl.get_render_driver_info 1) in *)
-    (* does not work, gives (0,0) *) 4096,4096;;
-
 (* not used ? *)
 type overlay =
   | Shrink
@@ -477,9 +472,6 @@ let mask renderer =
   let px = List.hd info.Sdl.ri_texture_formats in (* we take the first pixel format available... is it the right thing to do ?? *)
   let depth,r,g,b,a = go (Sdl.pixel_format_enum_to_masks px (* Sdl.Pixel.format_argb8888 *)) in
   depth,(r,g,b,a);;
-
-let pixel_format_old = go (Sdl.alloc_format Sdl.Pixel.format_argb8888);;
-(* TODO: init ? *)
 
 let color_to_int32 ?format surf (r,g,b,a) =
   (* Warning: the tsdl source says I should not use get_surface_format *)
@@ -775,7 +767,7 @@ let load_image renderer file =
 let load_image_or_fa ?(fg = opaque menu_hl_color) renderer path =
   if startswith path "fa:"
   then let fa = String.(sub path 3 (length path - 3)) in
-    let fa_font = Ttf.open_font Theme.fa_font Theme.(scale_int fa_font_size) in
+    let fa_font = get_font Theme.fa_font Theme.(scale_int fa_font_size) in
     ttf_texture renderer fa_font (Theme.fa_symbol fa) (create_color fg)
   else load_image renderer path;; (* TODO SCALE texture with Theme *)
 
@@ -971,7 +963,7 @@ let load_textures window renderer fill = (* use hashtbl ? *)
    *     (Theme.fa_symbol "square-o") sdl_grey in *)
   (* the symbol for circles is too big. we reduce: *)
   let size = 7 * Theme.(scale_int fa_font_size) / 10 in
-  let symbol_font = Ttf.open_font Theme.fa_font size in
+  let symbol_font = get_font Theme.fa_font size in
   let radio_on = ttf_texture renderer symbol_font
       (Theme.fa_symbol "dot-circle-o") sdl_grey in
   let radio_off = ttf_texture renderer symbol_font
@@ -1124,57 +1116,6 @@ let ray_to_layer canvas layer ?(bg = opaque black) ?voffset ~radius ~width ?thic
   (* { flip = Sdl.Flip.none; angle; center = Some center; alpha = 255 } in *)
   forget_texture tex;
   make_blit ?voffset ~dst ~transform canvas layer tex;;
-
-(* draw a ring *)
-let ring_old renderer ?(bg = opaque grey) ~radius ~width x y =
-  let tex, center, dst, steps = make_ray renderer ~bg ~radius ~width x y in
-  let di = 360. /. (float steps) in
-  for i = 0 to steps do
-    let a = di *. float i in
-    go(Sdl.render_copy_ex renderer ~dst tex a (Some center) Sdl.Flip.none);
-  done;;
-
-(* draw a ring on a texture, and return the texture *)
-let ring_tex_old renderer ?(bg = opaque grey) ~radius ~width x y =
-  let tex, center, _, steps = make_ray renderer ~bg ~radius ~width x y in
-  let di = 360. /. (float steps) in
-  if Sdl.render_target_supported renderer then begin
-    let w,h =  tex_size tex in
-    let dst_ray = Sdl.Rect.create ~x:radius ~y:(radius - h/2) ~w ~h in
-    let target = create_target renderer (2*radius+1) (2*radius+1) in (* 1 pixel margin around the ring *)
-    let push = push_target renderer target in
-    for i = 0 to steps do
-      let a = di *. float i in
-      go(Sdl.render_copy_ex renderer ~dst:dst_ray tex a (Some center) Sdl.Flip.none);
-    done;
-    pop_target renderer push;
-    forget_texture tex;
-    target
-  end
-  else failwith "Render target not supported. TODO";; (* TODO *)
-
-
-(*           |                                          y
-             |                \3 | 2/                   ^
-             |              4  \ | /  1                 |
-             |              ----------------            +---> x
-             |              5  / | \  8
-             |                /6 | 7\
-
-                            octants 1,3,5,7 are closed (include boundary. eg: (1)
-                            y >= 0
-                            x >= 0
-                            y <= x)
-                            octants 2;4;6;8 are open (exclude boundary).
-
-                            But in fact the center (0,0) should always be excluded,
-                            otherwise it will be
-                            repeated 4 times.
-
-                            (flip upside-down for SDL - we don't care for a circle)
-*)
-
-
 
 (* draw a circle on the renderer *)
 (* cf experiments in circle.ml *)

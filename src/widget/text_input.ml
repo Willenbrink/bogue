@@ -83,7 +83,7 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
     val cursor_char = Theme.fa_symbol "tint"
     val mutable render = None
     val mutable offset = 0
-    method font = Ttf.open_font font (Theme.scale_int font_size)
+    method font = Draw.get_font font (Theme.scale_int font_size)
 
     val mutable active = false
     method is_active = active
@@ -425,7 +425,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
         | Some s -> s
         | None ->
           let csize = 2*(Theme.scale_int font_size)/3 in
-          let cursor_font = Ttf.open_font Theme.fa_font csize in
+          let cursor_font = Draw.get_font Theme.fa_font csize in
           let s = self#draw_keys cursor_font [cursor_char] ~fg:Draw.(opaque cursor_color) in
           (* TODO use render_key, it should be faster *)
           let tex = Draw.create_texture_from_surface canvas.Draw.renderer s in

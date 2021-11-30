@@ -91,15 +91,6 @@ let xterm_light_grey = "\027[1;30m"
 let xterm_nc = "\027[0m"
 
 let print s = Printf.ksprintf print_endline s
-let print_debug_old s =
-  Printf.ksprintf
-    (fun s ->
-       if !debug
-       then print_endline
-           (xterm_blue ^ "[" ^ (string_of_int (Int32.to_int (Sdl.get_ticks ()) mod 60000)) ^ "] : " ^ xterm_nc ^ s)) s
-let debug_select_old code s =
-  if !debug && (code land !debug_code <> 0)
-  then print_endline (xterm_red ^ (debug_to_string code) ^ xterm_nc ^ ": " ^ s)
 
 let iksprintf _f = Printf.ikfprintf (fun () -> ()) ()
 
@@ -137,12 +128,6 @@ let round x =
 let pi = Float.pi
 
 let square x = x *. x
-
-let rec pwr_old k x =
-  assert (k>=0);
-  if k = 0 then 1. else x *. (pwr_old (k-1) x)
-
-let pwr k x = Float.pow x (float k)
 
 let imax (x:int) (y:int) =
   if x > y then x else y

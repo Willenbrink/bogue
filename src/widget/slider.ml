@@ -37,12 +37,12 @@ let slow k m x0 x =
   if x >= x0
   then if (float k) *. (1. -. x0) *. m >= float (k-1) (* we have to slow down *)
     then let t = (x -. x0) /. (1. -. x0) in
-      (m -. 1. -. x0 *. m) *. (pwr k t) +. t +. x0 *. m
+      (m -. 1. -. x0 *. m) *. (Float.pow t (float_of_int k)) +. t +. x0 *. m
     else x *. m (* just linear *)
   else
   if (float k) *. m *. x0 >= float (k-1) (* we have to slow down *)
   then let t = (x -. x0) /. x0 in
-    (1. -. x0 *. m) *. (pwr k t) +. t +. x0 *. m
+    (1. -. x0 *. m) *. (Float.pow t (float_of_int k)) +. t +. x0 *. m
   else x *. m
 
 (* value is ignored if a var is provided *)

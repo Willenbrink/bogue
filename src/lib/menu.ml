@@ -104,18 +104,6 @@ module Engine = struct
         | Action _ -> ()
         | Menu submenu -> iter f submenu) menu.entries
 
-  (* not used *)
-  let add_submenus_to_dst_old ~dst menu =
-    let f menu =
-      Layout.add_room ~dst menu.room;
-      if not menu.active && not menu.always_shown
-      then menu.room#set_show false
-
-    in
-    List.iter (fun entry -> match entry.kind with
-        | Action _ -> ()
-        | Menu submenu -> iter f submenu) menu.entries
-
   let set_menu_position menu =
     do_option menu.pos (fun (dx, dy) ->
         let keep_resize = true in
@@ -626,11 +614,6 @@ module Tmp = struct
         | _ -> ()
       )
 
-  let next_submenu_position_old = function
-    | Flat -> pre "BELOW"; Some Below
-    | Tower -> pre "RIGHTOF"; Some RightOf
-    | Custom -> pre "NONE"; None
-
   (* Return a copy of the tree with all Text labels replaced by Layouts *)
   let rec compute_layouts entry =
     let layout =
@@ -827,7 +810,7 @@ let bar ~dst entries =
      width. TODO. *)
   Layout.scale_resize ~scale_height:false room;
   Layout.resize_content dst;
-  Layout.set_shadow room None;
+  room#set_shadow None;
 
   (* for a menu bar, we usually don't want indicator icons *)
   List.iter (fun entry ->

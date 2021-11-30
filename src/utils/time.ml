@@ -18,9 +18,6 @@ let (>>) (t1 : t) (t2 : t) =
 
 let float t = float t;;
 
-(* Do not use ! it is NOT nice to other threads *)
-let delay_old d = Sdl.delay (Int32.of_int d);; (* attention ça freeze si c'est négatif *)
-
 (* we use this instead *)
 let delay x = Thread.delay (float x /. 1000.);;
 

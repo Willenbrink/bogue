@@ -58,8 +58,9 @@ class ['a] t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
                 | Some tex -> tex
                 | None -> begin
                     let (w,h) = img#size in
-                    ignore (img#display canvas layer
-                              (make_geom ~w ~h ()));
+                    make_geom ~w ~h ()
+                    |> img#display canvas layer
+                    |> ignore;
                     match img#render with
                     | Some tex -> tex
                     | None -> failwith "Image should have been rendered before"

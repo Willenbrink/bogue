@@ -24,13 +24,18 @@ module Style = Style
  * let font_cache : WHash.t = WHash.create 10 *)
 let font_cache : ((string * int), font) Hashtbl.t = Hashtbl.create 10
 
-let rec open_font file size =
+(* FIXME something sketchy is going on here. When we disable caching, it crashes after some time on long lists.
+   Is Ttf.open_font not closing the fd? *)
+let rec get_font ?default file size =
   match Hashtbl.find_opt font_cache (file,size) with
   | Some x -> x
   | None ->
     match Ttf.open_font file size with
-    | Result.Ok font -> font
-    | Result.Error _ -> raise Not_found
-(* match default with
- * | None -> raise Not_found
- * | Some file -> open_font file size *)
+    | Result.Ok font ->
+      Hashtbl.add font_cache (file,size) font;
+      (* Printf.printf "Read font %s with size %i\n" file size; *)
+      font
+    | Result.Error _ ->
+      match default with
+      | None -> failwith (Printf.sprintf "Failed to find font: %s with size %i\n" file size)
+      | Some file -> get_font file size

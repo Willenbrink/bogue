@@ -34,11 +34,11 @@ type 'a t = {
 }
 
 (* This global variable keeps track of the number of animations that are not
-finished. At this point, this is only for debugging. We cannot rely on it for
-programming, because if an animation was started on a layout that is not used
-anymore, it will never "finish".  Moreover some animations can belong to layouts
-that are still alive but hidden (maybe clipped, maybe in a hidden window): in
-this case they should not be considered "alive" by the renderer. *)
+   finished. At this point, this is only for debugging. We cannot rely on it for
+   programming, because if an animation was started on a layout that is not used
+   anymore, it will never "finish".  Moreover some animations can belong to layouts
+   that are still alive but hidden (maybe clipped, maybe in a hidden window): in
+   this case they should not be considered "alive" by the renderer. *)
 (* not used *)
 let alive_animations = ref 0;;
 
@@ -172,9 +172,9 @@ let get v =
       in
       if v.duration < 0 then float t (* no rescale in this case: infinite animation! *)
       else let t = if Time.(t - t0 >= v.duration)
-        then (stop v;
-              Time.(t0 + v.duration))
-        else t in
+             then (stop v;
+                   Time.(t0 + v.duration))
+             else t in
         (* here v.duration should not be 0 *)
         Time.(float (t - t0) /. (float v.duration)) in
 
@@ -197,24 +197,6 @@ let set v value =
   v.value <- value;
   v.frame <- !frame;;
 
-(** create a new Avar by composing with f; the old Avar is still active *)
-(* this doesn't start the animation *)
-(* TODO if this one stop just a msec before the old one, and the old one is only
-   active through the new one, then the old one will never "stop"... but maybe
-   it is not a problem ? *)
-let apply_old f v =
-  let value = f (old v) in
-  let update _ _ = f (get v) in
-  let av = create ~duration:(v.duration-20) ~finished:v.finished ~update value in
-  av.starting_time <- v.starting_time;
-  av.progress <- v.progress;
-  if not v.finished && started v then
-    (incr alive_animations;
-     printd debug_event "New composite animation started. Total=%d"
-       !alive_animations;
-    );
-  av;;
-
 let apply f v =
   let value = f (old v) in
   let update _ _ = f (get v) in
@@ -233,10 +215,6 @@ type direction =
   | BottomRight
   | Random;;
 
-
-let slowdown_old u =
-  (* between 0 and 1, with speed from 1.8 to 0 *)
-  2. *. (sin ((1. +. 2. *. u) *. pi /. 6.) -. 0.5);;
 
 let slowdown u =
   (* between 0 and 1, with speed from 2 to 0 *)
@@ -282,26 +260,19 @@ let concat ?(weight=0.5) g1 g2 =
 
 
 (** create a (slowdowned) integer Avar from x1 to x2 *)
-let fromto_old ?(duration=300) x1 x2 =
-  let update _ u =
-    let t = slowdown u in
-    round (float x1 *. (1. -. t) +. float x2 *. t) in
-  create ~duration ~update x1;;
-
-(** create a (slowdowned) integer Avar from x1 to x2 *)
 let fromto ?(duration=300) ?ending x1 x2 =
   if x1 = x2 then fixed x1
   else let update _ u =
-    initial_slope ~slope:1.2 u
-    |> affine (float x1) (float x2)
-    |> round in
+         initial_slope ~slope:1.2 u
+         |> affine (float x1) (float x2)
+         |> round in
     create ~duration ~update ?ending x1;;
 
 let fromto_float ?(duration=300) ?ending x1 x2 =
   if x1 = x2 then fixed x1
   else let update _ u =
-    initial_slope ~slope:1.2 u
-    |> affine x1 x2 in
+         initial_slope ~slope:1.2 u
+         |> affine x1 x2 in
     create ~duration ~update ?ending x1;;
 
 (** piecevise linear, with 2 pieces *)
@@ -377,20 +348,6 @@ let fade_out ?ending ?(duration = 300) ?(from_alpha = 1.) ?(to_alpha = 0.) () =
     |> affine from_alpha to_alpha in
   create ~duration ~update ?ending from_alpha;;
 
-(* (\** mouse position relative to starting position *\)
- * let mouse_motion_x_old ?(threshold=7) window =
- *   let resist = ref true in
- *   let x0 = ref 0 in
- *   let init () = x0 := fst (Mouse.window_pos window) in
- *   let update _ u =
- *     let x = fst (Mouse.window_pos window) in
- *     if !resist then begin
- *       if abs (x - !x0) > threshold then resist := false;
- *       0
- *     end
- *     else x - !x0 in
- *   create ~duration:(-1) ~init ~update 0;; *)
-
 (* 'resist threshold' creates a function which, if x stays close to 0 then
    returns 0 otherwise returns x (even if later x come back close to 0 ) *)
 let resist threshold =
@@ -401,26 +358,6 @@ let resist threshold =
       0 end
     else x;;
 
-(* mouse x position relative to starting position *)
-let mouse_motion_x_old ?(threshold=7) ?(dx = 0) window =
-  let resist = resist threshold in
-  let x0 = ref 0 in
-  let init () = x0 := fst (Mouse.window_pos (Lazy.force window)) in
-  let update _ _ =
-    resist (fst (Mouse.window_pos (Lazy.force window)) - !x0)
-    |> (+) dx in
-  create ~duration:(-1) ~init ~update dx;;
-
-(* mouse y position relative to starting position *)
-let mouse_motion_y_old ?(threshold=7) ?(dy = 0) window =
-  let resist = resist threshold in
-  let y0 = ref 0 in
-  let init () = y0 := snd (Mouse.window_pos (Lazy.force window)) in
-  let update _ _ =
-    resist (snd (Mouse.window_pos (Lazy.force window)) - !y0)
-    |> (+) dy in
-  create ~duration:(-1) ~init ~update dy;;
-
 (** create a new avar from the current position to x2 with C^1 glue *)
 (* warning: this is not guaranteed to stay between x1 and x2 *)
 let extendto ~duration v x2 =
@@ -428,24 +365,24 @@ let extendto ~duration v x2 =
   if v.finished || not (started v)
   then fromto ~duration x1 x2
   else let slope1 = (* we compute the slope at the current point of v *)
-    (* if v has a different duration, the slope (in terms of u) has to be
-       rescaled *)
-    (* it is difficult to compute the slope this way, since v.update has
-       integer values; this is why we take du=0.1 quite large. It would be
-       better to have a 'float update' *)
-    let du = 0.1 in
-    let u1 = v.progress in
-    let dx = if u1 < du
-      then v.update v (u1 +. du) - x1
-      else x1 - (v.update v (u1 -. du)) in
-    if duration >= 0 && v.duration >= 0
-    then (float (v.duration * dx)) /. (du *. float duration)
-    else if duration < 0 && v.duration >= 0
-    then (float dx) /. (du *. float duration)
-    else if duration >= 0
-    then (float (v.duration * dx)) /. du
-    else (* both durations are negative *)
-      (float dx) /. du
+         (* if v has a different duration, the slope (in terms of u) has to be
+            rescaled *)
+         (* it is difficult to compute the slope this way, since v.update has
+            integer values; this is why we take du=0.1 quite large. It would be
+            better to have a 'float update' *)
+         let du = 0.1 in
+         let u1 = v.progress in
+         let dx = if u1 < du
+           then v.update v (u1 +. du) - x1
+           else x1 - (v.update v (u1 -. du)) in
+         if duration >= 0 && v.duration >= 0
+         then (float (v.duration * dx)) /. (du *. float duration)
+         else if duration < 0 && v.duration >= 0
+         then (float dx) /. (du *. float duration)
+         else if duration >= 0
+         then (float (v.duration * dx)) /. du
+         else (* both durations are negative *)
+           (float dx) /. du
     in
     let update _ u =
       interpol3 ~slope1 ~slope2:(0.) (float x1) (float x2) u

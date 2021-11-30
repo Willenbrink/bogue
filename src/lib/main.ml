@@ -183,12 +183,6 @@ let add_window board layout =
   Trigger.renew_my_event ();
   window
 
-let empty_events_old () =
-  Trigger.flush (E.mouse_motion)
-(*Trigger.flush (E.window_event);;*)
-(* Trigger.flush_events Trigger.redraw Trigger.refresh;; *)
-(* Remark we flush user events in display = when the whole layout is cleared *)
-
 let same_window w1 w2 = Sdl.(get_window_id w1 = get_window_id w2)
 
 (** get window (layout) by id. Not used... (layout_event can do it somehow) *)

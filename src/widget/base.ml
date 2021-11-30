@@ -121,7 +121,7 @@ class virtual ['a] w ?id size name cursor =
       printd debug_board "Please refresh";
       (* if !draw_boxes then Trigger.(push_event refresh_event) *)
       (* else *)
-      Trigger.push_redraw self#id (*TODO... use wid et/ou window_id...*)
+      Trigger.push_redraw self#id
     (* refresh is not used anymore. We redraw everyhting at each frame ... *)
     (* before, it was not very subtle either: if !draw_boxes is false, we ask for
        clearing the background before painting. Maybe some widgets can update

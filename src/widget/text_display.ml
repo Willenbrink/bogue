@@ -166,7 +166,7 @@ class ['a] t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font =
           render <- None
         end
 
-    method get_font = Ttf.open_font font (Theme.scale_int font_size)
+    method get_font = Draw.get_font font (Theme.scale_int font_size)
 
     method display canvas layer g =
       let open Draw in
@@ -323,14 +323,6 @@ let create_verbatim ?(size = Theme.text_font_size) ?(font = Label.File Theme.mon
   print_endline (Printf.sprintf "SIZE = (%d,%d)" (default w 0) (default h 0));
   let paragraphs = List.map (fun p -> [Word p]) lines in
   create ~size ?w ?h ~font:(Label.Font font) paragraphs
-
-let update_verbatim_old t text =
-  let size = t.size in
-  let font = Var.get t.font in
-  let dummy = create_verbatim ~size ~font text in
-  let paragraphs = Var.get dummy.paragraphs in
-  print_endline (Printf.sprintf "New SIZE %d,%d" (default dummy.w 0) (default dummy.h 0));
-  update ?w:dummy.w ?h:dummy.h t paragraphs
 
 let replace ~by:t old =
   let paragraphs = Var.get t.paragraphs in

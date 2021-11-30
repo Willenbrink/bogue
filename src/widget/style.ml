@@ -23,17 +23,18 @@ type border = {
 type gradient =
   { colors : Draw.color list; angle : float }
 
+(* FIXME this seems seriously hacky *)
 type background =
-  | Image of Image.t (* pattern image *)
+  | Image : 'a Image.t -> background (* pattern image *)
   | Solid of Draw.color
   | Gradient of gradient
 
 type shadow = {
-    size: int; (* should the shadow be larger than the box? *)
-    offset: int * int;
-    radius: int option; (* corner radius *)
-    width: int (* the width of the gradient *)
-  }
+  size: int; (* should the shadow be larger than the box? *)
+  offset: int * int;
+  radius: int option; (* corner radius *)
+  width: int (* the width of the gradient *)
+}
 let color_bg color =
   Solid color
 

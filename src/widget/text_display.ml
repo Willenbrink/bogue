@@ -135,14 +135,14 @@ let render_word ?fg font word =
   go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_none);
   surf
 
-class t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font = default_font) paragraphs =
+class ['a] t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font = default_font) paragraphs =
   (* FIXME this is ugly. Like real ugly. Maybe revert to ?w ?h ?*)
   let size =
     let w,h = size in
     (if w = 0 then fst default_size else w),(if h = 0 then snd default_size else h)
   in
   object (self)
-    inherit w size "TextDisplay" Cursor.Arrow
+    inherit ['a] w size "TextDisplay" Cursor.Arrow
     initializer Draw.ttf_init ()
 
     val mutable _paragraphs = List.rev ([Style Ttf.Style.normal] :: (List.rev paragraphs)) (* we add normal style at the end *)
@@ -159,11 +159,7 @@ class t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font = defa
       render <- None;
       _paragraphs <- x
 
-    method! resize x =
-      self#unload;
-      _size <- x
-
-    method! unload =
+    method unload =
       match render with
       | None -> ()
       | Some tex -> begin

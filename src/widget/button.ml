@@ -15,7 +15,7 @@ let bg_on = Style.color_bg (Draw.opaque color_on)
 let bg_off = Style.color_bg (Draw.opaque color_off)
 
 class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?border_r ?border_c ?fg ?(bg_on = bg_on) ?(bg_off = bg_off) ?bg_over
-    ?label ?label_on ?label_off ?(state = false) text =
+    ?label ?label_on ?label_off ?(init = false) text =
   let label_on, label_off = match label, label_on, label_off with
     | None, None, None -> let l = new Label.t ?fg text in l,l
     | Some l, None, None -> l,l
@@ -41,7 +41,8 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
   let bm = Theme.scale_int button_margin in
 
   object (self)
-    inherit w size "Button" Cursor.Hand
+    inherit [bool] w size "Button" Cursor.Hand
+    inherit [bool] stateful init
 
     val label_on = label_on
     val label_off = label_off
@@ -50,14 +51,10 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
     val box_off = new Box.t ~bg:bg_off ?border:border_off ()
     val box_over = map_option bg_over (fun bg -> new Box.t ~bg ())
 
-    val mutable state = state
-    method state = state
-    method set_state x = state <- x
+    method press = if switch then state <- (not state) else state <- true
+    method release = if not switch then state <- false
 
-    method press = if switch then self#set_state (not self#state) else self#set_state true
-    method release = if not switch then self#set_state false
-
-    method! unload =
+    method unload =
       label_on#unload;
       label_off#unload;
       box_on#unload;

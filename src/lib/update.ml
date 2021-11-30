@@ -12,7 +12,7 @@ open Utils
 
 let str = Printf.sprintf
 
-let table : (Widget.t list) ref = ref []
+let table : (Widget.common list) ref = ref []
 
 let is_empty () = !table = []
 
@@ -37,12 +37,12 @@ let push_all () =
   List.iter
     (fun w -> Trigger.push_update w#id) !table
 
-let execute_one e (w : Widget.t) =
+let execute_one e w =
   if w#id = Trigger.get_update_wid e
   then (
     Widget.wake_up_all e w;
     Trigger.push_redraw w#id (* OK ?? *)
-  );;
+  )
 
 let execute e =
   match !table with
@@ -56,4 +56,4 @@ let execute e =
       (* we release the table before execution so that one can still push to
          the new table while the old one is being executed *)
       printd debug_memory "Update Table: execute size=%i" (List.length list_e);
-      List.iter (execute_one e) list_e);;
+      List.iter (execute_one e) list_e)

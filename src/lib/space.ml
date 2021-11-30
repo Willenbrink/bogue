@@ -35,7 +35,7 @@ let make_hfill_sync ?right_margin layout =
   let open Layout in
   let rooms = siblings layout in
   List.iter resize_fix_x rooms;
-  let before,after = split_at (equal layout) rooms in
+  let before,after = split_at (Widget.equal layout) rooms in
   let bx,_,bw,_ = bounding_geometry before in
   let ax,_,aw,_ = bounding_geometry after in
   let initial_width = width layout in
@@ -72,7 +72,7 @@ let make_vfill_sync ?bottom_margin layout =
   let open Layout in
   let rooms = siblings layout in
   List.iter resize_fix_y rooms;
-  let before,after = split_at (equal layout) rooms in
+  let before,after = split_at (Widget.equal layout) rooms in
   let _,by,_,bh = bounding_geometry before in
   let _,ay,_,ah = bounding_geometry after in
   let initial_height = height layout in

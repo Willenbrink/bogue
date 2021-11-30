@@ -3,6 +3,7 @@
 (* VERSION2 *)
 
 open Utils
+module W = Widget
 
 module Engine = struct
 
@@ -16,19 +17,19 @@ module Engine = struct
 
   type action = unit -> unit
 
-  and entry_type =
-    | Menu of menu
+  and 'a entry_type =
+    | Menu of 'a menu
     | Action of action
 
-  and entry = {
-    kind : entry_type;
+  and 'a entry = {
+    kind : 'a entry_type;
     enabled: bool;
     mutable selected: bool; (* equivalent to highlighted *)
-    layout : Layout.t;
-    parent_menu : menu
+    layout : 'a Layout.t;
+    parent_menu : 'a menu
   }
 
-  and menu = {
+  and 'a menu = {
     pos :  (int * int) option;
     (* Relative position wrt the parent_entry *)
     mutable active : bool;
@@ -39,9 +40,9 @@ module Engine = struct
     (* If a menu is shown, it must be either 'active', or 'always_shown'. *)
     (* some menus (typically a menu bar, for instance) are always shown, but
        not necessary always 'active' in the sense above. *)
-    mutable entries : entry list;
-    room : Layout.t; (* the layout that contains all entries *)
-    mutable parent_entry : entry option
+    mutable entries : 'a entry list;
+    room : 'a Layout.t; (* the layout that contains all entries *)
+    mutable parent_entry : 'a entry option
     (* the entry to which this menu is attached, or None if this is the top
        menu. *)
   }
@@ -339,7 +340,8 @@ module Engine = struct
        not only on the area of the text itself (label). *)
     Layout.add_room ~dst:entry.layout coat;
     (* we don't use Popup.add_screen to avoid creating too many layers. *)
-    let widget = Layout.widget coat in
+    (* FIXME Segfault incoming *)
+    let widget = Layout.widget coat |> Obj.magic in
     widget#set_cursor Cursor.Hand;
 
     let action _ = button_down screen entry in
@@ -382,7 +384,8 @@ module Engine = struct
     screen_disable screen;
     Layout.add_room ~dst screen;
 
-    let w = Layout.widget screen in
+    (* FIXME Segfautl icnoming *)
+    let w = Layout.widget screen |> Obj.magic in
     Widget.on_click ~click:(fun _ -> print_endline "CLICK SCREEN";
                              close_tree screen t
                              (* screen_disable screen *)) w;
@@ -401,27 +404,27 @@ end
    etc... ]
 *)
 
-type t = Engine.menu
+type 'a t = 'a Engine.menu
 
 type action = unit -> unit
 
-type label =
+type 'a label =
   | Text of string
-  | Layout of Layout.t
+  | Layout of 'a Layout.t
 
-type entry = {
-  label : label;
-  content : content }
+type 'a entry = {
+  label : 'a label;
+  content : 'a content }
 
 (* the content type mixes two different things: Actions and submenus. Not clean
    from the point of view of the programmer, but (I think) simpler from the
    public viewpoint. Thus, before working with this, we convert into the Engine
    types. *)
-and content =
+and 'a content =
   | Action of action
-  | Flat of entry list
-  | Tower of entry list
-  | Custom of entry list
+  | Flat of 'a entry list
+  | Tower of 'a entry list
+  | Custom of 'a entry list
   | Separator
 
 let separator = { label = Text "Dummy separator label"; content = Separator }
@@ -431,7 +434,7 @@ let text_margin = 5
 (* Text to Layout. w and h are only used for text. maybe remove *)
 let format_label ?w ?h = function
   | Text s ->
-    let res = Layout.resident ?w ?h ((new Label.t s :> Widget.t)) in
+    let res = Layout.resident ?w ?h ((new Label.t s :> 'a W.t)) in
     (* : here we cannot use a resident as is because we will need to add another
        room later. we need to wrap it: *)
     let background = Layout.Solid Draw.(opaque menu_bg_color) in
@@ -444,7 +447,7 @@ let format_label ?w ?h = function
 let add_icon_suffix layout =
   let submenu_icon = "caret-right" in
   (* the icon used to indicate submenus *)
-  let submenu_indicator = Layout.resident ((new Icon.t submenu_icon :> Widget.t)) in
+  let submenu_indicator = Layout.resident ((new Icon.t submenu_icon :> 'a W.t)) in
   Layout.add_room ~dst:layout ~valign:Draw.Center ~halign:Draw.Max
     submenu_indicator
 
@@ -457,19 +460,19 @@ module Tmp = struct
     | Tower
     | Custom
 
-  type menu =
-    { entries : tentry list;
+  type 'a menu =
+    { entries : 'a tentry list;
       kind : menukind
     }
 
-  and tcontent =
+  and 'a tcontent =
     | Action of action
-    | Menu of menu
+    | Menu of 'a menu
     | Separator
 
-  and tentry = {
-    label : label; (* ignored in case of Separator *)
-    content : tcontent }
+  and 'a tentry = {
+    label : 'a label; (* ignored in case of Separator *)
+    content : 'a tcontent }
 
   (* position of the submenu wrt the parent label *)
   type position =
@@ -624,7 +627,7 @@ and entry_to_tmp entry =
     Tmp.content = content_to_tmp entry.content
   }
 
-let layout_of_menu menu : Layout.t =
+let layout_of_menu menu : 'a Layout.t =
   menu.Engine.room    
 
 let create ~dst content =

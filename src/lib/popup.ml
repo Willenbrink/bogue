@@ -4,6 +4,7 @@
 (* TODO implement the resize function *)
 
 open Utils
+module W = Widget
 
 let new_layer_above base =
   printd debug_graphics "Create new layer";
@@ -33,7 +34,7 @@ let resize_same_as model room =
   let resize _ =
     let open Layout in
     match model#house, room#house with
-    | Some h1, Some h2 when Layout.equal h1 h2 ->
+    | Some h1, Some h2 when W.equal h1 h2 ->
       let keep_resize = true in
       let size = get_size model in
       let x = xpos model in
@@ -53,7 +54,7 @@ let filter_screen ?color ?layer ?keyboard_focus layout =
   printd debug_graphics "Create filter screen (%d,%d)" w h;
   let b = match color with
     | None -> (new Empty.t (w,h))
-    | Some color -> (new Box.t ~size:(w,h) ~bg:(Style.Solid color)() :> Widget.t) in
+    | Some color -> (new Box.t ~size:(w,h) ~bg:(Style.Solid color)() :> 'a W.t) in
   let screen = (* Layout.(flat_of_w ~sep:0 layout#canvas [b]) in *)
     Layout.(resident ~name:"filter" ?canvas:layout#canvas b) in
   (* Layout.(screen.geometry <- {screen.geometry with w; h}); *)
@@ -125,18 +126,18 @@ let slide_in ~dst content buttons =
 let one_button ?size ~button ~dst content =
   let close_btn = new Button.t ~border_r:3 button in
   let w,h = match size with None -> None,None | Some (w,h) -> (Some w, Some h) in
-  let popup, screen = slide_in ~dst content (Layout.resident ?w ?h ((close_btn :> Widget.t))) in
+  let popup, screen = slide_in ~dst content (Layout.resident ?w ?h (close_btn :> 'a W.t)) in
   let close _ =
     Layout.hide popup;
     Layout.hide screen;
     Layout.fade_out screen in
-  Widget.on_release ~release:close (close_btn :> Widget.t)
+  Widget.on_release ~release:close (close_btn :> 'a W.t)
 
 (* a text and a close button. *)
 (* TODO the ?w and ?h define the size of the text_display (not automatically
    detected). It should also include the size of the close button *)
 let info ?size ?(button="Close") text dst =
-  let td = ((new Text_display.t ?size (Text_display.paragraphs_of_string text)) :> Widget.t)
+  let td = ((new Text_display.t ?size (Text_display.paragraphs_of_string text)) :> 'a W.t)
            |> Layout.resident in
   one_button ?size ~button ~dst td
 
@@ -146,8 +147,10 @@ let two_buttons ?size ~label1 ~label2 ~action1 ~action2
   let w,h = match size with None -> None,None | Some (w,h) -> (Some w, Some h) in
   let btn1 = new Button.t ~border_r:3 label1 in
   let btn2 = new Button.t ~border_r:3 label2 in
-  let buttons = Layout.(flat ~vmargin:0 ~sep:(2*Theme.room_margin)
-                          [resident ?w ?h ((btn1 :> Widget.t)); resident ?w ?h ((btn2 :> Widget.t))]) in
+  let buttons =
+    Layout.(flat ~vmargin:0 ~sep:(2*Theme.room_margin)
+              [resident ?w ?h (btn1 :> 'a W.t); resident ?w ?h (btn2 :> 'a W.t)])
+  in
   let popup, screen = slide_in ~dst content buttons in
   let close () =
     (*Layout.hide popup;*)
@@ -160,11 +163,11 @@ let two_buttons ?size ~label1 ~label2 ~action1 ~action2
   let do2 _ =
     close ();
     action2 () in
-  Widget.on_release ~release:do1 (btn1 :> Widget.t);
-  Widget.on_release ~release:do2 (btn2 :> Widget.t)
+  Widget.on_release ~release:do1 (btn1 :> 'a W.t);
+  Widget.on_release ~release:do2 (btn2 :> 'a W.t)
 
 let yesno ?size ?(yes="Yes") ?(no="No") ~yes_action ~no_action text dst =
-  let td = ((new Text_display.t ?size (Text_display.paragraphs_of_string text)) :> Widget.t)
+  let td = ((new Text_display.t ?size (Text_display.paragraphs_of_string text)) :> 'a W.t)
            |> Layout.resident in
   two_buttons ?size ~label1:yes ~label2:no ~action1:yes_action ~action2:no_action
     td dst
@@ -195,7 +198,7 @@ let tooltip ?background ?(position = Below) text ~target widget layout =
   let background = default background
       (Layout.Box (new Box.t ~bg:(Style.Solid Draw.(opaque (pale grey)))
                     ~border ())) in
-  let tooltip = Layout.tower_of_w ~sep:3 ~background [(t :> Widget.t)] in
+  let tooltip = Layout.tower_of_w ~sep:3 ~background [(t :> 'a W.t)] in
   attach_on_top layout tooltip;
   tooltip#set_show false;
 

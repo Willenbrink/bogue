@@ -4,6 +4,7 @@
 (* TODO implement the resize function *)
 
 open Utils
+module W = Widget
 
 
 let pre = if !debug
@@ -22,20 +23,20 @@ module Engine = struct
 
   type action = unit -> unit
 
-  and entry_type =
-    | Menu of menu
+  and 'a entry_type =
+    | Menu of 'a menu
     | Action of action
 
-  and entry = {
-    kind : entry_type;
+  and 'a entry = {
+    kind : 'a entry_type;
     enabled: bool;
     mutable selected: bool; (* equivalent to highlighted *)
-    layout : Layout.t; (* how to display the entry label *)
+    layout : 'a Layout.t; (* how to display the entry label *)
     (* Note: a Separator should be an empty Layout *)
-    parent_menu : menu
+    parent_menu : 'a menu
   }
 
-  and menu = {
+  and 'a menu = {
     pos :  (int * int) option;
     (* Relative position wrt the parent_entry *)
     mutable active : bool;
@@ -46,9 +47,9 @@ module Engine = struct
     (* If a menu is shown, it must be either 'active', or 'always_shown'. *)
     (* some menus (typically a menu bar, for instance) are always shown, but
        not necessary always 'active' in the sense above. *)
-    mutable entries : entry list;
-    mutable room : Layout.t; (* the layout that contains all menu entries *)
-    mutable parent_entry : entry option
+    mutable entries : 'a entry list;
+    mutable room : 'a Layout.t; (* the layout that contains all menu entries *)
+    mutable parent_entry : 'a entry option
     (* the entry to which this menu is attached, or None if this is the top
        menu. *)
   }
@@ -413,7 +414,8 @@ module Engine = struct
     Layout.add_room ~dst:entry.layout coat;
     Layout.resize_follow_house coat;
     (* we don't use Popup.add_screen to avoid creating too many layers. *)
-    let widget = Layout.widget coat in
+    (* FIXME segfault incoming *)
+    let widget = Layout.widget coat |> Obj.magic in
     widget#set_cursor Cursor.Hand;
 
     let action _ = button_down screen entry in
@@ -476,7 +478,8 @@ module Engine = struct
     Layout.add_room ~dst screen;
     Layout.resize_follow_house screen;
 
-    let w = Layout.widget screen in
+    (* FIXME segfault *)
+    let w = Layout.widget screen |> Obj.magic in
     Widget.on_click ~click:(fun _ -> pre "CLICK SCREEN";
                              close_tree screen t
                              (* screen_disable screen *)) w;
@@ -496,13 +499,13 @@ end
    etc... ]
 *)
 
-type t = Engine.menu
+type 'a t = 'a Engine.menu
 
 type action = unit -> unit
 
-type label =
+type 'a label =
   | Text of string
-  | Layout of Layout.t
+  | Layout of 'a Layout.t
   (* The user (programmer) can either define the menu entry by a text -- like
      'File', etc. or directly by an arbitrary layout -- useful for game menus, for
      instance. In the latter case, the layout content is not altered to ensure
@@ -513,9 +516,9 @@ type label =
      warning, in all cases, the layout will be encapsulated into a screen, so the
      'dst' will not remain its "direct house". *)
 
-type entry = {
-  label : label;
-  content : content }
+type 'a entry = {
+  label : 'a label;
+  content : 'a content }
 (* TODO: add "hover" field to execute an action on hovering the entry (useful
    for games). Mieux: ajouter "connection" field? *)
 
@@ -523,11 +526,11 @@ type entry = {
    from the point of view of the library programmer (me), but (I think) simpler
    from the 'public' viewpoint. Thus, before working with this, we convert into
    the Engine types. *)
-and content =
+and 'a content =
   | Action of action
-  | Flat of entry list
-  | Tower of entry list
-  | Custom of entry list
+  | Flat of 'a entry list
+  | Tower of 'a entry list
+  | Custom of 'a entry list
   | Separator
 
 let separator = { label = Text "Dummy separator label"; content = Separator }
@@ -537,7 +540,7 @@ let text_margin = 5
 (* Text to Layout. w and h are only used for text. maybe remove *)
 let format_label ?w ?h = function
   | Text s ->
-    let res = Layout.resident ?w ?h ((new Label.t s :> Widget.t)) in
+    let res = Layout.resident ?w ?h (new Label.t s :> 'a W.t) in
     (* : here we cannot use a resident as is because we will need to add another
        room later; we need to wrap it: *)
     let background = Layout.Solid Draw.(opaque menu_bg_color) in
@@ -553,7 +556,7 @@ let format_label ?w ?h = function
 (* Warning, does not check whether there is already an icon... *)
 let add_icon_suffix ?(icon = "caret-right") layout =
   (* the icon used to indicate submenus *)
-  let submenu_indicator = Layout.resident ~name:icon ((new Icon.t icon :> Widget.t)) in
+  let submenu_indicator = Layout.resident ~name:icon ((new Icon.t icon :> 'a W.t)) in
   Layout.add_room ~dst:layout ~valign:Draw.Center ~halign:Draw.Max
     submenu_indicator
 
@@ -589,19 +592,19 @@ module Tmp = struct
     | Tower
     | Custom
 
-  type menu =
-    { entries : tentry list;
+  type 'a menu =
+    { entries : 'a tentry list;
       kind : menukind
     }
 
-  and tcontent =
+  and 'a tcontent =
     | Action of action
-    | Menu of menu
+    | Menu of 'a menu
     | Separator
 
-  and tentry = {
-    label : label; (* ignored in case of Separator *)
-    content : tcontent;
+  and 'a tentry = {
+    label : 'a label; (* ignored in case of Separator *)
+    content : 'a tcontent;
     mutable formatted : bool;
     mutable suffix : position option } (* TODO add keyboard shortcuts *)
 
@@ -787,7 +790,7 @@ and entry_to_tmp position entry =
     Tmp.suffix = position
   }
 
-let layout_of_menu menu : Layout.t =
+let layout_of_menu menu : 'a Layout.t =
   menu.Engine.room
 
 let set_layout menu room =

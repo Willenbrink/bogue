@@ -7,10 +7,12 @@ type action_priority =
   | Replace (** kill the first action (if possible) and execute the second one *)
   | Main (** run in the main program. So this is blocking for all subsequent actions *)
 
+type base_obj = < id : int; name : string >
+
 let equal x y = (x#id = y#id)
 
 module Hash = struct
-  type t = < id : int >
+  type t = base_obj
   let equal = equal
   let hash x = x#id
 end
@@ -20,80 +22,17 @@ module WHash = Weak.Make(Hash)
 let common_wtable = WHash.create 100
 
 let of_id id =
-  try WHash.find common_wtable (object method id = id end) with
+  try WHash.find common_wtable (object method id = id method name = "DUMMY" end) with
   | Not_found ->
     printd debug_error "Cannot find widget with id=%d" id;
     raise Not_found
 
-class virtual common ?id ?(name = "") () =
-  let id = match id with None -> fresh_int () | Some id -> id in
-  object (self)
-    method id : int = id
-    method name : string = name
+let of_id_opt id =
+  try Some (of_id id) with
+  | Not_found -> None
 
-    method virtual children : common list
-    method virtual canvas : Draw.canvas option
-
-    initializer WHash.add common_wtable (self :> < id : int >)
-  end
-
-class virtual ['a] stateful init =
+class connection ?target action ?(priority=Forget) ?join triggers =
   object
-    val mutable state : 'a = init
-    method state = state
-    method set_state x = state <- x
-  end
-
-class virtual w ?id size name cursor =
-  object (self)
-    inherit common ?id ~name ()
-
-    method children = []
-    method canvas = None
-
-    val mutable _size : int * int = size
-    method size = _size
-    method resize x = _size <- x
-
-    val mutable _cursor : Cursor.t = cursor
-    method cursor = _cursor
-    method set_cursor x = _cursor <- x
-
-    val mutable connections : connection list = []
-    method connections = connections
-    method add_connection c = connections <- connections @ [c]
-
-    method set_keyboard_focus = ()
-    method remove_keyboard_focus = ()
-    method guess_unset_keyboard_focus = true
-
-    method update =
-      (* ask for refresh *)
-      (* Warning: this is frequently called by other threads *)
-      (* Warning: this *resets to 0* the user_window_id *)
-      (* anyway, it is not clear if the user_window_id field for created event types
-         is really supported by (T)SDL *)
-      printd debug_board "Please refresh";
-      (* if !draw_boxes then Trigger.(push_event refresh_event) *)
-      (* else *)
-      Trigger.push_redraw self#id (*TODO... use wid et/ou window_id...*)
-    (* refresh is not used anymore. We redraw everyhting at each frame ... *)
-    (* before, it was not very subtle either: if !draw_boxes is false, we ask for
-       clearing the background before painting. Maybe some widgets can update
-       without clearing the whole background. But those with some transparency
-       probably need it. This should not be necessary in case we draw a solid
-       background -- for instance if draw_boxes = true *)
-
-
-    (* unload all textures but the widget remains usable. (Rendering will recreate
-       all textures) *)
-    method unload = ()
-    method virtual display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list
-  end
-
-and connection src ?target action ?(priority=Forget) ?join triggers =
-  object
-    method src : w = src
     method action (ev : Sdl.event) : unit =
       if !debug
       then
@@ -119,6 +58,79 @@ and connection src ?target action ?(priority=Forget) ?join triggers =
       then printd debug_warning "one should not 'connect' with 'update_target'=true if the trigger list contains 'user_event'. It may cause an infinite display loop";
   end
 
+and virtual common ?id ?(name = "") size () =
+  let id = match id with None -> fresh_int () | Some id -> id in
+  object (self)
+    method id : int = id
+    method name : string = name
+
+    method virtual children : common list
+    method virtual canvas : Draw.canvas option
+
+    val mutable connections : connection list = []
+    method connections = connections
+    method add_connection c : unit = connections <- connections @ [c]
+
+    val mutable size : int * int = size
+    method size = size
+    method resize x =
+      self#unload;
+      size <- x
+
+    (* unload all textures but the widget remains usable. (Rendering will recreate
+       all textures) *)
+    method virtual unload : unit
+
+    initializer WHash.add common_wtable (self :> < id : int; name : string >)
+
+
+
+    method focus_with_keyboard = ()
+    method remove_keyboard_focus = ()
+    method guess_unset_keyboard_focus = true
+  end
+
+(* A virtual class storing a state. By convention, a widget has a state =/= unit when it is
+   an interactive widget. A label therefore has unit state, even though it can be changed.
+   TODO Investigate how this interacts with inheritance. What about a clickable label?
+   It should work well as the type of inheritance can be specified.
+*)
+class virtual ['a] stateful init =
+  object
+    val mutable state : 'a = init
+    method state = state
+  end
+
+class virtual ['a] w ?id size name cursor =
+  object (self)
+    inherit common ?id ~name size ()
+
+    method children = []
+    method canvas = None
+
+    val mutable _cursor : Cursor.t = cursor
+    method cursor = _cursor
+    method set_cursor x = _cursor <- x
+
+    method update =
+      (* ask for refresh *)
+      (* Warning: this is frequently called by other threads *)
+      (* Warning: this *resets to 0* the user_window_id *)
+      (* anyway, it is not clear if the user_window_id field for created event types
+         is really supported by (T)SDL *)
+      printd debug_board "Please refresh";
+      (* if !draw_boxes then Trigger.(push_event refresh_event) *)
+      (* else *)
+      Trigger.push_redraw self#id (*TODO... use wid et/ou window_id...*)
+    (* refresh is not used anymore. We redraw everyhting at each frame ... *)
+    (* before, it was not very subtle either: if !draw_boxes is false, we ask for
+       clearing the background before painting. Maybe some widgets can update
+       without clearing the whole background. But those with some transparency
+       probably need it. This should not be necessary in case we draw a solid
+       background -- for instance if draw_boxes = true *)
+    method virtual display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list
+  end
+
 (** create new connection *)
 (* if ~join:c, on donne le même id que la connexion c, ce qui permet
    d'effectuer l'action conjointement avec celle de c (avec en général
@@ -126,8 +138,8 @@ and connection src ?target action ?(priority=Forget) ?join triggers =
    cas, ne pas déclancher plein de ces connexions à la suite... elles
    s'attendent ! *)
 let connect self ?target action ?priority ?join triggers =
-  let target = Option.map (fun x -> (x :> w)) target in
-  let c = new connection (self :> w) action ?priority ?target ?join triggers in
+  let target = Option.map (fun x -> (x :> 'a w)) target in
+  let c = new connection action ?priority ?target ?join triggers in
   self#add_connection c
 
 let connect_after self target action triggers =

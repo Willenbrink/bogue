@@ -48,7 +48,7 @@ let cornsilk = Draw.find_color "cornsilk"
 let desc0 = "Just a check button."
 let example0 () =
   let b = W.check_box () in
-  let layout = L.resident (b :> W.t) in
+  let layout = L.resident b in
   let board = make [layout] in
   run board
 
@@ -64,7 +64,7 @@ let example1h () =
      theme (is this good ??) *)
   let p = new Image.t "images/chl.png" in
   let box = new Box.t ~size:p#size ~border ~bg:(Style.Image p) () in
-  let layout = L.flat_of_w [(b :> W.t);(td :> W.t);(box :> W.t)] in
+  let layout = L.flat_of_w [(b :> 'a W.t);(td :> 'a W.t);(box :> 'a W.t)] in
   (* L.animate layout (Anim.show ~duration:600 (100)); *)
   let board = make [layout] in
   run board
@@ -83,7 +83,9 @@ let example1v () =
   let td_italic = W.rich_text ~size:(0,h)
       Text_display.(page [underline (para "Force italic:"); italic example]) in
   let box = new Box.t () in
-  let layout = L.tower_of_w [(b :> W.t);(title :> W.t);(td :> W.t);(td_normal :> W.t);(td_bold :> W.t);(td_italic :> W.t);(box :> W.t)] in
+  let layout = L.tower_of_w [(b :> 'a W.t);(title :> 'a W.t);(td :> 'a W.t);
+                             (td_normal :> 'a W.t);(td_bold :> 'a W.t);
+                             (td_italic :> 'a W.t);(box :> 'a W.t)] in
   L.slide_in ~dst:layout layout;
   let board = make [layout] in
   run board
@@ -117,7 +119,7 @@ let example4 () =
   let border = Style.(border ~radius:25
                         (line ~color:Draw.(transp red) ~width:0 ~style:Solid ())) in (* try width=0 to see no antialias.. *)
   let box = new Box.t ~border ~bg:(Style.color_bg Draw.(transp blue)) () in
-  let layout = L.flat_of_w [(b1 :> W.t);(box :> W.t);(b2 :> W.t)] in
+  let layout = L.flat_of_w [(b1 :> 'a W.t);(box :> 'a W.t);(b2 :> 'a W.t)] in
   (* L.animate layout (Anim.translate 300 300); *)
   L.animate_x layout (Avar.fromto 300 0);
   L.animate_y layout (Avar.fromto 300 0);
@@ -129,7 +131,7 @@ let example5 () =
   let b1 = W.check_box () in
   let b2 = W.check_box () in
   let box = new Box.t () in
-  let l1 = L.flat_of_w ~name:"Button 1 and the Box" [(b1 :> W.t);(box :> W.t)] in
+  let l1 = L.flat_of_w ~name:"Button 1 and the Box" [(b1 :> 'a W.t);(box :> 'a W.t)] in
   let l2 = L.resident ~name:"Button 2" ~draggable:true b2 in (* compare with (= no margin) *)
   (* let l2 = L.resident canvas b2 in *)
 
@@ -142,7 +144,7 @@ let example6 () =
   let b = W.check_box () in
   let l = new Label.t ~fg:(Draw.(opaque (find_color "firebrick")))
     "Merry Christmas !" in
-  let layout = L.flat_of_w ~align:Draw.Center [(b :> W.t);(l :> W.t)] in
+  let layout = L.flat_of_w ~align:Draw.Center [(b :> 'a W.t);(l :> 'a W.t)] in
   let shortcuts = [Shortcut.exit_on_escape] in
   let board = make ~shortcuts [layout] in
   run board
@@ -161,7 +163,7 @@ let example7 () = (* TODO à vérifier ! parfois ce n'est pas synchro *)
     l#set_text text
   in
   W.connect b ~target:l action T.buttons_down;
-  let layout = L.flat_of_w [(b :> W.t);(l :> W.t)] in
+  let layout = L.flat_of_w [(b :> 'a W.t);(l :> 'a W.t)] in
   let board = make [layout] in
   run board
 
@@ -169,7 +171,7 @@ let example7 () = (* TODO à vérifier ! parfois ce n'est pas synchro *)
 let desc8 = "the button and the label are inter-connected"
 let example8 () =
   let b,l = W.check_box_with_label "you may click here too" in
-  let layout = L.flat_of_w [(b :> W.t);(l :> W.t)] in
+  let layout = L.flat_of_w [(b :> 'a W.t);(l :> 'a W.t)] in
   let board = make [layout] in
   run board
 
@@ -190,9 +192,9 @@ let desc10 = "two independent windows should open. ESC to quit."
 let example10 () =
   let b1 = W.check_box () in
   let b2 = W.check_box () in
-  let l1 = L.flat_of_w ~name:"Window#1" [(b1 :> W.t); (new Label.t "First window" :> W.t)] in
+  let l1 = L.flat_of_w ~name:"Window#1" [(b1 :> 'a W.t); (new Label.t "First window" :> 'a W.t)] in
   Draw.use_new_layer (); (* we start a new window *)
-  let l2 = L.flat_of_w ~name:"Window#2" [(b2 :> W.t); (new Label.t "Win 2" :> W.t)] in
+  let l2 = L.flat_of_w ~name:"Window#2" [(b2 :> 'a W.t); (new Label.t "Win 2" :> 'a W.t)] in
 
   let shortcuts = [Shortcut.exit_on_escape] in
   let board = make ~shortcuts [l1;l2] in
@@ -209,19 +211,21 @@ let example11 () = (* attention ne marche pas avec DEBUG=false !! OK problème r
   let action _ = Printf.printf "%b\n" b1#state; b2#set_state b1#state in
   W.connect b1 ~target:b2 action T.buttons_down;
   (* W.add_connection b1 c;  *)(* TODO à faire autom *)
-  let l1 = L.flat_of_w [(b1 :> W.t); (new Label.t "Window 1 = the master" :> W.t)] in
+  let l1 = L.flat_of_w [(b1 :> 'a W.t); (new Label.t "Window 1 = the master" :> 'a W.t)] in
   Draw.use_new_layer ();
-  let l2 = L.flat_of_w [(b2 :> W.t); (new Label.t "Window 2" :> W.t)] in
+  let l2 = L.flat_of_w [(b2 :> 'a W.t); (new Label.t "Window 2" :> 'a W.t)] in
   let shortcuts = [Shortcut.exit_on_escape] in
   let board = make ~shortcuts [l1;l2] in
   L.set_window_pos l1 (200,200); L.set_window_pos l2 (400,200);
   run board
 
+(* FIXME typing is broken *)
 let desc12 = "a check_box and a text input in a line editor"
 let example12 () =
   let b = W.check_box () in
   let ti = new Text_input.t ~font_size:16 ~prompt:"Click and enter some text " "" in
-  let l = L.tower_of_w [(b :> W.t);(ti :> W.t)] in
+  (* FIXME introduce wrapper / use layout *)
+  let l = L.tower_of_w [(*(b :> 'a W.t);*)(ti :> 'a W.t)] in
   let board = make [l] in
   run board
 
@@ -246,7 +250,7 @@ let example14 () =
   let s'' = new Slider.t ~kind:Slider.HBar () in
   let l'' = new Label.t "       Click on the slider         " in
   let action w1 w2 _ =
-    w2#set_text (sprintf "You have selected: %u%% " w1#value) in
+    w2#set_text (sprintf "You have selected: %u%% " w1#state) in
   let events = List.flatten [T.buttons_down; T.buttons_up; T.pointer_motion; [Sdl.Event.key_down]] in
   (* NOTE instead of using this connection/events, one can use
      new Slider.t_with_action. Cf example/bounce *)
@@ -305,7 +309,7 @@ let example16 () =
     ~label_on:(new Icon.t ~fg "train")
     ~label_off:(new Icon.t ~fg:(Draw.(lighter (lighter fg))) "train")
     "" in
-  let layout = L.flat_of_w [(b :> W.t);(c :> W.t);(d :> W.t)] in
+  let layout = L.flat_of_w [(b :> 'a W.t);(c :> 'a W.t);(d :> 'a W.t)] in
   let board = make [layout] in
   run board
 
@@ -331,6 +335,7 @@ let example18 () =
   let board = make [layout] in
   run board
 
+(* FIXME tabs not working properly. That requires a bit of work and will become useless once more is rewritten *)
 let desc19 = "tabs"
 let example19 () =
   let img = new Image.t ~w:320 ~h:300 ~bg:Draw.(opaque white) "images/chl.png" in
@@ -338,7 +343,7 @@ let example19 () =
   let b,l = W.check_box_with_label "you may click here too" in
   let tab1 = L.flat_of_w [img] in
   let tab2 = L.flat_of_w [ti] in
-  let tab3 = L.tower_of_w [(b :> W.t);(l :> W.t)] in
+  let tab3 = L.tower_of_w [(b :> 'a W.t);(l :> 'a W.t)] in
   let tabs = Tabs.create ~slide:Avar.Right ~adjust:Layout.Nothing
       ["Check box", tab3; "Image", tab1; "Text entry", tab2; ] in
   let board = make [tabs] in
@@ -362,26 +367,27 @@ let example21 () =
   let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in
   let l = new Label.t " This is on top of the other widgets " in
   let close_btn = new Button.t ~border_r:3 ~border_c:Draw.(opaque blue) "Close" in
-  let popup = L.tower_of_w [(l :> W.t);(ti :> W.t);(close_btn :> W.t)] in
-  let layout = L.tower_of_w [(b :> W.t);(td :> W.t)] in
+  (* FIXME introduce wrapper*)
+  let popup = L.tower_of_w [(l :> 'a W.t);(*(ti :> 'a W.t);*)(close_btn :> 'a W.t)] in
+  let layout = L.tower_of_w [(b :> 'a W.t);(td :> 'a W.t)] in
   let screen = Popup.attach ~show:false ~bg:(Draw.(set_alpha 240 dark_grey)) layout popup in
-  let button = new Button.t ~switch:true ~border_r:4 ~border_c:Draw.(opaque grey) "Popup" in
+  let b = new Button.t ~switch:true ~border_r:4 ~border_c:Draw.(opaque grey) "Popup" in
   let release b =
     popup#set_show b#state;
     screen#set_show b#state
   in
-  W.on_release ~release button;
-  let close b = b#set_state false; release b  in
-  W.connect_main close_btn ~target:button (fun _ -> close button) T.buttons_up;
+  (* FIXME this is not nicely written *)
+  W.on_release ~release b;
+  W.connect_main close_btn ~target:b (fun _ -> b#press; release b) T.buttons_up;
 
-  let global = L.tower [L.resident button; layout] in
+  let global = L.tower [L.resident b; layout] in
   let board = make [global] in
   run board
 
 let desc21bis = "Close popup"
 let example21bis () =
   let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in
-  let layout = L.tower_of_w [(W.check_box () :> W.t); (td :> W.t)] in
+  let layout = L.tower_of_w [(W.check_box () :> 'a W.t); (td :> 'a W.t)] in
   Popup.info ~size:(100,70) "Click on Close to close the popup" layout;
   let board = make [layout] in
   run board
@@ -402,16 +408,16 @@ let example21ter () =
    correct. After two clicks, it comes back to the right position. *)
 let desc22 = "hide/show"
 let example22 () =
-  let b = W.check_box ~state:true () in
+  let b = W.check_box ~init:true () in
   let l = new Label.t "Click button to hide/show" in
   let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in
-  let b2 = W.check_box ~state:true () in
+  let b2 = W.check_box ~init:true () in
   let l2 = new Label.t "Click button to hide/show" in
   let td2 = new Text_display.t (Text_display.paragraphs_of_string lorem) in
-  let button2 = L.flat_of_w [(b2 :> W.t);(l2 :> W.t)] in
+  let button2 = L.flat_of_w [(b2 :> 'a W.t);(l2 :> 'a W.t)] in
   let hide_show2 = L.flat_of_w [td2] in
   let hide_show = L.flat [L.flat_of_w [td]; button2; hide_show2] in
-  let button = L.flat_of_w [(b :> W.t);(l :> W.t)] in
+  let button = L.flat_of_w [(b :> 'a W.t);(l :> 'a W.t)] in
   let layout = L.tower [button; hide_show] in
   let action room w _ =
     if w#state
@@ -477,7 +483,7 @@ let example25 () =
   let main = L.tower
       [menu_placeholder;
        L.superpose
-         [L.tower [L.flat_of_w [(new Label.t "   Hello there" :> W.t); (W.check_box () :> W.t)];
+         [L.tower [L.flat_of_w [(new Label.t "   Hello there" :> 'a W.t); (W.check_box () :> 'a W.t)];
                    L.empty ~w:0 ~h:100 ();
                    L.resident (W.check_box ())];
           L.flat_of_w [box]]] in
@@ -687,8 +693,8 @@ let example34 () =
   let generate i = let background = if i mod 2 = 0
                      then Some (L.color_bg Draw.(transp (pale (pale green))))
                      else None in
-    let state = data.(i) in
-    let b = W.check_box ~state () in
+    let init = data.(i) in
+    let b = W.check_box ~init () in
     let click w = data.(i) <- w#state in
     W.on_click ~click b; (* we need to add connections dynamically *)
     let bl = L.resident ~w:20 ~h b in
@@ -791,7 +797,7 @@ let example37 () =
 
   let p = new Image.t "images/chl.png" in
   let box = new Box.t ~border ~bg:(Style.Image p) () in
-  let layout = L.flat_of_w [(b :> W.t);(td :> W.t);(box :> W.t)] in
+  let layout = L.flat_of_w [(b :> 'a W.t);(td :> 'a W.t);(box :> 'a W.t)] in
   let board = make [layout] in
   Mixer.unpause mixer;
   run board;
@@ -814,7 +820,7 @@ let example38 () =
   let img = Image.create_from_svg ~h:300 ~bg:Draw.(opaque red)
       "images/koala.svg" in
 
-  let layout = L.flat_of_w [(box :> W.t); (img :> W.t)] in
+  let layout = L.flat_of_w [(box :> 'a W.t); (img :> 'a W.t)] in
   let board = make [layout] in
   run board
 
@@ -919,7 +925,7 @@ let example42 () =
   let l = new Label.t "Rotation" in
   let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in
   let background = L.bg_color in
-  let layout = L.tower_of_w ~background [(l :> W.t);(td :> W.t)] in
+  let layout = L.tower_of_w ~background [(l :> 'a W.t);(td :> 'a W.t)] in
   L.rotate ~duration:5000 ~angle:180. layout;
   let board = make [layout] in
   run board
@@ -934,7 +940,7 @@ let example43 () =
   let background = L.bg_color in
   let room = L.tower ~background
       [ L.resident l;
-        L.flat_of_w [(b :> W.t);(box :> W.t)] ] in
+        L.flat_of_w [(b :> 'a W.t);(box :> 'a W.t)] ] in
   let s = Snapshot.create room in
   let snap = L.resident s in
   let duration = 500 in

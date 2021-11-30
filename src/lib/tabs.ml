@@ -20,7 +20,7 @@ let bg_off = Style.Solid Draw.(opaque Button.color_off)
    actif, ce qui n'est pas très joli. *)
 let create_one ?slide title room dest_room =
   (* TODO create_empty adds to WHash table *)
-  let b = new Button.t ~bg_on ~bg_off title in
+  let b = new Button.t ~switch:true ~bg_on ~bg_off title in
   (* the first action sets the button to 'pressed' when we click (button_down)
      on it. Below we will add another action to reset all other buttons to 'not
      pressed' *)
@@ -77,7 +77,7 @@ let create (*?(circular = true)*) ?slide ?(adjust = Layout.Fit) ?(expand = true)
     let first_l = List.hd labels in
     first_l#press;
 
-    let menu = Layout.flat_of_w ?canvas ~sep:0 (List.map (fun x -> (x :> Widget.t)) labels) in
+    let menu = Layout.flat_of_w ?canvas ~sep:0 (List.map (fun x -> (x :> 'a Widget.t)) labels) in
     if expand (* we set the same width to all labels... do better? *)
     then begin
       let w = Layout.width dest_room in (* TODO utiliser relayout *)

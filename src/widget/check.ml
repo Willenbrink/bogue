@@ -14,18 +14,24 @@ type style =
 let default_circle_size = (12,14);; (* TODO compute at run-time *)
 let default_square_size = (17,18)
 
-class t ?(state = false) ?(style = Square) () =
+class t ?(init = false) ?(style = Square) () =
   let size = match style with
       Square -> default_square_size
     | Circle -> default_circle_size
   in
 
   object (self)
-    inherit w size "Check" Cursor.Hand
-    inherit [bool] stateful state
+    inherit [bool] w size "Check" Cursor.Hand
+    inherit [bool] stateful init
+
+    method set_state x = state <- x
+
+    method unload = ()
+
+    method action = state <- (not state)
+
     val style = style
     method get_style = style
-    method action = self#set_state (not self#state)
 
     (* TODO load the symbol at run-time so that we can change color *)
 

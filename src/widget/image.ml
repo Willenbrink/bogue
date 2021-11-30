@@ -16,7 +16,7 @@ type resize =  (* not implemented *)
  * performing scale (size / scale), thus we loose some units due to integer
    rounding. To be exact, we should keep a flag "original size" and modify the
    blit to use exact size *)
-class t ?w ?h ?(noscale = false)
+class ['a] t ?w ?h ?(noscale = false)
     ?(bg = Draw.(opaque black)) file =
   let size = match w, h with
     | Some w, Some h -> (w,h)
@@ -32,14 +32,13 @@ class t ?w ?h ?(noscale = false)
     else size
   in
   object (self)
-    inherit w size "Image" Cursor.Arrow
+    inherit ['a] w size "Image" Cursor.Arrow
 
-    val mutable file = file
     val background = bg (* idem *)
     val mutable render : Draw.texture option = None
     method render = render
 
-    method! unload =
+    method unload =
       match render with
       | None -> ()
       | Some tex -> begin

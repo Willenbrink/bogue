@@ -4,7 +4,7 @@
 open Utils
 
 type t =
-  { layout : Layout.t;
+  { layout : unit Layout.t;
     mutable is_fresh : bool;
     mutable bogue : bool;
     (* if bogue = false this means that bogue didn't create the corresponding
@@ -17,8 +17,7 @@ let create ?(is_fresh = false) ?(bogue = false) layout =
   Layout.(layout#set_current_geom { g with x = not_specified; y = not_specified });
   { layout; is_fresh; bogue }
 
-let get_layout w =
-  w.layout
+let get_layout w = w.layout
 
 let is_fresh w =
   w.is_fresh
@@ -44,7 +43,7 @@ let id w =
   Sdl.get_window_id (Layout.window w.layout)
 
 let equal w1 w2 =
-  Layout.equal w1.layout w2.layout
+  Widget.equal w1.layout w2.layout
 
 let render w =
   Layout.render w.layout

@@ -46,7 +46,7 @@ let slow k m x0 x =
   else x *. m
 
 (* value is ignored if a var is provided *)
-class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 200)
+class t ?(priority = Main) ?step ?(kind = Horizontal) ?(init = 0) ?(length = 200)
     ?(thickness = 20) ?w ?h ?tick_size ?var ?(m = 100) () =
   let tick_size = default tick_size (match kind with
       | HBar -> 4
@@ -62,33 +62,22 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
     | Vertical -> fst size
     | Circular -> thickness in
   let step = default step (max 1 (m/100)) in
-  let var = default var (Tvar.create
-                           (Avar.var value)
-                           ~t_from:(Avar.get)
-                           ~t_to:(Avar.var)) in
   object (self)
-    inherit w size "Slider" Cursor.Hand
-    (* The value of the slider is a Tvar, which means that it can share a global
-       variable. This is used for instance for scrolling bar When the scroll
-       bar is moved, the voffset of the layout is automatically updated, and
-       conversely if the layout is scrolled, the scrollbar is automatically
-       updated. *)
-    val _var : (int Avar.t, int) Tvar.t = var
-    (* The destination of the Tvar is the local slider value: an integer between
-       0 and max. The origin is an arbitrary 'external' integer Avar. *)
-    (* TODO: (int Avar.t) is here to make smoother transition not done yet *)
-    (* used to avoid computing too many times the same value *)
-    val mutable cache = Tvar.get var
-    method value = cache
-    method set_value x = Tvar.set var x; cache <- x
+    inherit [int] w size "Slider" Cursor.Hand as super
+    inherit [int] stateful init
+
+    val mutable pointer_motion = false
 
     (* This has to be done for each external call to this module *)
     (* It will update the position of the slider by looking at the var. Hence, if
        the var has a nontrivial transformation, it might be that the value differs
        from the value initially computed from the mouse position. See example 34. *)
-    method update_value = cache <- (Tvar.get var)
+    val mutable var = default var
+        (Tvar.create (Avar.var init) ~t_from:(Avar.get) ~t_to:(Avar.var))
+    method set_state x = state <- x; Tvar.set var x
+    (* method! state = Tvar.get var *)
 
-    val mutable pointer_motion = false
+    method set_var x = var <- x
 
     (* Slider can take values from 0 to max, both included. Must be non zero. *)
     val mutable max = check_max m
@@ -144,7 +133,7 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
       | Circular -> imin w h
       | Vertical -> h
 
-    method! unload =
+    method unload =
       match render with
       | None -> ()
       | Some tex -> begin
@@ -152,25 +141,24 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
           render <- None
         end
 
-    method set_keyboard_focus = self#focus
+    method! focus_with_keyboard = self#focus
 
-    method remove_keyboard_focus = self#unfocus
+    method! remove_keyboard_focus = self#unfocus
 
-    method guess_unset_keyboard_focus = false
+    method! guess_unset_keyboard_focus = false
 
     method! resize (w,h) =
-      self#unload;
-      _size <- (w,h);
+      super#resize (w,h);
       thickness <- (match kind with
           | HBar | Horizontal -> h
           | Vertical -> w
           | Circular -> thickness)
 
     method private x_pos =
-      room_x + (self#value) * (self#length - tick_size) / max
+      room_x + state * (self#length - tick_size) / max
 
     method private y_pos =
-      room_y + self#length - tick_size - (self#value)
+      room_y + self#length - tick_size - state
                                          * (self#length - tick_size) / max
 
     method display canvas layer g =
@@ -178,7 +166,6 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
          position, in case of non-linear (vertical) slider (see example 34)...  TODO
          do the same for Horizontal slider *)
       let oldy = self#y_pos in
-      self#update_value;
       let scale = Theme.scale_int in
       let tick_size = scale tick_size
       and thickness = scale thickness in
@@ -252,7 +239,7 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
            ~width (x+w/2) (y+h/2); *)
         let tick = ray_to_layer canvas layer ~voffset:g.voffset ~bg:color
             ~thickness:tick_size
-            ~angle:(360. *. (float (max - self#value)) /. (float max)) ~radius
+            ~angle:(360. *. (float (max - state)) /. (float max)) ~radius
             ~width:thickness (g.x + g.w/2) (g.y + g.h/2) in
         [sbox; tick]
 
@@ -304,7 +291,7 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
       if !debug then assert (offset = 0);
       (* in some fast mouse motion it can happen that button_up is lost, so this
          assertion fail *)
-      let old = value in
+      let old = state in
       let mouse_v = self#compute_value ev in
       let v =
         if abs (mouse_v - old) * (length - tick_size) <= max * tick_size/2
@@ -317,7 +304,7 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
       printd debug_board "Slider value : %d" v;
       clicked_value <- (Some v);
       (* keyboard_focus <- true; *)
-      self#set_value v
+      state <- v
     (* we add an animation to the original Avar. For this we need some
        gymnastic to get the current and final value for it *)
     (* TODO this works only for scrolling, because has_anim is detected for
@@ -345,7 +332,7 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
       let v = (Stdlib.max 0 (min v max)) in
       printd debug_board "Slider value : %d" v;
       pointer_motion <- true;
-      self#set_value v
+      state <- v
 
     (* Use this to increase the step when using keyboard. *)
     method change_speed =
@@ -362,17 +349,16 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(value = 0) ?(length = 20
 
     method increase =
       let step = self#change_speed in
-      self#set_value (min max (value + step))
+      state <- (min max (state + step))
 
     method decrease =
       let step = self#change_speed in
-      self#set_value (Stdlib.max 0 (value - step))
+      state <- (Stdlib.max 0 (state - step))
 
 
     (* This should be called on key_down. *)
     method receive_key ev =
       (* TODO: we could use some animation to make it smoother *)
-      self#update_value;
       if self#keyboard_focus then
         begin
           match Trigger.event_kind ev with

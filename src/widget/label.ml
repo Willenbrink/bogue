@@ -28,7 +28,7 @@ let physical_size_text font text =
   (* Attention, SDL_ttf n'est peut-être pas encore initialisé... *)
   go (Ttf.size_utf8 font text)
 
-class t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
+class ['a] t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
     ?(style = Ttf.Style.normal) ?(fg = Draw.(opaque label_color)) text =
   let typ = "Label [" ^ Utils.xterm_red ^ text ^ Utils.xterm_nc ^ "]" in
   (* Previous implementation:
@@ -38,7 +38,7 @@ class t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
   let () = Draw.ttf_init () in
   let size = physical_size_text (get_font font font_size) text (* TODO missing calculation *) in
   object (self)
-    inherit w size typ Cursor.Arrow
+    inherit ['a] w size typ Cursor.Arrow
     initializer Draw.ttf_init ()
 
     val mutable text = text
@@ -53,7 +53,7 @@ class t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
     val font_size = font_size
     val mutable fg = fg
 
-    method! unload =
+    method unload =
       let tex = render in
       render <- None;
       do_option tex Draw.forget_texture
@@ -110,10 +110,6 @@ let physical_size l =
    [center_tex_to_layer]. *)
 let size l =
   physical_size l |> Draw.unscale_size
-
-(* Resizing has no effect, since the size of the widget is entirely dictated by
-   the font size and possibly the geometry of the housing layout. *)
-let resize _size _l =
   ()
 
   *)

@@ -7,12 +7,13 @@
 
 open Printf
 open Utils
+module W = Widget
 
 (* this is the public, non-mutable type *)
-type column =
+type 'a column =
   { title : string;
     length : int;
-    rows : int -> Layout.t;
+    rows : int -> 'a Layout.t;
     compare : (int -> int -> int) option;
     (* use "compare i1 i2" in order to compare entries i1 and i2 *)
     width : int option;
@@ -22,23 +23,23 @@ type sort =
   | Ascending (* increasing *)
   | Descending (* decreasing *)
 
-type column_private = {
+type 'a column_private = {
   title : string;
-  rows : int -> Layout.t;
+  rows : int -> 'a Layout.t;
   compare : (int -> int -> int) option;
   mutable width : int;
   mutable sort : sort option
 }
 
-type t = {
+type 'a t = {
   length : int;
-  data : column_private array;
+  data : 'a column_private array;
   mutable selection : Selection.t; (* selection of rows *)
   mutable last_selected : int option;
   order : int array; (* we keep here the bijection ith entry --> jth displayed *)
-  titles : Layout.t array;
+  titles : 'a Layout.t array;
   row_height : int;
-  layout : Layout.t option ref(* the global layout *)
+  layout : 'a Layout.t option ref(* the global layout *)
 }
 
 let title_margin = 5;;
@@ -48,7 +49,7 @@ let row_selected = Layout.Solid Draw.(opaque (pale (pale (pale blue))));;
 let icon_color = Draw.(set_alpha 40 grey);;
 
 (* max_width returns the max width of the first n_max entries of the column c *)
-let max_width ?(n_max = 50) (c : column) =
+let max_width ?(n_max = 50) (c : 'a column) =
   let n_max = imin n_max c.length in
   let rec loop i m =
     if i = n_max then m
@@ -56,7 +57,7 @@ let max_width ?(n_max = 50) (c : column) =
       loop (i+1) (imax m w) in
   loop 0 0
 
-let make_title (c : column) =
+let make_title (c : 'a column) =
   (* we compute the label widget *)
   let label = new Label.t c.title in
   (* if no width is specified, we compute the max width of the first entries of
@@ -68,7 +69,7 @@ let make_title (c : column) =
   let layout =
     if c.compare = None
     then (* first encapsulate in order to then left-align *)
-      Layout.flat_of_w ~sep:0 [(label :> Widget.t)]
+      Layout.flat_of_w ~sep:0 [(label :> 'a W.t)]
     else begin (* add icon for sorting *)
       let sort_indicator = new Icon.t ~fg:icon_color "sort" in
       let sw,_ = sort_indicator#size in
@@ -76,10 +77,10 @@ let make_title (c : column) =
       let w' = w - sw - lw in
       if w' >= 0
       then (* we can add sort_indicator *)
-        Layout.flat_of_w ~sep:0 ~align:(Draw.Max) [ (label :> Widget.t);
-                                                    (new Empty.t (w',lh) :> Widget.t);
-                                                    (sort_indicator :> Widget.t)]
-      else Layout.flat_of_w ~sep:0 [ (label :> Widget.t)]
+        Layout.flat_of_w ~sep:0 ~align:(Draw.Max) [ (label :> 'a W.t);
+                                                    (new Empty.t (w',lh) :> 'a W.t);
+                                                    (sort_indicator :> 'a W.t)]
+      else Layout.flat_of_w ~sep:0 [ (label :> 'a W.t)]
     end in
   Layout.set_width layout w; (* not necessary in the case of sort_indicator *)
   let (_,h) = label#size in
@@ -109,7 +110,7 @@ let get_indicator title =
 let get_row _ _ (* t i *) =
   () (* ??? *)
 
-let make_column (c: column) w : column_private =
+let make_column (c: 'a column) w : 'a column_private =
   { title = c.title;
     rows = c.rows;
     compare = c.compare;
@@ -117,13 +118,13 @@ let make_column (c: column) w : column_private =
     sort = None
   };;
 
-let make_columns (columns : column list) widths =
+let make_columns (columns : 'a column list) widths =
   List.map2 make_column columns widths;;
 
-let make_table ?row_height (columns : column list) =
+let make_table ?row_height (columns : 'a column list) =
   let length, rw = match columns with
     | [] -> failwith "Cannot create empty table"
-    | c0::_ -> List.iter (fun (c : column) ->
+    | c0::_ -> List.iter (fun (c : 'a column) ->
         if c.length <> c0.length
         then failwith "Table columns must have same length")
         columns; c0.length, Layout.height (c0.rows 0) in
@@ -283,7 +284,8 @@ let change_order t j sort =
 let connect_title t j =
   if t.data.(j).compare = None then ()
   else begin
-    let widget = get_area t.titles.(j) in
+    (* FIXME Segfault incoming *)
+    let widget = get_area t.titles.(j) |> Obj.magic in
     let click _ =
       let sort = match t.data.(j).sort with
         | None -> Ascending
@@ -315,7 +317,7 @@ let make_selection_tvar t =
 
 
 (* this returns the main layout and the selection variable *)
-let create ?w ~h ?row_height ?(name="table") (columns : column list) =
+let create ?w ~h ?row_height ?(name="table") (columns : 'a column list) =
   let t = make_table columns ?row_height in
   let titles_row, long = make_layout ?w ~h t in
   let layout = Layout.tower ~sep:0 ~hmargin:0 ~vmargin:0 ~name
@@ -347,7 +349,7 @@ let of_array ?w ~h ?widths ?row_height ?name headers a =
              |> Array.mapi (fun j title ->
                  { title;
                    length = ni;
-                   rows = (fun i -> Layout.resident ((new Label.t a.(i).(j) :> Widget.t)));
+                   rows = (fun i -> Layout.resident (new Label.t a.(i).(j) :> 'a W.t));
                    compare = Some (fun i1 i2 -> compare a.(i1).(j) a.(i2).(j));
                    width = widths.(j) })
              |> Array.to_list in

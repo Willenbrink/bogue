@@ -15,9 +15,9 @@ open Base
 let default_size = (256,64)
 let default_bg = Style.Solid Draw.(opaque pale_grey)
 
-class t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
+class ['a] t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
   object (self)
-    inherit w size "Box" Cursor.Arrow
+    inherit ['a] w size "Box" Cursor.Arrow
 
     val border : Style.border option = border
     val shadow : Style.shadow option = shadow
@@ -26,13 +26,9 @@ class t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
     val mutable bg : Style.background = bg
     method set_bg x =
       self#unload;
-      bg <- x (* TODO This can't be right? We are also deleting our texture *)
+      bg <- x
 
-    method! resize x =
-      self#unload;
-      _size <- x
-
-    method! unload =
+    method unload =
       begin
         match render with
         | None -> ()

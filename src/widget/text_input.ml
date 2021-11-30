@@ -70,16 +70,16 @@ let ctrl_pressed () =
   || m = Sdl.Kmod.lctrl
   || m = Sdl.Kmod.rctrl
 
-
 class t ?(max_size = 2048) ?(prompt = "Enter text")
     ?(font_size = Theme.text_font_size)
     ?(filter = no_filter) ?(font = default_font) text =
   let size = (0,font_size) (* TODO missing calculation *) in
   let keys = Utf8.split text in
   object (self)
-    inherit w size "TextInput" Cursor.Ibeam
+    inherit [string list] w size "TextInput" Cursor.Ibeam
+    inherit [string list] stateful keys
+
     initializer Draw.ttf_init ()
-    val mutable keys = keys
     val mutable cursor = None
     val cursor_font = ref (Label.File Theme.fa_font)
     val mutable cursor_pos = 0
@@ -107,14 +107,11 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
     val prompt = prompt
     val filter = filter
 
-    method! unload =
+    method unload =
       do_option render Draw.forget_texture;
       render <- None;
       do_option cursor Draw.forget_texture;
       cursor <- None
-
-    method! resize _ = self#unload (* TODO seems wrong *)
-
 
     method text = String.concat "" keys
     (* because there is a length test, it should be placed ad the end of
@@ -131,7 +128,7 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
                 self#stop;
                 let head, _ = split_list _keys max_size in head)
           else _keys in
-        keys <- _keys;
+        state <- _keys;
         self#clear
       end
     method set_text x =
@@ -268,7 +265,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
     (** return the cursor position with respect to the total text surface *)
     (* warning: this is already scaled... (physical pixels) *)
     method cursor_xpos ?(n = cursor_pos) () =
-      let head, _ = split_list (keys) n in
+      let head, _ = split_list keys n in
       List.fold_left (fun s key -> s + text_width (self#font) key) 0 head
 
     (** Return cursor_pos corresponding to the x position *)
@@ -328,8 +325,6 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
         self#activate ~check:false ev;
         self#select_all
       end
-
-
 
     method kill_selection =
       match selection with
@@ -395,9 +390,9 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
       self#click_cursor ev;
       self#clear
 
-    method remove_keyboard_focus = self#stop
+    method! remove_keyboard_focus = self#stop
 
-    method guess_unset_keyboard_focus = false
+    method! guess_unset_keyboard_focus = false
 
     (* render letter by letter so that x position is precise *)
     method draw_keys ?fg font keys =

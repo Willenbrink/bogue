@@ -4,7 +4,7 @@
 open Utils
 include Base
 
-class type virtual t = w
+class type virtual ['a] t = ['a] w
 
 let draw_boxes = ref false;;
 (* for debugging: draws a red rect rectangle around each widget layout, (fill
@@ -30,11 +30,11 @@ let test () = [
 (*   w.canvas <- Some canvas;; *)
 
 (** creation of simple widgets *)
-let check_box ?state ?style () =
+let check_box ?init ?style () =
   (* let b = create_empty  (Check (Check.create ?state ?style ())) in *)
-  let b = new Check.t ?state ?style () in
+  let b = new Check.t ?init ?style () in
   let action _ = b#action in
-  connect_main (b :> t) ~target:(b :> t) action Trigger.buttons_down;
+  connect_main (b :> 'a t) ~target:(b :> 'b t) action Trigger.buttons_down;
   b
 
 let rich_text ?font_size ?size paragraphs = new Text_display.t ?font_size ?size paragraphs

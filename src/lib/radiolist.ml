@@ -11,14 +11,14 @@
 open Utils
 module W = Widget
 
-type widgets = {
+type 'a widgets = {
   index : int option ref; (* the index of selected entry *)
-  data : (W.t * W.t) array
+  data : ('a W.t * 'a W.t) array
 }
 
-type t = {
-  widgets : widgets;
-  layout :  Layout.t;
+type 'a t = {
+  widgets : 'a widgets;
+  layout :  'a Layout.t;
   click_on_label : bool
 }
 
@@ -76,7 +76,7 @@ let make_connections widgets =
 
 let make_widgets ?selected ?(click_on_label=true) entries =
   let data = Array.map (fun entry ->
-      W.((make_button () :> Widget.t), (make_label ~click_on_label entry :> Widget.t))) entries in
+      W.((make_button () :> 'a t), (make_label ~click_on_label entry :> 'a W.t))) entries in
   (* do_option selected (fun i ->
    *     let (b,_) = data.(i) in
    *     W.set_check_state b true); *)
@@ -102,7 +102,7 @@ let set_index t i =
   let (b,w) = t.widgets.data.(i) in
   (* select_action t.widgets i b w; *)
   (* This will wake up the widget b even if it doesn't have mouse focus *)
-  Update.push b;;
+  Update.push (b :> W.common)
 (* another possibility, if using Update sounds like a bad idea, is to directly
    wake the widget up with *)
 (* let e = Trigger.(create_event var_changed) in List.iter *)

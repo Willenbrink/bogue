@@ -80,10 +80,11 @@
 
 
 open Utils
+module W = Widget
 
-type entry = | Void
-             | Freed
-             | Computed of Layout.t
+type 'a entry = | Void
+                | Freed
+                | Computed of 'a Layout.t
 
 type direction = | Up
                  | Down
@@ -96,7 +97,7 @@ let scroll_margin = 70
 
 (* unless specified, "pixel" means "logical pixel". The real ("physical") size
    onscreen is obtained by multiplying by Theme.scale *)
-type t = {
+type 'a t = {
   length : int; (* total number of elements *)
   mutable total_height : int option;
   (* = Total height pixels that would be necessary to render all
@@ -114,13 +115,13 @@ type t = {
        principle it will be factor * height of the target (clipped)
        layout. The real height will differ because we always render an integer
        number of entries. *)
-  generate : (int -> Layout.t); (* the function to generate the ith entry *)
-  cleanup : (Layout.t -> unit); (* cleanup the memory associated with the entry layout *)
+  generate : (int -> 'a Layout.t); (* the function to generate the ith entry *)
+  cleanup : ('a Layout.t -> unit); (* cleanup the memory associated with the entry layout *)
   max_memory : int option;
   (* = if not None, then tell the program to do memory management to use only
      some approximate memory maximum for storing the textures (in pixel²) *)
   mutable used_memory : int;
-  array : entry array;
+  array : 'a entry array;
   (* we store everything in an array. This choice is questionable, because for
      a large list, only a small part will be kept in memory. The solution we
      take here is to set "None" to entries we want to forget, hoping that this
@@ -551,6 +552,6 @@ let create ~w ~h ~length ?(first=0) ~generate ?height_fn
     let on_release _ =
       clicked_value := None in
     Widget.connect_main slider ~target:slider on_release Trigger.buttons_up;
-    let bar = Layout.(resident ~background:(Solid Draw.scrollbar_color) ((slider :> Widget.t))) in
+    let bar = Layout.resident ~background:(Solid Draw.scrollbar_color) (slider :> 'a W.t) in
     Layout.(flat ~name:"long_list" ~sep:0 ~hmargin:0 ~vmargin:0 [container; bar])
   end

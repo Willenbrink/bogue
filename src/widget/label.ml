@@ -1,34 +1,15 @@
 (** a simple text display in one line *)
 open Utils
-open Tsdl_ttf
+open Ttf
 open Base
 
-type font =
-  | File of string
-  | Font of Ttf.font
-
-type style = Tsdl_ttf.Ttf.Style.t
-
-(* open font with specified size. Here this is the true size, it will not be
-         scaled. *)
-(* This can be used by all widgets requiring a font. *)
-(* FIXME remove this/ replace by lazy.t *)
-let get_font font size =
-  match font with
-  | Font f -> f
-  | File file -> Draw.open_font file size
-
-let get_font_var v size =
-  match !v with
-  | Font f -> f
-  | File file -> let f = Draw.open_font file size in
-    v := Font f; f
+type style = Ttf.Style.t
 
 let physical_size_text font text =
   (* Attention, SDL_ttf n'est peut-être pas encore initialisé... *)
   go (Ttf.size_utf8 font text)
 
-class ['a] t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font)
+class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
     ?(style = Ttf.Style.normal) ?(fg = Draw.(opaque label_color)) text =
   let typ = "Label [" ^ Utils.xterm_red ^ text ^ Utils.xterm_nc ^ "]" in
   (* Previous implementation:
@@ -36,7 +17,7 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font
    *   match w#kind with
    *   | Label l -> let x,y = Label.size l in (x+2,y+2)*)
   let () = Draw.ttf_init () in
-  let size = physical_size_text (get_font font font_size) text (* TODO missing calculation *) in
+  let size = physical_size_text (Ttf.open_font font font_size) text (* TODO missing calculation *) in
   object (self)
     inherit ['a] w size typ Cursor.Arrow
     initializer Draw.ttf_init ()
@@ -48,20 +29,16 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font
       text <- x
 
     val mutable render : Draw.texture option = None
-    val font = ref font
-    val style = style
-    val font_size = font_size
-    val mutable fg = fg
-
     method unload =
       let tex = render in
       render <- None;
       do_option tex Draw.forget_texture
 
+    val mutable fg = fg
     method set_fg_color x = fg <- x
 
     method display canvas layer geom =
-      let ttffont = get_font_var font (Theme.scale_int font_size) in
+      let ttffont = Ttf.open_font font (Theme.scale_int font_size) in
       (* physical size *)
 
       let render_text_surf font style text =
@@ -92,8 +69,6 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = File Theme.label_font
   end
 
 (*
-
-(************* display ***********)
 
 (* let default_size = (128,32);;*)
 (* "/home/san/public_html/7h09/sites/all/themes/drupal_7h09/css/museo.ttf";; *)

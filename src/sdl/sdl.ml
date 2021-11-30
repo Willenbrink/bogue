@@ -2,7 +2,6 @@ open Tsdl
 open Sdl
 
 module Tsdl_image = Tsdl_image
-module Tsdl_ttf = Tsdl_ttf
 
 type uint8 = int
 type int16 = int

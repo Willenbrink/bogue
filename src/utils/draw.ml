@@ -151,41 +151,13 @@ let sdl_image_load file =
 
 (* SDL TTF *)
 
-(* TODO: use a proper cache (delete unused fonts ?) *)
-let font_cache : ((string * int), Tsdl_ttf.Ttf.font) Hashtbl.t =
-  Hashtbl.create 10
-(* obviously we don't need the mutability of Var.t here for a Hashtbl... *)
-
-let rec open_font file size =
-  (* first we check if it is available in memory *)
-  try let f = Hashtbl.find font_cache (file,size) in
-    printd debug_memory "Font %s (%u) was found in cache" file size; f
-  with
-  | Not_found -> begin
-      printd debug_io "Loading font %s (%u)" file size;
-      match Tsdl_ttf.Ttf.open_font file size with
-      | Result.Ok f ->
-        Hashtbl.add font_cache (file,size) f;
-        f
-      | Result.Error _ ->  (* use default font if error *)
-        if file = Theme.label_font
-        then begin
-          printd debug_error "(FATAL) default font %s (%u) cannot be loaded" file size;
-          raise Not_found
-        end
-        else begin
-          printd debug_error "Font %s (%u) could not be loaded. Using default font instead" file size;
-          open_font Theme.label_font size
-        end
-    end;;
-
 let ttf_render font text color =
   if text = ""
   then create_rgb_surface ~w:0 ~h:0 ~depth:32 (Int32.zero,Int32.zero,Int32.zero,Int32.zero)
   else begin
     incr surfaces_in_memory;
     printd debug_memory "Create surface_ttf (%s)" text;
-    go (Tsdl_ttf.Ttf.render_utf8_blended font text color)
+    go (Ttf.render_utf8_blended font text color)
   end;;
 
 let ttf_texture renderer font text color =
@@ -195,13 +167,13 @@ let ttf_texture renderer font text color =
   tex;;
 
 let ttf_set_font_style font style =
-  let open Tsdl_ttf in
+  let open Ttf in
   (* From SDL_ttf doc: NOTE: This will flush the internal cache of previously
      rendered glyphs, even if there is no change in style, so it may be best to
      check the current style using TTF_GetFontStyle first.
   *)
-  if Ttf.get_font_style font <> style
-  then Ttf.set_font_style font style;;
+  if get_font_style font <> style
+  then set_font_style font style;;
 
 (* return a new rectangle translated by the vector (x0,y0) *)
 let rect_translate r (x0,y0) =
@@ -758,13 +730,13 @@ let video_init () =
        );;
 
 let ttf_init () =
-  let open Tsdl_ttf in
+  let open Ttf in
   let () = video_init () in
-  if not (Ttf.was_init ()) then
-    (go (Ttf.init ());
+  if not (was_init ()) then
+    (go (init ());
      at_cleanup (fun () ->
          printd debug_graphics "Quitting SDL TTF";
-         Ttf.quit ());
+         quit ());
      printd debug_graphics "SDL TTF initialized");;
 
 (* Initialize SDL_Image. this is not really necessary, as the SDL_Image doc says
@@ -803,7 +775,7 @@ let load_image renderer file =
 let load_image_or_fa ?(fg = opaque menu_hl_color) renderer path =
   if startswith path "fa:"
   then let fa = String.(sub path 3 (length path - 3)) in
-    let fa_font = open_font Theme.fa_font Theme.(scale_int fa_font_size) in
+    let fa_font = Ttf.open_font Theme.fa_font Theme.(scale_int fa_font_size) in
     ttf_texture renderer fa_font (Theme.fa_symbol fa) (create_color fg)
   else load_image renderer path;; (* TODO SCALE texture with Theme *)
 
@@ -990,7 +962,7 @@ let load_textures window renderer fill = (* use hashtbl ? *)
   (* TODO store font in the table *)
   let check_on = load_image_or_fa renderer Theme.check_on in
   let check_off = load_image_or_fa renderer Theme.check_off in
-  (* let symbol_font = go (Tsdl_ttf.Ttf.open_font Theme.fa_font
+  (* let symbol_font = go (Ttf.open_font Theme.fa_font
    *                         Theme.(scale_int fa_font_size)) in *)
   let sdl_grey = Sdl.Color.create ~r:70 ~g:70 ~b:70 ~a:255 in
   (* let check_on = ttf_texture renderer symbol_font
@@ -999,7 +971,7 @@ let load_textures window renderer fill = (* use hashtbl ? *)
    *     (Theme.fa_symbol "square-o") sdl_grey in *)
   (* the symbol for circles is too big. we reduce: *)
   let size = 7 * Theme.(scale_int fa_font_size) / 10 in
-  let symbol_font = go (Tsdl_ttf.Ttf.open_font Theme.fa_font size) in
+  let symbol_font = Ttf.open_font Theme.fa_font size in
   let radio_on = ttf_texture renderer symbol_font
       (Theme.fa_symbol "dot-circle-o") sdl_grey in
   let radio_off = ttf_texture renderer symbol_font

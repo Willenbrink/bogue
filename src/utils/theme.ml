@@ -24,63 +24,63 @@ DIR = /home/john/.config/bogue/themes
 let this_version = "20211102"  (* see VERSION file *)
 
 let default_vars = [
-    (* Debug: *)
-    "DEBUG", "false";
-    (* Whether debug information should be logged to a file *)
-    "LOG_TO_FILE", "false";
-    (* The main themes dir: usually $HOME/.config/bogue/themes *)
-    "DIR", "";
-    (* The chosen theme: *)
-    "THEME", "default"; (* It must be a subdirectory of DIR: *)
-    (* The window background image: *)
-    "BACKGROUND", "file:background.png"; (* if is starts with "/" it is an absolute path. Otherwise, it is a file path inside THEME. *)
-    (* This background color should be clearly visible over the BACKGROUND *)
-    "BG_COLOR", "lightsteelblue";
-    (* Color for active or inactive button *)
-    "BUTTON_COLOR_ON", "darkturquoise";
-    "BUTTON_COLOR_OFF", "steelblue";
-    (* The "checked" image: either image or fa icon, eg. "fa:check-square-o" *)
-    "CHECK_ON", "check_on.png";
-    (* The "unchecked" image: (eg: "fa:square-o") *)
-    "CHECK_OFF", "check_off.png";
-    (* The cursor color for text input: *)
-    "CURSOR_COLOR", "#2a7da2"; (* a color identifier. Either a name like "black" or a RGB code as "#FE01BC" *)
-    (* Color for unimportant things that should not be so visible *)
-    "FAINT_COLOR", "gainsboro"; (* idem *)
-    (* The color for standard text display: *)
-    "TEXT_COLOR", "black"; (* idem *)
-    (* Text section background and foreground colors: *)
-    "SEL_BG_COLOR", "slategray";
-    "SEL_FG_COLOR", "white";
-    (* The color for text labels: *)
-    "LABEL_COLOR", "black"; (* idem *)
-    (* The color for highlighting selected menu entries: *)
-    "MENU_HL_COLOR", "#8099a2"; (* idem *)
-    (* The background color for unselected menu entries: *)
-    "MENU_BG_COLOR", "#BEBEBE"; (* idem *)
-    (* The font size for text labels: *)
-    "LABEL_FONT_SIZE", "14";
-    (* The font for text labels: *)
-    "LABEL_FONT", "Ubuntu-R.ttf"; (* path for a TTF font *)
-    (* The font for standard text: *)
-    "TEXT_FONT", "Ubuntu-R.ttf"; (* idem *)
-    (* The font size for standard text: *)
-    "TEXT_FONT_SIZE", "14";
-    (* The font size for small text like tooltips: *)
-    "SMALL_FONT_SIZE", "10";
-    (* Monospaced font: *)
-    "MONO_FONT", "UbuntuMono-R.ttf";
-    (* Room margin: *)
-    "ROOM_MARGIN", "10";
-    (* Font awesome dir, in the theme/common directory: *)
-    "FA_DIR", "font-awesome-4.6.3";
-    (* The global scale to be applied to all graphical elements. Setting
+  (* Debug: *)
+  "DEBUG", "false";
+  (* Whether debug information should be logged to a file *)
+  "LOG_TO_FILE", "false";
+  (* The main themes dir: usually $HOME/.config/bogue/themes *)
+  "DIR", "";
+  (* The chosen theme: *)
+  "THEME", "default"; (* It must be a subdirectory of DIR: *)
+  (* The window background image: *)
+  "BACKGROUND", "file:background.png"; (* if is starts with "/" it is an absolute path. Otherwise, it is a file path inside THEME. *)
+  (* This background color should be clearly visible over the BACKGROUND *)
+  "BG_COLOR", "lightsteelblue";
+  (* Color for active or inactive button *)
+  "BUTTON_COLOR_ON", "darkturquoise";
+  "BUTTON_COLOR_OFF", "steelblue";
+  (* The "checked" image: either image or fa icon, eg. "fa:check-square-o" *)
+  "CHECK_ON", "check_on.png";
+  (* The "unchecked" image: (eg: "fa:square-o") *)
+  "CHECK_OFF", "check_off.png";
+  (* The cursor color for text input: *)
+  "CURSOR_COLOR", "#2a7da2"; (* a color identifier. Either a name like "black" or a RGB code as "#FE01BC" *)
+  (* Color for unimportant things that should not be so visible *)
+  "FAINT_COLOR", "gainsboro"; (* idem *)
+  (* The color for standard text display: *)
+  "TEXT_COLOR", "black"; (* idem *)
+  (* Text section background and foreground colors: *)
+  "SEL_BG_COLOR", "slategray";
+  "SEL_FG_COLOR", "white";
+  (* The color for text labels: *)
+  "LABEL_COLOR", "black"; (* idem *)
+  (* The color for highlighting selected menu entries: *)
+  "MENU_HL_COLOR", "#8099a2"; (* idem *)
+  (* The background color for unselected menu entries: *)
+  "MENU_BG_COLOR", "#BEBEBE"; (* idem *)
+  (* The font size for text labels: *)
+  "LABEL_FONT_SIZE", "14";
+  (* The font for text labels: *)
+  "LABEL_FONT", "Ubuntu-R.ttf"; (* path for a TTF font *)
+  (* The font for standard text: *)
+  "TEXT_FONT", "Ubuntu-R.ttf"; (* idem *)
+  (* The font size for standard text: *)
+  "TEXT_FONT_SIZE", "14";
+  (* The font size for small text like tooltips: *)
+  "SMALL_FONT_SIZE", "10";
+  (* Monospaced font: *)
+  "MONO_FONT", "UbuntuMono-R.ttf";
+  (* Room margin: *)
+  "ROOM_MARGIN", "10";
+  (* Font awesome dir, in the theme/common directory: *)
+  "FA_DIR", "font-awesome-4.6.3";
+  (* The global scale to be applied to all graphical elements. Setting
      SCALE=2. is useful for HIDPI screens. Here, the scale should be transparent
      to the user, and be applied only at the last moment, when dealing directly
      with rendering functions, or when creating blits. It might be a good idea
      to have a different scale per window, in case of multiple monitors. SCALE=0
      will try to autodetect: *)
-    "SCALE", "0"; ];;
+  "SCALE", "0"; ];;
 
 
 let id x = x;;
@@ -129,7 +129,7 @@ let load_vars config_file =
 
 
 (* TODO move this in an "init" function (and hence theme vars must be mutable)
-   *)
+*)
 let user_vars =
   let config_file = let r = sub_file home ".bogue.conf" in
     if Sys.file_exists r then r
@@ -149,27 +149,27 @@ let load_theme_vars dir vars =
   let rec loop newv = function
     | [] -> printd debug_io "No theme specified"; newv
     | (name, value)::rest ->
-       if name = "THEME"
-       then
-         let theme_file = sub_file value "bogue.conf" in
-         let theme_vars = load_vars (sub_file dir theme_file) in
-         (name, value) :: (List.rev_append newv (List.append theme_vars rest))
-       else loop ((name, value)::newv) rest
+      if name = "THEME"
+      then
+        let theme_file = sub_file value "bogue.conf" in
+        let theme_vars = load_vars (sub_file dir theme_file) in
+        (name, value) :: (List.rev_append newv (List.append theme_vars rest))
+      else loop ((name, value)::newv) rest
   in
   loop [] vars;;
 
 let get_var s =
   try let v = List.assoc s !user_vars in
-      printd debug_warning "Using %s=%s" s v;
-      v
+    printd debug_warning "Using %s=%s" s v;
+    v
   with
   | Not_found -> begin
       try let v = List.assoc s default_vars in
-          printd debug_warning "User variable '%s' not found in config. Using default '%s'" s v; v
+        printd debug_warning "User variable '%s' not found in config. Using default '%s'" s v; v
       with
       | Not_found ->
-         printd debug_error "Variable '%s' not found. Prepare for a crash." s;
-         ""
+        printd debug_error "Variable '%s' not found. Prepare for a crash." s;
+        ""
       | e -> raise e;
     end
   | e -> raise e;;
@@ -197,10 +197,10 @@ let get_bool s =
 debug := get_bool "DEBUG";;
 if get_bool "LOG_TO_FILE"
 then begin
-    let log_file = Filename.temp_file "bogue" ".log" in
-    Printf.printf "Bogue - Logging to file %s\n" log_file;
-    log_channel := open_out log_file
-  end
+  let log_file = Filename.temp_file "bogue" ".log" in
+  Printf.printf "Bogue - Logging to file %s\n" log_file;
+  log_channel := open_out log_file
+end
 
 (* we try to locate the theme dir *)
 (* by default it is in .config/bogue/themes. For a first run, it probably
@@ -245,7 +245,7 @@ let dir =
       | e -> raise e;;
 
 (* Add variables from theme config file (if specified in the user config file)
-   *)
+*)
 user_vars := load_theme_vars dir !user_vars;;
 let current = sub_file dir (get_var "THEME");;
 print_endline (Printf.sprintf
@@ -342,8 +342,8 @@ let fa_font_size = 18;;
 
 (** some standard (?) UTF8 symbols *)
 let symbols = [
-"check_empty", "\239\130\150";
-"check", "\239\129\134";
+  "check_empty", "\239\130\150";
+  "check", "\239\129\134";
 ];;
 
 let scale_int i =

@@ -25,8 +25,6 @@ let seps = [" "; ";"; "."; ","; "/"; ":"; "\\n"; "\\t"; "\\j"; "?"; "!"]
 let and_filter f1 f2 = function
     s -> (f1 s) && (f2 s)
 
-let default_font = Label.File Theme.text_font
-
 (* we cannot use Sdl.color type here if we want to memoize, since colors are
        typically recreated by Sdl.Color.create... *)
 let render_key font key color =
@@ -72,7 +70,7 @@ let ctrl_pressed () =
 
 class t ?(max_size = 2048) ?(prompt = "Enter text")
     ?(font_size = Theme.text_font_size)
-    ?(filter = no_filter) ?(font = default_font) text =
+    ?(filter = no_filter) ?(font = Theme.text_font) text =
   let size = (0,font_size) (* TODO missing calculation *) in
   let keys = Utf8.split text in
   object (self)
@@ -81,13 +79,11 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
 
     initializer Draw.ttf_init ()
     val mutable cursor = None
-    val cursor_font = ref (Label.File Theme.fa_font)
     val mutable cursor_pos = 0
     val cursor_char = Theme.fa_symbol "tint"
     val mutable render = None
     val mutable offset = 0
-    val font = ref font
-    method font = Label.get_font_var font (Theme.scale_int font_size)
+    method font = Ttf.open_font font (Theme.scale_int font_size)
 
     val mutable active = false
     method is_active = active
@@ -429,8 +425,8 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
         | Some s -> s
         | None ->
           let csize = 2*(Theme.scale_int font_size)/3 in
-          let cfont = Label.get_font_var cursor_font csize in
-          let s = self#draw_keys cfont [cursor_char] ~fg:Draw.(opaque cursor_color) in
+          let cursor_font = Ttf.open_font Theme.fa_font csize in
+          let s = self#draw_keys cursor_font [cursor_char] ~fg:Draw.(opaque cursor_color) in
           (* TODO use render_key, it should be faster *)
           let tex = Draw.create_texture_from_surface canvas.Draw.renderer s in
           cursor <- (Some tex);

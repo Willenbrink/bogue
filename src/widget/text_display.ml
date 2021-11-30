@@ -1,6 +1,6 @@
 open Str
 open Utils
-open Tsdl_ttf
+open Ttf
 open Base
 
 (* TODO: use TTF_RenderUTF8_Blended_Wrapped *)
@@ -11,7 +11,7 @@ open Base
 type entity =
   | Word of string
   | Space
-  | Style of Ttf.Style.t
+  | Style of Style.t
   (* remark: Styles are cumulative. Thus in [ Style bold; Word "Bla"; Style
      italic; Word "Foo"], "Foo" is bold and italic. Use Style normal to cancel a
      style. *)
@@ -21,7 +21,7 @@ type words = entity list
 let example : words = let open Ttf.Style in
   [ Word "Hello"; Space; Word "I"; Space; Word "am"; Space; Style bold; Word "bold"; Style normal; Space; Word "and"; Space; Style italic; Word "italic." ]
 
-let default_font = Label.File Theme.text_font
+let default_font = Theme.text_font
 
 (* determine the style at the end of the entity list, assuming that the initial
    style is normal *)
@@ -147,7 +147,6 @@ class ['a] t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font =
 
     val mutable _paragraphs = List.rev ([Style Ttf.Style.normal] :: (List.rev paragraphs)) (* we add normal style at the end *)
     val mutable render = None
-    val font = ref font
 
     method paragraphs = _paragraphs
     method text = unsplit self#paragraphs
@@ -167,7 +166,7 @@ class ['a] t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font =
           render <- None
         end
 
-    method get_font = Label.get_font_var font (Theme.scale_int font_size)
+    method get_font = Ttf.open_font font (Theme.scale_int font_size)
 
     method display canvas layer g =
       let open Draw in

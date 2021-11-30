@@ -69,7 +69,7 @@ let image_from_svg ?w ?h ?bg file =
   let svg = Draw.convert_svg ?w ?h file in
   let w,h = Draw.unscale_size (Draw.image_size svg) in
   image ~w ~h ?bg svg;;
- * FIXME *)
+ * FIXME Removed constructors *)
 
 (** creation of combined widgets *)
 let check_box_with_label text =

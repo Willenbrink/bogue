@@ -58,7 +58,7 @@ class connection ?target action ?(priority=Forget) ?join triggers =
       then printd debug_warning "one should not 'connect' with 'update_target'=true if the trigger list contains 'user_event'. It may cause an infinite display loop";
   end
 
-and virtual common ?id ?(name = "") size () =
+and virtual common ?id ?(name = "UNNAMED") size () =
   let id = match id with None -> fresh_int () | Some id -> id in
   object (self)
     method id : int = id
@@ -112,6 +112,10 @@ class virtual ['a] w ?id size name cursor =
     method cursor = _cursor
     method set_cursor x = _cursor <- x
 
+    (* The set of interesting events. TODO change type to variant *)
+    method virtual triggers : int list
+    method handle (ev : Sdl.event) (geom : Draw.geometry) : unit = Printf.printf "Handle %i at %s\n" (Trigger.of_event ev) name
+
     method update =
       (* ask for refresh *)
       (* Warning: this is frequently called by other threads *)
@@ -148,3 +152,5 @@ let connect_after self target action triggers =
   | c::_ -> connect self ?target action ~priority:Join ~join:c triggers
 
 let connect_main = connect ~priority:Main
+
+type any = Any : 'a #w -> any

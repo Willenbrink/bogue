@@ -46,6 +46,8 @@ class ['a] t ?w ?h ?(noscale = false)
           render <- None
         end
 
+    method triggers = []
+
     (* FIXME somehow, this is flipped*)
     method display canvas layer g =
       let open Draw in

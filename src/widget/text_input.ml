@@ -109,6 +109,20 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
       do_option cursor Draw.forget_texture;
       cursor <- None
 
+    method triggers = Trigger.buttons_down @ Trigger.buttons_up
+                      @ Sdl.Event.[key_down; mouse_motion;
+                                   text_editing; text_input;
+                                   key_down; key_up]
+
+    method! handle ev _ = match Trigger.of_event ev with
+      | x when List.mem x Trigger.buttons_down -> self#button_down ev
+      | x when List.mem x Trigger.buttons_up -> self#click ev
+      | x when x = Sdl.Event.key_down -> self#tab ev
+      | x when x = Sdl.Event.mouse_motion && Trigger.mm_pressed ev -> self#mouse_select ev; self#update
+      | x when List.mem x Sdl.Event.[text_editing; text_input; key_down; key_up]
+        -> self#receive_key ev
+      | _ -> Printf.printf "Text input did not handle event.\n"
+
     method text = String.concat "" keys
     (* because there is a length test, it should be placed ad the end of
        all modifications of ti *)

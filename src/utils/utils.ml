@@ -38,7 +38,7 @@ let debug_code =
        (* + debug_graphics *)
        + debug_thread
        (* + debug_io *)
-       (* + debug_board *)
+       + debug_board
        (* + debug_memory *)
        (* + debug_event *)
        (* + debug_custom *)
@@ -105,7 +105,8 @@ let printd code =
          (string_of_int (Thread.id (Thread.self ()))) ^ "]" ^ xterm_nc ^ " :\t " ^
          xterm_nc ^ xterm_red ^ (debug_to_string code) ^ xterm_nc ^ ": "
          ^ s ^ "\n");
-      if !log_channel = stdout then flush !log_channel)
+      (* if !log_channel = stdout then *)
+      flush !log_channel)
 
 (* check if string s starts with string sub *)
 let startswith s sub =
@@ -242,9 +243,7 @@ let check_option o f = match o with
 
 (* Warning the "d" is always evaluated, so it's not always a good idea to use
    this...TODO use lazy  *)
-let default o d = match o with
-  | Some x -> x
-  | None -> d
+let default o d = Option.value o ~default:d
 
 let default_lazy o d = match o with
   | Some x -> x

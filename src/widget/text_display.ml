@@ -166,6 +166,8 @@ class ['a] t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font =
           render <- None
         end
 
+    method triggers = []
+
     method get_font = Draw.get_font font (Theme.scale_int font_size)
 
     method display canvas layer g =

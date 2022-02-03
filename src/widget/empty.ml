@@ -7,5 +7,7 @@ class ['a] t ?id size =
 
     method unload = ()
 
+    method triggers = []
+
     method display _ _ _ = []
   end

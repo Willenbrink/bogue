@@ -141,120 +141,6 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(init = 0) ?(length = 200
           render <- None
         end
 
-    method! focus_with_keyboard = self#focus
-
-    method! remove_keyboard_focus = self#unfocus
-
-    method! guess_unset_keyboard_focus = false
-
-    method! resize (w,h) =
-      super#resize (w,h);
-      thickness <- (match kind with
-          | HBar | Horizontal -> h
-          | Vertical -> w
-          | Circular -> thickness)
-
-    method private x_pos =
-      room_x + state * (self#length - tick_size) / max
-
-    method private y_pos =
-      room_y + self#length - tick_size - state
-                                         * (self#length - tick_size) / max
-
-    method display canvas layer g =
-      (* We use y_pos before updating to display a gradient box at the real mouse
-         position, in case of non-linear (vertical) slider (see example 34)...  TODO
-         do the same for Horizontal slider *)
-      let oldy = self#y_pos in
-      let scale = Theme.scale_int in
-      let tick_size = scale tick_size
-      and thickness = scale thickness in
-      let open Draw in
-      let renderer = canvas.renderer in
-      let gx = Theme.unscale_int g.x
-      and gy = Theme.unscale_int g.y in
-      if room_x <> gx then room_x <- gx;
-      if room_y <> gy then room_y <- gy;
-      let focus = self#keyboard_focus in
-      let shadow = true (* for testing *) in
-      let c = if shadow then opaque Button.color_on
-        else set_alpha 200 Button.color_on in
-      let color = if self#keyboard_focus && not shadow
-        then Draw.(darker c)
-        else c in
-      let x0 = scale (self#x_pos) in
-      (*   set_color renderer (opaque color); *)
-      match kind with
-      | Horizontal ->
-        (* let rect = Sdl.Rect.create ~x:x0 ~y:g.y ~w:thickness ~h:width in *)
-        (* go (Sdl.render_fill_rect renderer (Some rect)); *)
-        let box = texture canvas.renderer ~color ~w:tick_size ~h:thickness in
-        let dst = Sdl.Rect.create ~x:x0 ~y:g.y ~w:tick_size ~h:thickness in
-        forget_texture box; (* or save ? but be careful color may change *)
-        make_box_blit ~dst ~shadow ~focus g.voffset canvas layer box
-      | HBar ->
-        (* horizontal gradient for the slider *)
-        let colors = [opaque Button.color_on; opaque Button.color_off] in
-        let box = gradient_texture canvas.renderer ~w:(x0 - g.x + tick_size)
-            ~h:thickness ~angle:90. colors in
-        let dst = Sdl.Rect.create ~x:g.x ~y:g.y ~w:(x0 - g.x + tick_size)
-            ~h:thickness in
-        forget_texture box; (* or save ? *)
-        make_box_blit ~dst ~shadow ~focus g.voffset canvas layer box
-      (* [make_blit ~voffset:g.voffset ~dst canvas layer box] *)
-      | Vertical ->
-        let y0 = scale (self#y_pos) in
-        let dy = scale oldy - y0 in
-        let y = imin y0 (y0 + dy) in
-        let h = imax tick_size (abs dy) in (* see example 34 .*)
-        let box = if abs dy <= 3 || not pointer_motion
-        (* the 3 is completely heuristic. See example 35. Ideally we want
-           0. *)
-          then texture canvas.renderer ~color ~h ~w:thickness
-          else let colors = [opaque Button.color_on;
-                             opaque Button.color_off] in
-            (* let _ = print_endline (Printf.sprintf "dy = %i" dy) in *)
-            let colors = if dy < 0 then colors else List.rev colors in
-            gradient_texture canvas.renderer ~h ~w:thickness colors in
-        let dst = Sdl.Rect.create ~x:g.x ~y ~h ~w:thickness in
-        forget_texture box; (* or save ? *)
-        make_box_blit ~dst ~shadow ~focus g.voffset canvas layer box
-      | Circular ->
-        let radius = (imin g.w g.h)/2 - 2 in
-        let tex = match render with
-          | Some t -> t
-          | None ->
-            let t' = ring_tex renderer ~color:(lighter (transp grey))
-                ~radius ~width:thickness (g.w/2) (g.h/2) in
-            (* j'ai essayé de mettre une taille double puis de réduire avec
-               render_copy, mais apparemment ça ne fait pas d'antialiasing *)
-            (* let t' = convolution ~emboss:false renderer *)
-            (*            (gaussian_blur ~radius:3) 3 t in *)
-            render <- (Some t'); t' in
-        let w',h' = tex_size tex in
-        let dst = Sdl.Rect.create ~x:(g.x) ~y:(g.y) ~w:w' ~h:h' in
-        (* go (Sdl.render_copy ~dst renderer tex); *)
-        let sbox = make_blit ~voffset:g.voffset ~dst canvas layer tex in
-        (* ring renderer ~bg:(lighter (opaque grey)) ~radius:(w/2-2)
-           ~width (x+w/2) (y+h/2); *)
-        let tick = ray_to_layer canvas layer ~voffset:g.voffset ~bg:color
-            ~thickness:tick_size
-            ~angle:(360. *. (float (max - state)) /. (float max)) ~radius
-            ~width:thickness (g.x + g.w/2) (g.y + g.h/2) in
-        [sbox; tick]
-
-    (* TODO *)
-    (* create a slider with a simple Tvar that executes an action each time the
-       local value of the slider is modified by the slider *)
-    (* let create_with_action ?step ?kind ~value ?length ?thickness ?tick_size *)
-    (*     ~action max = *)
-    (*   let v = Var.create (Avar.var value) in *)
-    (*   let t_from a = Avar.get a in *)
-    (*   let t_to x = action x; Avar.var x in *)
-    (*   let var = Tvar.create v ~t_from ~t_to in *)
-    (*   create ?step ?kind ~var ?length ?thickness ?tick_size max *)
-
-
     (* events *)
 
     (* Compute the pre-value (in principle between 0 and max, but sometimes can be
@@ -372,6 +258,129 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(init = 0) ?(length = 200
                      printd debug_event "Key=[%s], mod=%u, Keycode:%u" (Sdl.get_key_name c) (Sdl.get_mod_state ()) c))
           | _ -> printd debug_event "Warning: Event should not happen here"
         end
+
+    method triggers = Trigger.(buttons_down @ buttons_up @ pointer_motion @ [key_down])
+
+    method! handle ev _ = Trigger.(match of_event ev with
+        | x when List.mem x buttons_down -> self#click ev
+        | x when List.mem x buttons_up -> self#release
+        | x when List.mem x pointer_motion && (mm_pressed ev || event_kind ev = `Finger_motion)
+          -> self#slide ev; self#update
+        | x when List.mem x [key_down] -> self#receive_key ev
+      )
+
+    method! focus_with_keyboard = self#focus
+
+    method! remove_keyboard_focus = self#unfocus
+
+    method! guess_unset_keyboard_focus = false
+
+    method! resize (w,h) =
+      super#resize (w,h);
+      thickness <- (match kind with
+          | HBar | Horizontal -> h
+          | Vertical -> w
+          | Circular -> thickness)
+
+    method private x_pos =
+      room_x + state * (self#length - tick_size) / max
+
+    method private y_pos =
+      room_y + self#length - tick_size - state
+                                         * (self#length - tick_size) / max
+
+    method display canvas layer g =
+      (* We use y_pos before updating to display a gradient box at the real mouse
+         position, in case of non-linear (vertical) slider (see example 34)...  TODO
+         do the same for Horizontal slider *)
+      let oldy = self#y_pos in
+      let scale = Theme.scale_int in
+      let tick_size = scale tick_size
+      and thickness = scale thickness in
+      let open Draw in
+      let renderer = canvas.renderer in
+      let gx = Theme.unscale_int g.x
+      and gy = Theme.unscale_int g.y in
+      if room_x <> gx then room_x <- gx;
+      if room_y <> gy then room_y <- gy;
+      let focus = self#keyboard_focus in
+      let shadow = true (* for testing *) in
+      let c = if shadow then opaque Button.color_on
+        else set_alpha 200 Button.color_on in
+      let color = if self#keyboard_focus && not shadow
+        then Draw.(darker c)
+        else c in
+      let x0 = scale (self#x_pos) in
+      (*   set_color renderer (opaque color); *)
+      match kind with
+      | Horizontal ->
+        (* let rect = Sdl.Rect.create ~x:x0 ~y:g.y ~w:thickness ~h:width in *)
+        (* go (Sdl.render_fill_rect renderer (Some rect)); *)
+        let box = texture canvas.renderer ~color ~w:tick_size ~h:thickness in
+        let dst = Sdl.Rect.create ~x:x0 ~y:g.y ~w:tick_size ~h:thickness in
+        forget_texture box; (* or save ? but be careful color may change *)
+        make_box_blit ~dst ~shadow ~focus g.voffset canvas layer box
+      | HBar ->
+        (* horizontal gradient for the slider *)
+        let colors = [opaque Button.color_on; opaque Button.color_off] in
+        let box = gradient_texture canvas.renderer ~w:(x0 - g.x + tick_size)
+            ~h:thickness ~angle:90. colors in
+        let dst = Sdl.Rect.create ~x:g.x ~y:g.y ~w:(x0 - g.x + tick_size)
+            ~h:thickness in
+        forget_texture box; (* or save ? *)
+        make_box_blit ~dst ~shadow ~focus g.voffset canvas layer box
+      (* [make_blit ~voffset:g.voffset ~dst canvas layer box] *)
+      | Vertical ->
+        let y0 = scale (self#y_pos) in
+        let dy = scale oldy - y0 in
+        let y = imin y0 (y0 + dy) in
+        let h = imax tick_size (abs dy) in (* see example 34 .*)
+        let box = if abs dy <= 3 || not pointer_motion
+        (* the 3 is completely heuristic. See example 35. Ideally we want
+           0. *)
+          then texture canvas.renderer ~color ~h ~w:thickness
+          else let colors = [opaque Button.color_on;
+                             opaque Button.color_off] in
+            (* let _ = print_endline (Printf.sprintf "dy = %i" dy) in *)
+            let colors = if dy < 0 then colors else List.rev colors in
+            gradient_texture canvas.renderer ~h ~w:thickness colors in
+        let dst = Sdl.Rect.create ~x:g.x ~y ~h ~w:thickness in
+        forget_texture box; (* or save ? *)
+        make_box_blit ~dst ~shadow ~focus g.voffset canvas layer box
+      | Circular ->
+        let radius = (imin g.w g.h)/2 - 2 in
+        let tex = match render with
+          | Some t -> t
+          | None ->
+            let t' = ring_tex renderer ~color:(lighter (transp grey))
+                ~radius ~width:thickness (g.w/2) (g.h/2) in
+            (* j'ai essayé de mettre une taille double puis de réduire avec
+               render_copy, mais apparemment ça ne fait pas d'antialiasing *)
+            (* let t' = convolution ~emboss:false renderer *)
+            (*            (gaussian_blur ~radius:3) 3 t in *)
+            render <- (Some t'); t' in
+        let w',h' = tex_size tex in
+        let dst = Sdl.Rect.create ~x:(g.x) ~y:(g.y) ~w:w' ~h:h' in
+        (* go (Sdl.render_copy ~dst renderer tex); *)
+        let sbox = make_blit ~voffset:g.voffset ~dst canvas layer tex in
+        (* ring renderer ~bg:(lighter (opaque grey)) ~radius:(w/2-2)
+           ~width (x+w/2) (y+h/2); *)
+        let tick = ray_to_layer canvas layer ~voffset:g.voffset ~bg:color
+            ~thickness:tick_size
+            ~angle:(360. *. (float (max - state)) /. (float max)) ~radius
+            ~width:thickness (g.x + g.w/2) (g.y + g.h/2) in
+        [sbox; tick]
+
+    (* TODO *)
+    (* create a slider with a simple Tvar that executes an action each time the
+       local value of the slider is modified by the slider *)
+    (* let create_with_action ?step ?kind ~value ?length ?thickness ?tick_size *)
+    (*     ~action max = *)
+    (*   let v = Var.create (Avar.var value) in *)
+    (*   let t_from a = Avar.get a in *)
+    (*   let t_to x = action x; Avar.var x in *)
+    (*   let var = Tvar.create v ~t_from ~t_to in *)
+    (*   create ?step ?kind ~var ?length ?thickness ?tick_size max *)
 
     (* use ~lock if the user is not authorized to slide *)
     initializer

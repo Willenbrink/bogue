@@ -61,6 +61,14 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
       box_off#unload;
       do_option box_over (fun o -> o#unload)
 
+    method triggers = Trigger.(buttons_down @ buttons_up @ [mouse_enter; mouse_leave])
+
+    method! handle ev _ = Trigger.(match of_event ev with
+        | x when List.mem x buttons_down -> self#press
+        | x when List.mem x buttons_up -> self#release
+        | x when x = mouse_enter -> self#mouse_enter
+        | x when x = mouse_leave -> self#mouse_leave)
+
     method text =
       if self#state
       then label_on#text

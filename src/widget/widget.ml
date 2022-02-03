@@ -33,8 +33,7 @@ let test () = [
 let check_box ?init ?style () =
   (* let b = create_empty  (Check (Check.create ?state ?style ())) in *)
   let b = new Check.t ?init ?style () in
-  let action _ = b#action in
-  connect_main (b :> 'a t) ~target:(b :> 'b t) action Trigger.buttons_down;
+  connect_main (b :> 'a t) ~target:(b :> 'b t) (fun ev -> b#handle ev (Draw.make_geom ())) Trigger.buttons_down;
   b
 
 let rich_text ?font_size ?size paragraphs = new Text_display.t ?font_size ?size paragraphs
@@ -75,8 +74,7 @@ let image_from_svg ?w ?h ?bg file =
 let check_box_with_label text =
   let b = check_box () in
   let l = new Label.t text in
-  let action = fun _ w _ -> w#action in
-  connect_main l ~target:b (action () b) Trigger.buttons_down;
+  connect_main l ~target:b (fun ev -> b#handle ev (Draw.make_geom ())) Trigger.buttons_down;
   b,l
 
 (****)

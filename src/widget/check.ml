@@ -28,7 +28,8 @@ class t ?(init = false) ?(style = Square) () =
 
     method unload = ()
 
-    method action = state <- (not state)
+    method triggers = Trigger.buttons_down
+    method! handle _ _ = state <- (not state)
 
     val style = style
     method get_style = style

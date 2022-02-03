@@ -126,7 +126,7 @@ class ['a] t ?id ?name ?(set_house = true) ?(adjust = Fit)
     method adjust = adjust
 
     val mutable resize : (int * int) -> unit = (fun _ -> ())
-    method resize = resize
+    method! resize = resize
     method set_resize x = resize <- x
 
     val mutable show = show
@@ -449,6 +449,22 @@ let widget layout =
     raise Not_found
   (* or, return the first available widget with next_widget ? *)
   | Leaf w -> w
+
+(* return the resident widget, or Not_found *)
+let handle_widget ev layout =
+  match layout#content with
+  | List _ ->
+    printd debug_error
+      "This room %s is a node, not a leaf: \
+       it does not contain a resident widget" (sprint_id layout);
+    raise Not_found
+  (* or, return the first available widget with next_widget ? *)
+  | Leaf widget ->
+    let {x;y;w;h;voffset} = layout#current_geom in
+    let widget : 'a Widget.t = Obj.magic widget in
+    (if List.mem (Trigger.of_event ev) widget#triggers
+     then widget#handle ev Draw.{x;y;w;h;voffset});
+    Widget.wake_up_all ev widget
 
 (* return the first resident widget with show=true inside the layout, or
    Not_found *)
@@ -1008,7 +1024,6 @@ let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?draggable ?canvas ?layer
   let geometry = geometry ~x ~y ~w ~h () in
   create ?name ?background ?keyboard_focus ?draggable ?layer ?canvas
     geometry (Leaf (widget :> Widget.common))
-let of_widget = resident
 
 (* Set the given widget as the new resident of the given room. If w,h are not
    specified, the size of the room will be updated by the size of the widget. *)
@@ -2001,122 +2016,125 @@ let scale_clip clip =
                   ~w:(Theme.scale_int (w c))))
 
 (** Display a room: *)
+let comp_transform r tr0 =
+  let tr = get_transform r in
+  (* printd debug_board "TRANSFORM alpha=%f" tr.Draw.alpha; *)
+  let open Draw in
+  (* printd debug_board "COMPOSED TRANSFORM alpha=%f" (tr.alpha *. tr0.alpha); *)
+  (*{ tr0 with alpha = tr0.alpha *. tr.alpha } in*)
+  (* TODO: compose also rotations with centres, flips !! *)
+  compose_transform tr0 tr
+
+let rec display_loop x0 y0 clip0 tr0 r =
+  (* clip contains the rect that should contain the current room r. But of
+     course, clip can be much bigger than r. *)
+  if not r#show then ()
+  else begin
+    let g = geom r in
+    let x = x0 + g.x in
+    let y = y0 + g.y + g.voffset in
+    (* update current position, independent of clip *)
+    r#set_current_geom @@ { g with x; y };
+    (*print_endline ("ALPHA=" ^ (string_of_float (Avar.old room#geometry.transform.alpha)));*)
+    let rect = Sdl.Rect.create ~x ~y ~w:g.w ~h:g.h in
+
+    (* if there is a nonzero offset, we perform a new clip : this is used for
+       "show/hide" animation *)
+    (* TODO clip should be enlarged in case of shadow *)
+    let clip =
+      if (*g.voffset = 0*) not r#clip || !no_clip then clip0
+      else Draw.intersect_rect clip0 (Some rect)
+    in
+    let sclip = scale_clip clip in
+    match clip with
+    | Some clip_rect when not (Sdl.has_intersection clip_rect rect) ->
+      (r#set_hidden @@ true;
+       printd debug_warning "Room #%u is hidden (y=%d)" r#id y)
+    (* because of clip, the rendered size can be smaller than what the geom
+       says *)
+    (* If the clip is empty, there is nothing to display. Warning: this means
+       that all children will be hidden, even if they happen to pop out of
+       this rect. *)
+    | _ -> begin
+        r#set_hidden @@ false;
+        let transform = comp_transform r tr0 in
+
+        (* background (cf compute_background)*)
+        let bg = map_option r#background (fun bg ->
+            let box = match bg with
+              | Solid c ->
+                (* let c = Draw.random_color () in *)  (* DEBUG *)
+                let b = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) ?shadow:r#shadow () in
+
+                r#set_background @@ (Some (Box b));
+                ();
+                b
+              | Box b -> b in
+            let blits = box#display (get_canvas r) (r#layer)
+                Draw.(scale_geom {x; y; w = g.w; h = g.h;
+                                  voffset = - g.voffset}) in
+            blits) in
+        (* !!! in case of shadow, the blits contains several elements!! *)
+
+        begin match r#content with
+          | List h ->
+            (* We only draw the background. Make sure that the layer of the
+               room r is at least as deep as the layers of the List h *)
+            do_option bg
+              (List.iter
+                 (fun blit ->
+                    let open Draw in
+                    let t = compose_transform transform blit.transform in
+                    blit_to_layer { blit with clip = sclip; transform = t }));
+            if !draw_boxes then begin
+              let rect = debug_box ~color:(0,0,255,200) r x y in
+              let open Draw in
+              let t = compose_transform transform rect.transform in
+              blit_to_layer { rect with clip = sclip; transform = t }
+            end;
+            List.iter (display_loop x y clip transform) h
+          | Leaf w ->
+            (* FIXME Segfault incoming *)
+            let blits = (Obj.magic w)#display (get_canvas r) r#layer
+                Draw.{g with x; y} in
+            let blits = match bg with
+              | None -> blits
+              | Some b -> List.rev_append b blits in
+
+            (* debug boxes *)
+            let blits = if !draw_boxes
+              then
+                let color = (255,0,0,200) in
+                let rect = debug_box ~color r x y in
+                rect :: blits
+              else blits in
+
+            List.iter
+              (fun blit ->
+                 let open Draw in
+                 let t = compose_transform transform blit.transform in
+                 let clip = sclip in
+                 blit_to_layer { blit with clip; transform = t }) blits
+        end;
+        if !draw_boxes  (* we print the room number at the end to make sure it's visible *)
+        then let label = new Label.t ~font_size:7 ~fg:(Draw.(transp blue))
+               (sprint_id r) in
+          let geom = Draw.scale_geom {Draw.x; y; w=g.w+1; h=g.h+1; voffset = g.voffset} in
+          List.iter
+            Draw.blit_to_layer
+            (label#display (get_canvas r) (r#layer) geom)
+      end
+  end
+
 (* this function sends all the blits to be displayed to the layers *)
 (* it does not directly interact with the renderer *)
 (* pos0 is the position of the house containing the room *)
 let display ?pos0 room =
   let x0,y0 = match pos0 with
     | None -> house_pos room
-    | Some p -> p in
-  let rec display_loop x0 y0 h0 clip0 tr0 r =
-    (* clip contains the rect that should contain the current room r. But of
-       course, clip can be much bigger than r. *)
-    if not r#show then ()
-    else begin
-      let g = geom r in
-      let x = x0 + g.x
-      and y = y0 + g.y + h0
-      and voffset = g.voffset in
-      (* update current position, independent of clip *)
-      r#set_current_geom @@ { g with x; y };
-      (*print_endline ("ALPHA=" ^ (string_of_float (Avar.old room#geometry.transform.alpha)));*)
-      let rect = Sdl.Rect.create ~x ~y ~w:g.w ~h:g.h in
-
-      (* if there is a nonzero offset, we perform a new clip : this is used for
-         "show/hide" animation *)
-      (* TODO clip should be enlarged in case of shadow *)
-      let clip = if (*voffset = 0*) not r#clip || !no_clip then clip0
-        else Draw.intersect_rect clip0 (Some rect) in
-      let sclip = scale_clip clip in
-      match clip with
-      | Some clip_rect when not (Sdl.has_intersection clip_rect rect) ->
-        (r#set_hidden @@ true;
-         printd debug_warning "Room #%u is hidden (y=%d)" r#id y)
-      (* because of clip, the rendered size can be smaller than what the geom
-         says *)
-      (* If the clip is empty, there is nothing to display. Warning: this means
-         that all children will be hidden, even if they happen to pop out of
-         this rect. *)
-      | _ -> begin
-          r#set_hidden @@ false;
-          let transform =
-            let tr = get_transform r in
-            (* printd debug_board "TRANSFORM alpha=%f" tr.Draw.alpha; *)
-            let open Draw in
-            (* printd debug_board "COMPOSED TRANSFORM alpha=%f" (tr.alpha *. tr0.alpha); *)
-            (*{ tr0 with alpha = tr0.alpha *. tr.alpha } in*)
-            (* TODO: compose also rotations with centres, flips !! *)
-            compose_transform tr0 tr in
-
-          (* background (cf compute_background)*)
-          let bg = map_option r#background (fun bg ->
-              let box = match bg with
-                | Solid c ->
-                  (* let c = Draw.random_color () in *)  (* DEBUG *)
-                  let b = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) ?shadow:r#shadow () in
-
-                  r#set_background @@ (Some (Box b));
-                  ();
-                  b
-                | Box b -> b in
-              let blits = box#display (get_canvas r) (r#layer)
-                  Draw.(scale_geom {x; y; w = g.w; h = g.h;
-                                    voffset = - voffset}) in
-              blits) in
-          (* !!! in case of shadow, the blits contains several elements!! *)
-
-          begin match r#content with
-            | List h ->
-              (* We only draw the background. Make sure that the layer of the
-                 room r is at least as deep as the layers of the List h *)
-              do_option bg
-                (List.iter
-                   (fun blit ->
-                      let open Draw in
-                      let t = compose_transform transform blit.transform in
-                      let clip = sclip in
-                      blit_to_layer { blit with clip; transform = t }));
-              if !draw_boxes then begin
-                let rect = debug_box ~color:(0,0,255,200) r x y in
-                let open Draw in
-                let t = compose_transform transform rect.transform in
-                let clip = sclip in
-                blit_to_layer { rect with clip; transform = t }
-              end;
-              List.iter (display_loop x y voffset clip transform) h
-            | Leaf w ->
-              (* FIXME Segfault incoming *)
-              let blits = (Obj.magic w)#display (get_canvas r) r#layer
-                  Draw.({x; y; w = g.w; h = g.h; voffset}) in
-              let blits = match bg with
-                | None -> blits
-                | Some b -> List.rev_append b blits in
-
-              (* debug boxes *)
-              let blits = if !draw_boxes
-                then
-                  let color = (255,0,0,200) in
-                  let rect = debug_box ~color r x y in
-                  rect :: blits
-                else blits in
-
-              List.iter
-                (fun blit ->
-                   let open Draw in
-                   let t = compose_transform transform blit.transform in
-                   let clip = sclip in
-                   blit_to_layer { blit with clip; transform = t }) blits
-          end;
-          if !draw_boxes  (* we print the room number at the end to make sure it's visible *)
-          then let label = new Label.t ~font_size:7 ~fg:(Draw.(transp blue))
-                 (sprint_id r) in
-            let geom = Draw.scale_geom {Draw.x; y; w=g.w+1; h=g.h+1; voffset} in
-            List.iter
-              Draw.blit_to_layer
-              (label#display (get_canvas r) (r#layer) geom)
-        end
-    end in
-  display_loop x0 y0 0 None (Draw.make_transform ()) room
+    | Some p -> p
+  in
+  display_loop x0 y0 None (Draw.make_transform ()) room
 
 let get_focus room =
   room#mouse_focus

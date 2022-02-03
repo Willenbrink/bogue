@@ -315,7 +315,7 @@ let dragging = ref None;; (* the initial position of the dragged room *)
 (* put this in board, or local to the drag & drop functions ? *)
 
 (* guess which widget the event should be targetted to (or None) *)
-let target_widget board ev =
+let hand_to_target_widget board ev =
   let roomo =
     if not (E.(get ev typ) = Trigger.mouse_enter ||
             E.(get ev typ) = Trigger.mouse_leave)
@@ -342,7 +342,10 @@ let target_widget board ev =
           printd debug_error "The room #%u has disappeared but was pointed by \
                               the mouse enter/leave event" id) id
   in
-  (Option.map Layout.widget roomo)
+  match roomo with
+  | None -> ()
+  | Some room ->
+    Layout.handle_widget ev ((Obj.magic room) : 'a Layout.t)
 
 let has_anim board =
   (* !Avar.alive_animations > 0 || *)
@@ -745,10 +748,7 @@ let one_step ?before_display anim (start_fps, fps) ?clear board =
   (* Now, the widget has the event *)
   (* note that the widget will usually emit a redraw event, this is why we save
      the state of Trigger.has_no_event () *)
-  do_option evo_widget (fun ev ->
-      do_option (target_widget board ev)
-        (fun (x) -> Widget.wake_up_all ev x)
-    );
+  do_option evo_widget (fun ev -> hand_to_target_widget board ev);
 
   (* the board can use the event that was filtered by the widget *)
   do_option evo_widget (fun ev ->
@@ -948,9 +948,6 @@ let run ?before_display ?after_display board =
   flip ~clear:true board;
 
   (* We send the startup_event to all widgets *)
-  (* List.iter (fun l -> List.iter (Widget.wake_up ev) *)
-  (*               (List.flatten (List.map Widget.connections (Layout.get_widgets l)))) *)
-  (*   board.layouts; *)
   Layout.get_widgets board.windows_house
   |> List.map (fun x -> x#connections)
   |> List.flatten

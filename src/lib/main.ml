@@ -257,13 +257,13 @@ let check_mouse_focus board =
   if board.mouse_alive
   then let (x,y) = Mouse.pos () in
     printd debug_board "Mouse pos:(%u,%u)" x y;
-    check_option (layout_focus board) (Layout.top_focus x y)
+    Option.bind (layout_focus board) (Layout.top_focus x y)
   else None
 
 (* detect layout (room or widget) under mouse; only used for testing *)
 let check_mouse_hover board =
   let (x,y) = Mouse.pos () in
-  check_option (layout_focus board) (Layout.hover x y)
+  Option.bind (layout_focus board) (Layout.hover x y)
 
 (* [check_mouse_motion] deals with sending the mouse_enter/mouse_leave events *)
 (* The optional [target] argument can be used to specify the layout that should
@@ -345,7 +345,7 @@ let hand_to_target_widget board ev =
   match roomo with
   | None -> ()
   | Some room ->
-    Layout.handle_widget ev ((Obj.magic room) : 'a Layout.t)
+    ((Obj.magic room) : 'a Layout.t)#handle_widget ev
 
 let has_anim board =
   (* !Avar.alive_animations > 0 || *)
@@ -524,8 +524,7 @@ let one_step ?before_display anim (start_fps, fps) ?clear board =
      returns the evo_layout that the layout (& widget) is authorized to treat
      thereafter. *)
   let evo_layout =
-    check_option evo (fun e ->
-        let open E in
+    Option.bind evo E.(fun e ->
         printd debug_event "== > Filtering event type: %s" (Trigger.sprint_ev e);
         begin match Trigger.event_kind e with
           | `Bogue_keyboard_focus ->

@@ -32,9 +32,7 @@ let test () = [
 (** creation of simple widgets *)
 let check_box ?init ?style () =
   (* let b = create_empty  (Check (Check.create ?state ?style ())) in *)
-  let b = new Check.t ?init ?style () in
-  connect_main (b :> 'a t) ~target:(b :> 'b t) (fun ev -> b#handle ev (Draw.make_geom ())) Trigger.buttons_down;
-  b
+  new Check.t ?init ?style ()
 
 let rich_text ?font_size ?size paragraphs = new Text_display.t ?font_size ?size paragraphs
 

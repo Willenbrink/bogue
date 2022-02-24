@@ -64,7 +64,7 @@ let example1h () =
      theme (is this good ??) *)
   let p = new Image.t "images/chl.png" in
   let box = new Box.t ~size:p#size ~border ~bg:(Style.Image p) () in
-  let r = new Row.t W.[Any b; Any td; Any box] in
+  let r = new Row.t W.[b |> W.gen; td |> W.gen; box |> W.gen] in
   let layout = L.resident r in
   (* L.animate layout (Anim.show ~duration:600 (100)); *)
   let board = make [layout] in
@@ -84,8 +84,8 @@ let example1v () =
   let td_italic = W.rich_text ~size:(0,h)
       Text_display.(page [underline (para "Force italic:"); italic example]) in
   let box = new Box.t () in
-  let layout = L.resident (new Col.t W.[Any b; Any title; Any td; Any td_normal; Any td_bold;
-                                        Any td_italic; Any box]) in
+  let layout = L.resident (new Col.t W.[b |> W.gen; title |> W.gen; td |> W.gen; td_normal |> W.gen; td_bold |> W.gen;
+                                        td_italic |> W.gen; box |> W.gen]) in
   L.slide_in ~dst:layout layout;
   let board = make [layout] in
   run board
@@ -94,7 +94,7 @@ let desc2 = "the two check buttons are independent"
 let example2 () =
   let b1 = W.check_box () in
   let b2 = W.check_box () in
-  let layout = L.resident (new Row.t W.[Any b1; Any b2]) in
+  let layout = L.resident (new Row.t W.[b1 |> W.gen; b2 |> W.gen]) in
   let board = make [layout] in
   run board
 
@@ -108,7 +108,7 @@ let example3 () =
     w2#set_state w1#state
   in
   connect b1 ~target:b2 (action b1 b2) T.buttons_down;
-  let layout = new Row.t W.[Any b1; Any b2] |> L.resident in
+  let layout = new Row.t W.[b1 |> W.gen; b2 |> W.gen] |> L.resident in
   let board = make [layout] in
   run board
 
@@ -119,7 +119,7 @@ let example4 () =
   let border = Style.(border ~radius:25
                         (line ~color:Draw.(transp red) ~width:0 ~style:Solid ())) in (* try width=0 to see no antialias.. *)
   let box = new Box.t ~border ~bg:(Style.color_bg Draw.(transp blue)) () in
-  let layout = L.resident @@ new Row.t W.[Any b1; Any box; Any b2] in
+  let layout = L.resident @@ new Row.t W.[b1 |> W.gen; box |> W.gen; b2 |> W.gen] in
   (* L.animate layout (Anim.translate 300 300); *)
   L.animate_x layout (Avar.fromto 300 0);
   L.animate_y layout (Avar.fromto 300 0);
@@ -131,7 +131,7 @@ let example5 () =
   let b1 = W.check_box () in
   let b2 = W.check_box () in
   let box = new Box.t () in
-  let l1 = L.resident @@ new Row.t ~name:"Button 1 and the Box" W.[Any b1; Any box] in
+  let l1 = L.resident @@ new Row.t ~name:"Button 1 and the Box" W.[b1 |> W.gen; box |> W.gen] in
   let l2 = L.resident ~name:"Button 2" ~draggable:true b2 in (* compare with (= no margin) *)
   (* let l2 = L.resident canvas b2 in *)
 
@@ -163,7 +163,7 @@ let example7 () = (* TODO à vérifier ! parfois ce n'est pas synchro *)
     l#set_text text
   in
   W.connect b ~target:l action T.buttons_down;
-  let layout = L.resident @@ new Row.t W.[Any b; Any l] in
+  let layout = L.resident @@ new Row.t W.[b |> W.gen; l |> W.gen] in
   let board = make [layout] in
   run board
 
@@ -171,7 +171,7 @@ let example7 () = (* TODO à vérifier ! parfois ce n'est pas synchro *)
 let desc8 = "the button and the label are inter-connected"
 let example8 () =
   let b,l = W.check_box_with_label "you may click here too" in
-  let layout = L.resident @@ new Row.t W.[Any b; Any l] in
+  let layout = L.resident @@ new Row.t W.[b |> W.gen; l |> W.gen] in
   let board = make [layout] in
   run board
 
@@ -192,9 +192,9 @@ let desc10 = "two independent windows should open. ESC to quit."
 let example10 () =
   let b1 = W.check_box () in
   let b2 = W.check_box () in
-  let l1 = L.resident @@ new Row.t ~name:"Window#1" W.[Any b1; Any (new Label.t "First window")] in
+  let l1 = L.resident @@ new Row.t ~name:"Window#1" W.[b1 |> W.gen; new Label.t "First window" |> W.gen] in
   Draw.use_new_layer (); (* we start a new window *)
-  let l2 = L.resident @@ new Row.t ~name:"Window#2" W.[Any b2; Any (new Label.t "Win 2")] in
+  let l2 = L.resident @@ new Row.t ~name:"Window#2" W.[b2 |> W.gen; new Label.t "Win 2" |> W.gen] in
 
   let shortcuts = [Shortcut.exit_on_escape] in
   let board = make ~shortcuts [l1;l2] in
@@ -211,9 +211,9 @@ let example11 () = (* attention ne marche pas avec DEBUG=false !! OK problème r
   let action _ = Printf.printf "%b\n" b1#state; b2#set_state b1#state in
   W.connect b1 ~target:b2 action T.buttons_down;
   (* W.add_connection b1 c;  *)(* TODO à faire autom *)
-  let l1 = L.resident @@ new Row.t W.[Any b1; Any (new Label.t "Window 1 = the master")] in
+  let l1 = L.resident @@ new Row.t W.[b1 |> W.gen; new Label.t "Window 1 = the master" |> W.gen] in
   Draw.use_new_layer ();
-  let l2 = L.resident @@ new Row.t W.[Any b2; Any (new Label.t "Window 2")] in
+  let l2 = L.resident @@ new Row.t W.[b2 |> W.gen; new Label.t "Window 2" |> W.gen] in
   let shortcuts = [Shortcut.exit_on_escape] in
   let board = make ~shortcuts [l1;l2] in
   L.set_window_pos l1 (200,200); L.set_window_pos l2 (400,200);
@@ -225,7 +225,8 @@ let example12 () =
   let b = W.check_box () in
   let ti = new Text_input.t ~font_size:16 ~prompt:"Click and enter some text " "" in
   (* FIXME introduce wrapper / use layout *)
-  let l = L.resident @@ new Row.t [W.Any b; W.Any ti] in
+  (* FIXME Broken as we have widgets of differing types here *)
+  let l = L.resident @@ new Row.t [(* b |> W.gen; *) ti |> W.gen] in
   let board = make [l] in
   run board
 
@@ -293,7 +294,7 @@ let example15 () =
   let l' = new Label.t ~font_size:40 "Autostarts" in
   W.connect l ~target:l (clock l l) T.buttons_down;
   W.connect l' ~target:l' (clock l' l') [T.startup];
-  let lay =  L.resident @@ new Row.t W.[Any l; Any l'] in
+  let lay =  L.resident @@ new Row.t W.[l |> W.gen; l' |> W.gen] in
   let board = make [lay] in
   run board
 
@@ -309,7 +310,7 @@ let example16 () =
     ~label_on:(new Icon.t ~fg "train")
     ~label_off:(new Icon.t ~fg:(Draw.(lighter (lighter fg))) "train")
     "" in
-  let layout = L.resident @@ new Row.t W.[Any b;Any c;Any d] in
+  let layout = L.resident @@ new Row.t W.[b |> W.gen;c |> W.gen;d |> W.gen] in
   let board = make [layout] in
   run board
 
@@ -414,10 +415,10 @@ let example22 () =
   let b2 = W.check_box ~init:true () in
   let l2 = new Label.t "Click button to hide/show" in
   let td2 = new Text_display.t (Text_display.paragraphs_of_string lorem) in
-  let button2 = L.resident @@ new Row.t W.[Any b2;Any l2] in
+  let button2 = L.resident @@ new Row.t W.[b2 |> W.gen;l2 |> W.gen] in
   let hide_show2 = L.resident td2 in
   let hide_show = L.flat [L.resident td; button2; hide_show2] in
-  let button = L.resident @@ new Row.t W.[Any b;Any l] in
+  let button = L.resident @@ new Row.t W.[b |> W.gen;l |> W.gen] in
   let layout = L.tower [button; hide_show] in
   let action room w _ =
     if w#state
@@ -454,7 +455,7 @@ let example24 () =
   let b2 = W.check_box () in
   let blank = "[________________________________]" in
   let l = new Label.t blank in
-  let btns = L.resident @@ new Row.t W.[Any b1; Any b2] in
+  let btns = L.resident @@ new Row.t W.[b1 |> W.gen; b2 |> W.gen] in
   L.oscillate ~frequency:10. 20 btns;
   let layout = L.flat [btns; L.resident l] in
   let screen = Popup.add_screen btns in
@@ -483,7 +484,7 @@ let example25 () =
   let main = L.tower
       [menu_placeholder;
        L.superpose
-         [L.tower [L.resident @@ new Row.t W.[Any (new Label.t "   Hello there"); Any (W.check_box ())];
+         [L.tower [L.resident @@ new Row.t W.[ new Label.t "   Hello there" |> W.gen;  W.check_box () |> W.gen];
                    L.empty ~w:0 ~h:100 ();
                    L.resident (W.check_box ())];
           L.resident box]] in
@@ -797,7 +798,7 @@ let example37 () =
 
   let p = new Image.t "images/chl.png" in
   let box = new Box.t ~border ~bg:(Style.Image p) () in
-  let layout = L.resident @@ new Row.t W.[Any b; Any td; Any box] in
+  let layout = L.resident @@ new Row.t W.[b |> W.gen; td |> W.gen; box |> W.gen] in
   let board = make [layout] in
   Mixer.unpause mixer;
   run board;
@@ -820,7 +821,7 @@ let example38 () =
   let img = Image.create_from_svg ~h:300 ~bg:Draw.(opaque red)
       "images/koala.svg" in
 
-  let layout = L.resident @@ new Row.t W.[Any box; Any img] in
+  let layout = L.resident @@ new Row.t W.[box |> W.gen; img |> W.gen] in
   let board = make [layout] in
   run board
 
@@ -940,7 +941,7 @@ let example43 () =
   let background = L.bg_color in
   let room = L.tower ~background
       [ L.resident l;
-        L.resident @@ new Row.t W.[Any b;Any box] ] in
+        L.resident @@ new Row.t W.[b |> W.gen;box |> W.gen] ] in
   let s = Snapshot.create room in
   let snap = L.resident s in
   let duration = 500 in
@@ -1012,6 +1013,23 @@ let example48 () =
   let _ = Timeout.add 5000 (fun () -> L.set_size layout (200, 200)) in
   run (make [layout])
 
+let desc49 = "Testbed for effect handlers"
+let example49 () =
+  let b = W.check_box () in
+  let l = new Label.t "Init" in
+  let comb = object
+    inherit ['a] Row.t [b |> W.gen; l |> W.gen]
+    method! perform =
+      let bool = b#perform in
+      if bool
+      then l#set_text "Checked"
+      else l#set_text "Unchecked"
+  end
+  in
+  (* let comb = new Row.t [b |> W.gen; l |> W.gen] in *)
+  let board = make [L.resident comb] in
+  run board
+
 let main () =
   let examples = [
     "0", (example0, desc0) ;
@@ -1070,6 +1088,7 @@ let main () =
     "46", (example46, desc46) ;
     "47", (example47, desc47) ;
     "48", (example48, desc48) ;
+    "49", (example49, desc49) ;
 
   ]
   in

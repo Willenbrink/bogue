@@ -2,4 +2,6 @@
  (name widget)
   (libraries utils)
    (wrapped false)
+ (preprocess
+  (pps ppx_effects))
 )

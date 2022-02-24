@@ -237,10 +237,6 @@ let do_option o f = match o with
   | Some x -> f x
   | None -> ()
 
-let check_option o f = match o with
-  | Some x -> f x
-  | None -> None
-
 (* Warning the "d" is always evaluated, so it's not always a good idea to use
    this...TODO use lazy  *)
 let default o d = Option.value o ~default:d

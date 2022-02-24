@@ -273,6 +273,22 @@ class ['a] t ?id ?name ?(set_house = true) ?(adjust = Fit)
     method draggable = draggable
     method set_draggable x = draggable <- x
 
+    (* return the resident widget, or Not_found *)
+    method handle_widget ev =
+      match self#content with
+      | List _ ->
+        printd debug_error
+          "This room %s is a node, not a leaf: \
+           it does not contain a resident widget" (sprint_id self);
+        raise Not_found
+      (* or, return the first available widget with next_widget ? *)
+      | Leaf widget ->
+        let {x;y;w;h;voffset} = self#current_geom in
+        let widget : 'a Widget.t = Obj.magic widget in
+        (if List.mem (Trigger.of_event ev) widget#triggers
+         then widget#handle ev Draw.{x;y;w;h;voffset});
+        Widget.wake_up_all ev widget
+
     initializer
       (* we update the resident room_id field *)
       (* we update the content's house field *)
@@ -449,22 +465,6 @@ let widget layout =
     raise Not_found
   (* or, return the first available widget with next_widget ? *)
   | Leaf w -> w
-
-(* return the resident widget, or Not_found *)
-let handle_widget ev layout =
-  match layout#content with
-  | List _ ->
-    printd debug_error
-      "This room %s is a node, not a leaf: \
-       it does not contain a resident widget" (sprint_id layout);
-    raise Not_found
-  (* or, return the first available widget with next_widget ? *)
-  | Leaf widget ->
-    let {x;y;w;h;voffset} = layout#current_geom in
-    let widget : 'a Widget.t = Obj.magic widget in
-    (if List.mem (Trigger.of_event ev) widget#triggers
-     then widget#handle ev Draw.{x;y;w;h;voffset});
-    Widget.wake_up_all ev widget
 
 (* return the first resident widget with show=true inside the layout, or
    Not_found *)
@@ -849,7 +849,7 @@ let rec first_room r =
 
 (* find a 'uncle': a room next to some parent room, going up in generation. *)
 let rec next_up r =
-  check_option r#house (fun h ->
+  Option.bind r#house (fun h ->
       default_option (next h) (next_up h))
 
 (* find the next leaf (=room containing a widget, or empty) in the whole

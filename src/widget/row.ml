@@ -5,13 +5,15 @@ open Base
 
 class ['a] t ?(flip = false) ?(sep = Theme.room_margin) ?(name = "Row") children =
   let children' =
-    let f (x,cs) (Any c) =
-      ((x + (if flip then snd else fst) c#size + sep), (x, (c :> 'a w))::cs)
+    let f (x,cs) c =
+      ((x + (if flip then snd else fst) c#size + sep), (x, (c :> 'b w))::cs)
     in
-    List.fold_left f (0,[]) children |> snd
+    let res = List.fold_left f (0,[]) children |> snd in
+    assert (List.length res > 0);
+    res
   in
   let size =
-    let f (x,y) (Any c) =
+    let f (x,y) c =
       let (x_c,y_c) = c#size in
       if flip
       then (max x x_c, y+y_c)
@@ -20,7 +22,7 @@ class ['a] t ?(flip = false) ?(sep = Theme.room_margin) ?(name = "Row") children
     List.fold_left f (0,0) children
   in
   object (self)
-    inherit ['a] w size name Cursor.Arrow
+    inherit ['a] w size name Cursor.Arrow as super
 
     val children = children'
 
@@ -29,22 +31,27 @@ class ['a] t ?(flip = false) ?(sep = Theme.room_margin) ?(name = "Row") children
     method triggers = List.concat_map (fun (_,c) -> c#triggers) children
 
     method! handle ev (g : Draw.geometry) =
+      super#handle ev g;
       let (x_m,y_m) = Mouse.pointer_pos ev in
       assert (g.x <= x_m && x_m <= g.x + g.w);
       assert (g.y <= y_m && y_m <= g.y + g.h);
       let base = if flip then g.y else g.x in
-      let f offset (x,c) =
-        if offset < x_m
-        then base + x
-        else (if List.mem (Trigger.of_event ev) c#triggers
-              then c#handle ev g;
+      Printf.printf "%i,%i\n" x_m y_m;
+      let f (x,c) =
+        let offset' = base + x in
+        Printf.printf "At offset %i\n" offset';
+        (* TODO we need a more general method to determine whether an event hits a widget*)
+        if x_m >= offset'
+        then ((if y_m < snd c#size && List.mem (Trigger.of_event ev) c#triggers
+               then c#handle ev g);
               raise Not_found)
       in
-      match
-        List.fold_left f base children
-      with
-      | exception Not_found -> ()
-      | _ -> ()
+      (match
+         List.iter f children
+       with
+       | exception Not_found -> ()
+       | _ -> ());
+      self#update
 
     method display canvas layer geom =
       let f (x,c) =

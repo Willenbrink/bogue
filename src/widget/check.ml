@@ -21,7 +21,7 @@ class t ?(init = false) ?(style = Square) () =
   in
 
   object (self)
-    inherit [bool] w size "Check" Cursor.Hand
+    inherit [bool] w size "Check" Cursor.Hand as super
     inherit [bool] stateful init
 
     method set_state x = state <- x
@@ -29,12 +29,14 @@ class t ?(init = false) ?(style = Square) () =
     method unload = ()
 
     method triggers = Trigger.buttons_down
-    method! handle _ _ = state <- (not state)
+    method! handle ev geom =
+      super#handle ev geom;
+      print_endline (string_of_bool state);
+      match Trigger.event_kind ev with
+      | `Mouse_button_down -> state <- (not state); self#update
+      | _ -> ()
 
-    val style = style
-    method get_style = style
-
-    (* TODO load the symbol at run-time so that we can change color *)
+    method style = style
 
     method display canvas layer g =
       printd debug_graphics "Display button";
@@ -47,9 +49,11 @@ class t ?(init = false) ?(style = Square) () =
         | Square -> canvas.textures.check_off
         | Circle -> canvas.textures.radio_off
       in
-      let tex = if self#state
+      let tex =
+        if self#state
         then texture_on
-        else texture_off in
+        else texture_off
+      in
       (* if self#size = None
        * then _size <- (let w,h = tex_size tex in
        *                 Some (unscale_size (w, h))); *)

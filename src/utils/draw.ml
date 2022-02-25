@@ -697,7 +697,7 @@ let get_pixel_color surface ~x ~y =
 (** Sdl quit *)
 let quit () =
   printd debug_board "Quitting...";
-  List.iter run !cleanup;
+  List.iter (fun f -> f ()) !cleanup;
   do_option !icon free_surface;
   icon := None;
   printd debug_event "Quitting SDL Events";
@@ -728,7 +728,7 @@ let ttf_init () =
     (go (init ());
      at_cleanup (fun () ->
          printd debug_graphics "Quitting SDL TTF";
-         quit ());
+         Ttf.quit ());
      printd debug_graphics "SDL TTF initialized");;
 
 (* Initialize SDL_Image. this is not really necessary, as the SDL_Image doc says

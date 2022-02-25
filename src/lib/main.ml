@@ -205,14 +205,14 @@ let show board =
 
 (* return the widget with mouse focus *)
 let mouse_focus_widget board =
-  map_option (get_mouse_focus board) Layout.widget
+  Option.map (fun l -> l#content) (get_mouse_focus board)
 
 (* return the widget with keyboard_focus *)
 let keyboard_focus_widget board =
-  map_option board.keyboard_focus Layout.widget
+  Option.map (fun l -> l#content) board.keyboard_focus
 
 let button_down_widget board =
-  map_option board.button_down Layout.widget
+  Option.map (fun l -> l#content) board.button_down
 
 (* which layout (ie window) has mouse focus ? *)
 let layout_focus board =
@@ -285,7 +285,7 @@ let check_mouse_motion ?target board =
       push_mouse_enter (r#id);
       (* set_cursor (Some r); *)
     | Some w1, Some w2 ->
-      if not (Widget.equal (widget w1) w2)
+      if not (Widget.equal w1#content w2)
       then (
         (* set_focus w2; *)
         unset_focus w1;
@@ -388,7 +388,7 @@ let drag board ev room =
 let activate (type a) board (roomo : a Layout.t option) =
   board.button_down <- roomo;
   (match board.keyboard_focus, roomo with
-   | Some kr, Some mr when not Layout.(kr == mr) ->
+   | Some kr, Some mr when not (kr == mr) ->
      kr#remove_keyboard_focus;
      Layout.ask_update kr (* TODO à déplacer en button_up *)
    | Some kr, None -> kr#remove_keyboard_focus;
@@ -509,7 +509,7 @@ let one_step (type a) ?before_display anim (start_fps, fps) ?clear (board : a bo
      returns the evo_layout that the layout (& widget) is authorized to treat
      thereafter. *)
   let evo_layout =
-    Option.bind evo E.(fun e ->
+    Option.bind evo (fun e ->
         printd debug_event "== > Filtering event type: %s" (Trigger.sprint_ev e);
         begin match Trigger.event_kind e with
           | `Bogue_keyboard_focus ->

@@ -3,7 +3,6 @@ open Main
 module W = Widget
 module L = Layout
 module T = Trigger
-open Printf
 
 let example () =
   let b = W.check_box () in

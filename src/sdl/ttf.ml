@@ -8,6 +8,7 @@ let get_font_style = get_font_style
 let set_font_style = set_font_style
 let was_init = was_init
 let init = init
+let quit = quit
 let size_utf8 = size_utf8
 let font_line_skip = font_line_skip
 

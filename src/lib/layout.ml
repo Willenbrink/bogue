@@ -295,7 +295,6 @@ exception Fatal_error of (Widget.common * string)
    by the program. TODO don't use this nasty trick. *)
 let not_specified = -66666
 
-
 let no_clip = ref false
 (* The normal behaviour when a non-zero voffset is specified is to clip the
    layout to the original rectangle. This permits the show/hide
@@ -350,27 +349,7 @@ let rec remove_wtable room =
    in an event. (?) *)
 let keyboard_focus_before_tab : Widget.common option ref = ref None
 
-let has_resident layout = true
-
 let create = new t ~set_house:true
-
-(* A detached room is a layout that does not belong to the current layout tree.
-   Checking house = None is not sufficient, as it is allowed to have a unique
-   top layout containing a resident.  Note, we could also add a 'detached' field
-   in the layout type. *)
-let is_detached room =
-  room#house = None && not (has_resident room)
-
-(* iter through all the rooms (layouts & widgets) contained in the layout *)
-(* top to bottom *)
-let rec iter f room = f room
-
-(* iter through widgets *)
-let rec iter_widgets f room =
-  f room#content
-
-(* return the resident widget, or Not_found *)
-let widget layout = layout#content
 
 (* return the first resident widget with show=true inside the layout, or
    Not_found *)
@@ -678,9 +657,6 @@ let house_pos room =
   | None -> 0,0
   | Some h -> compute_pos h;;
 
-(* not used, just to fix the vocabulary "leaf" *)
-let is_leaf room = true
-
 (* return the first resident *below (or including) room* for which test w =
     true, or None *)
 let rec find_resident test room =
@@ -717,20 +693,15 @@ let rec first_room r =
    recreated on the fly. If you want to really remove all created textures, you
    have to use delete_backgrounds too; but then the backgrounds will *not* be
    recreated. *)
-let unload_widget_textures room =
-  room#unload;
-  iter_widgets (fun o -> o#unload) room
+let unload_widget_textures room = room#unload
 
 (* same, but for all rooms + widgets *)
 let unloads room =
-  let f r =
-    r#unload;
-    r#content#unload
-  in
-  iter f room
+  room#unload;
+  room#content#unload
 
 let delete_backgrounds room =
-  iter delete_background room
+  delete_background room
 
 let delete_textures room =
   unloads room;
@@ -738,7 +709,7 @@ let delete_textures room =
 
 let remove_canvas room =
   delete_textures room;
-  iter (fun r -> r#set_canvas None) room
+  room#set_canvas None
 
 (* Use this to shift all current_geometries before inserting a room inside a
    house. This can be needed because inserting will trigger fit_content which
@@ -749,9 +720,8 @@ let global_translate room dx dy =
         "You are translating the current_geom of room #%u which already has a \
          house #%u. This is likely to have no effect, as the current_geom is \
          automatically updated at each display" room#id h#id);
-  iter (fun r ->
-      r#set_current_geom { r#current_geom with x = r#current_geom.x + dx;
-                                               y = r#current_geom.y + dy }) room
+  room#set_current_geom { room#current_geom with x = room#current_geom.x + dx;
+                                                 y = room#current_geom.y + dy }
 
 (* adjust layout size to the inner content in the same layer (but not to the
    larger layouts, neither to the window) *)
@@ -778,15 +748,9 @@ let rec get_widgets layout = [layout#content]
 let has_keyboard_focus r =
   r#keyboard_focus = Some true
 
-let claim_focus r =
-  if has_resident r then Trigger.push_mouse_focus r#id
-  else printd debug_error "Cannot claim focus on room %s without resident."
-      (sprint_id r)
+let claim_focus r = Trigger.push_mouse_focus r#id
 
-let claim_keyboard_focus r =
-  if has_resident r then Trigger.push_keyboard_focus r#id
-  else printd debug_error "Cannot claim keyboard_focus on room %s without \
-                           resident." (sprint_id r)
+let claim_keyboard_focus r = Trigger.push_keyboard_focus r#id
 
 (** create a room (=layout) with a unique resident (=widget), no margin possible *)
 (* x and y should be 0 if the room is the main layout *)
@@ -926,7 +890,7 @@ let set_canvas canvas room =
 (** Set the canvas for layout and all children *)
 let global_set_canvas ?(mustlock=true) room canvas =
   if mustlock then
-    iter (fun r -> r#set_canvas @@ Some canvas) room;
+    room#set_canvas @@ Some canvas;
   if mustlock then ()
 
 let check_layer_error room house =
@@ -967,7 +931,7 @@ let set_layer ?(debug = !debug) room layer =
 
 (* TODO: do some "move layer" or translate layer instead *)
 let global_set_layer room layer =
-  iter (fun r -> set_layer ~debug:false r layer) room
+  set_layer ~debug:false room layer
 
 (* compute the x,y,w,h that contains all rooms in the list *)
 let bounding_geometry = function

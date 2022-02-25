@@ -3,7 +3,10 @@ open Base
 (* TODO Unify row and col? Pay attention to performance! ´
    We must quickly map a point to the correct child for event handling *)
 
-class ['a] t ?(flip = false) ?(sep = Theme.room_margin) ?(name = "Row") children =
+(* TODO
+   Handle alignment
+*)
+class ['a] t ?(flip = false) ?(sep = Theme.room_margin) ?(align) ?(name = "Row") children =
   let children' =
     let f (x,cs) c =
       ((x + (if flip then snd else fst) c#size + sep), (x, (c :> 'b w))::cs)

@@ -18,7 +18,7 @@ type 'a widgets = {
 
 type 'a t = {
   widgets : 'a widgets;
-  layout :  'a Layout.t;
+  widget :  'a Widget.t;
   click_on_label : bool
 }
 
@@ -87,11 +87,11 @@ let make_widgets ?selected ?(click_on_label=true) entries =
 (* create a vertical (ie. standard) layout *)
 let vertical ?(name = "radiolist") ?(click_on_label=true) ?selected entries =
   let widgets = make_widgets ?selected ~click_on_label entries in
-  let layout = Layout.tower ~sep:0 ~margins:0 ~name
-      (List.map (fun (b,l) ->
-           Layout.flat_of_w ~sep:2 ~align:Draw.Center [b;l])
-          (Array.to_list widgets.data)) in
-  {widgets; layout; click_on_label};;
+  let widget = new Col.t ~sep:0 ~name
+    (List.map (fun (b,l) ->
+         new Row.t ~sep:2 ~align:Draw.Center [b;l])
+        (Array.to_list widgets.data)) in
+  {widgets; widget; click_on_label}
 
 (* get index of selected entry, or None *)
 let get_index t = !(t.widgets.index)
@@ -109,6 +109,4 @@ let set_index t i =
 (*   (W.wake_up e) b.W.connections;; *)
 (* but then it is possible that the connections be triggered too many times *)
 
-
-let layout t =
-  t.layout;;
+let layout t = t.widget

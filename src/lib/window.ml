@@ -3,8 +3,8 @@
 
 open Utils
 
-type t =
-  { layout : unit Layout.t;
+type 'a t =
+  { layout : 'a Layout.t;
     mutable is_fresh : bool;
     mutable bogue : bool;
     (* if bogue = false this means that bogue didn't create the corresponding

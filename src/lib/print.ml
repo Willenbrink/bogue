@@ -1,9 +1,10 @@
 open Printf
 
 module L = Layout
+module W = Widget
 
 let widget w =
-  let open Widget in
+  let open W in
   sprintf "wid: #%u, name: %s" w#id (w#name)
 
 let color (r,g,b,a) =
@@ -13,10 +14,7 @@ let geometry g =
   let open L in
   sprintf "(x=%d, y=%d, w=%d, h=%d, vo=%d)"  g.x g.y g.w g.h g.voffset
 
-let content c =
-  match c with
-  | L.List list -> sprintf "Rooms (%u)" (List.length list) (* do not call recursively all rooms, because we have a circular type *)
-  | L.Leaf w -> widget w
+let content c = widget c
 
 let house h =
   sprintf "%s" (L.sprint_id h)
@@ -69,11 +67,7 @@ let rec layout_down ?(indent = "") r =
     sprintf "%s┗━" indent ] in
   String.concat "" list
 
-and full_content ?(indent = "") = function
-  | L.Leaf (w) -> widget w
-  | L.List list -> "Rooms:" ^ (String.concat "," (List.map (layout_down ~indent) list));;
-
-
+and full_content ?(indent = "") c = widget c
 
 (* Print error messages *)
 

@@ -49,7 +49,7 @@ let desc0 = "Just a check button."
 let example0 () =
   let b = W.check_box () in
   let layout = L.resident ~name:"Layout" b in
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 (* FIXME image inside a box is flipped for some reason. *)
@@ -67,7 +67,7 @@ let example1h () =
   let r = new Row.t W.[b |> W.gen; td |> W.gen; box |> W.gen] in
   let layout = L.resident r in
   (* L.animate layout (Anim.show ~duration:600 (100)); *)
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc1v = "Rich text and vertical layout sliding from right."
@@ -87,7 +87,7 @@ let example1v () =
   let layout = L.resident (new Col.t W.[b |> W.gen; title |> W.gen; td |> W.gen; td_normal |> W.gen; td_bold |> W.gen;
                                         td_italic |> W.gen; box |> W.gen]) in
   L.slide_in ~dst:layout layout;
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc2 = "the two check buttons are independent"
@@ -95,7 +95,7 @@ let example2 () =
   let b1 = W.check_box () in
   let b2 = W.check_box () in
   let layout = L.resident (new Row.t W.[b1 |> W.gen; b2 |> W.gen]) in
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc3 = "the first button changes the second, but not vice-versa"
@@ -109,7 +109,7 @@ let example3 () =
   in
   connect b1 ~target:b2 (action b1 b2) T.buttons_down;
   let layout = new Row.t W.[b1 |> W.gen; b2 |> W.gen] |> L.resident in
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc4 = "rounded box; the whole layout is animated"
@@ -123,7 +123,7 @@ let example4 () =
   (* L.animate layout (Anim.translate 300 300); *)
   L.animate_x layout (Avar.fromto 300 0);
   L.animate_y layout (Avar.fromto 300 0);
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc5 = "We pack two layouts in a (horizontal) flat. Layouts have names (press CTRL-I). The second button is draggable"
@@ -131,12 +131,12 @@ let example5 () =
   let b1 = W.check_box () in
   let b2 = W.check_box () in
   let box = new Box.t () in
-  let l1 = L.resident @@ new Row.t ~name:"Button 1 and the Box" W.[b1 |> W.gen; box |> W.gen] in
-  let l2 = L.resident ~name:"Button 2" ~draggable:true b2 in (* compare with (= no margin) *)
+  let l1 = new Row.t ~name:"Button 1 and the Box" W.[b1 |> W.gen; box |> W.gen] in
+  let l2 = b2 in (* compare with (= no margin) *)
   (* let l2 = L.resident canvas b2 in *)
 
-  let layout = L.flat ~name:"The main pack" [l1;l2] in
-  let board = make [layout] in
+  let layout = L.resident @@ new Row.t ~name:"The main pack" [l1 |> W.gen;l2 |> W.gen] in
+  let board = make layout in
   run board
 
 let desc6 = "a button and a colored label. Global shortcut (ESC)."
@@ -144,9 +144,9 @@ let example6 () =
   let b = W.check_box () in
   let l = new Label.t ~fg:(Draw.(opaque (find_color "firebrick")))
     "Merry Christmas !" in
-  let layout = L.flat_of_w ~align:Draw.Center [(b :> 'a W.t);(l :> 'a W.t)] in
+  let layout = L.resident @@ new Row.t ~align:Draw.Center [(b :> 'a W.t);(l :> 'a W.t)] in
   let shortcuts = [Shortcut.exit_on_escape] in
-  let board = make ~shortcuts [layout] in
+  let board = make ~shortcuts layout in
   run board
 
 let desc7 = "click on the button to change the label"
@@ -164,7 +164,7 @@ let example7 () = (* TODO à vérifier ! parfois ce n'est pas synchro *)
   in
   W.connect b ~target:l action T.buttons_down;
   let layout = L.resident @@ new Row.t W.[b |> W.gen; l |> W.gen] in
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 (* FIXME how do we change the hover icon for the label? *)
@@ -172,52 +172,51 @@ let desc8 = "the button and the label are inter-connected"
 let example8 () =
   let b,l = W.check_box_with_label "you may click here too" in
   let layout = L.resident @@ new Row.t W.[b |> W.gen; l |> W.gen] in
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc9 = "the button is attached to the mouse"
 let example9 () =
   let b = W.check_box () in
-  let btn = L.resident b in
-  let layout = L.flat [btn] in
+  let layout = L.resident b in
   L.set_width layout 500; L.set_height layout 500;
   (* L.animate layout (Anim.follow_mouse ()); *)
-  L.follow_mouse ~dx:20 ~dy:20 btn;
-  let board = make [layout] in
+  (* L.follow_mouse ~dx:20 ~dy:20 btn; *)
+  let board = make layout in
   run board
 
-(* BUG: the check box is active only after the window has focus (hence we have
-   to click twice) *)
-let desc10 = "two independent windows should open. ESC to quit."
-let example10 () =
-  let b1 = W.check_box () in
-  let b2 = W.check_box () in
-  let l1 = L.resident @@ new Row.t ~name:"Window#1" W.[b1 |> W.gen; new Label.t "First window" |> W.gen] in
-  Draw.use_new_layer (); (* we start a new window *)
-  let l2 = L.resident @@ new Row.t ~name:"Window#2" W.[b2 |> W.gen; new Label.t "Win 2" |> W.gen] in
+(* (\* BUG: the check box is active only after the window has focus (hence we have *)
+(*    to click twice) *\) *)
+(* let desc10 = "two independent windows should open. ESC to quit." *)
+(* let example10 () = *)
+(*   let b1 = W.check_box () in *)
+(*   let b2 = W.check_box () in *)
+(*   let l1 = L.resident @@ new Row.t ~name:"Window#1" W.[b1 |> W.gen; new Label.t "First window" |> W.gen] in *)
+(*   Draw.use_new_layer (); (\* we start a new window *\) *)
+(*   let l2 = L.resident @@ new Row.t ~name:"Window#2" W.[b2 |> W.gen; new Label.t "Win 2" |> W.gen] in *)
 
-  let shortcuts = [Shortcut.exit_on_escape] in
-  let board = make ~shortcuts [l1;l2] in
-  (* window position can be set after "make" and before "run" *)
-  L.set_window_pos l1 (200,200); L.set_window_pos l2 (400,200);
-  run board
+(*   let shortcuts = [Shortcut.exit_on_escape] in *)
+(*   let board = make ~shortcuts [l1;l2] in *)
+(*   (\* window position can be set after "make" and before "run" *\) *)
+(*   L.set_window_pos l1 (200,200); L.set_window_pos l2 (400,200); *)
+(*   run board *)
 
-(* BUG Changes to window 2 block next update for window 1.
-    I.e. b2 -> b2 -> b1 (stays unchecked). Internal value is correct *)
-let desc11 = "two connected windows: the button in the first window sets the check_box in the second window"
-let example11 () = (* attention ne marche pas avec DEBUG=false !! OK problème résolu: le main thread ne laissait pas assez de temps aux autres *)
-  let b1 = W.check_box () in
-  let b2 = W.check_box () in
-  let action _ = Printf.printf "%b\n" b1#state; b2#set_state b1#state in
-  W.connect b1 ~target:b2 action T.buttons_down;
-  (* W.add_connection b1 c;  *)(* TODO à faire autom *)
-  let l1 = L.resident @@ new Row.t W.[b1 |> W.gen; new Label.t "Window 1 = the master" |> W.gen] in
-  Draw.use_new_layer ();
-  let l2 = L.resident @@ new Row.t W.[b2 |> W.gen; new Label.t "Window 2" |> W.gen] in
-  let shortcuts = [Shortcut.exit_on_escape] in
-  let board = make ~shortcuts [l1;l2] in
-  L.set_window_pos l1 (200,200); L.set_window_pos l2 (400,200);
-  run board
+(* (\* BUG Changes to window 2 block next update for window 1. *)
+(*     I.e. b2 -> b2 -> b1 (stays unchecked). Internal value is correct *\) *)
+(* let desc11 = "two connected windows: the button in the first window sets the check_box in the second window" *)
+(* let example11 () = (\* attention ne marche pas avec DEBUG=false !! OK problème résolu: le main thread ne laissait pas assez de temps aux autres *\) *)
+(*   let b1 = W.check_box () in *)
+(*   let b2 = W.check_box () in *)
+(*   let action _ = Printf.printf "%b\n" b1#state; b2#set_state b1#state in *)
+(*   W.connect b1 ~target:b2 action T.buttons_down; *)
+(*   (\* W.add_connection b1 c;  *\)(\* TODO à faire autom *\) *)
+(*   let l1 = L.resident @@ new Row.t W.[b1 |> W.gen; new Label.t "Window 1 = the master" |> W.gen] in *)
+(*   Draw.use_new_layer (); *)
+(*   let l2 = L.resident @@ new Row.t W.[b2 |> W.gen; new Label.t "Window 2" |> W.gen] in *)
+(*   let shortcuts = [Shortcut.exit_on_escape] in *)
+(*   let board = make ~shortcuts [l1;l2] in *)
+(*   L.set_window_pos l1 (200,200); L.set_window_pos l2 (400,200); *)
+(*   run board *)
 
 (* FIXME typing is broken *)
 let desc12 = "a check_box and a text input in a line editor"
@@ -227,20 +226,20 @@ let example12 () =
   (* FIXME introduce wrapper / use layout *)
   (* FIXME Broken as we have widgets of differing types here *)
   let l = L.resident @@ new Row.t [(* b |> W.gen; *) ti |> W.gen] in
-  let board = make [l] in
+  let board = make l in
   run board
 
-let desc13 = "circular sliders"
-let example13 () =
-  let text = new Label.t "I'm a knob" in
-  let background = L.bg_color in
-  let s = new Slider.t ~kind:Slider.Circular ~m:100 ~h:200 ~tick_size:6 () in
-  let s' = new Slider.t ~kind:Slider.Circular ~m:10 ~h:50 ~thickness:25 ~tick_size:4 () in
-  let knob = L.superpose ~center:true [L.resident ~background s;
-                                       L.resident text] in
-  let l =  L.flat [knob; L.resident s'] in
-  let board = make [l] in
-  run board
+(* let desc13 = "circular sliders" *)
+(* let example13 () = *)
+(*   let text = new Label.t "I'm a knob" in *)
+(*   let background = L.bg_color in *)
+(*   let s = new Slider.t ~kind:Slider.Circular ~m:100 ~h:200 ~tick_size:6 () in *)
+(*   let s' = new Slider.t ~kind:Slider.Circular ~m:10 ~h:50 ~thickness:25 ~tick_size:4 () in *)
+(*   let knob = L.superpose ~center:true [L.resident ~background s; *)
+(*                                        L.resident text] in *)
+(*   let l =  L.flat [knob; L.resident s'] in *)
+(*   let board = make [l] in *)
+(*   run board *)
 
 let desc14 = "a slider connected to a text label, and fit window"
 let example14 () =
@@ -259,15 +258,15 @@ let example14 () =
   W.connect_main s' ~target:l' (action s' l') events;
   W.connect_main s'' ~target:l'' (action s'' l'') events;
   (* notice that action is a pure function, we can use it for both connections *)
-  let slider = L.resident ~background:L.bg_color s in
-  let slider' = L.resident ~background:(L.color_bg Draw.(transp green)) s' in
-  let slider'' = L.resident ~background:(L.color_bg Draw.(transp red)) s'' in
-  let lay =  L.tower [
-      L.flat ~align:Draw.Center [slider; L.resident l];
-      L.flat ~align:Draw.Center [slider'; L.resident l'];
-      L.flat ~align:Draw.Center [slider''; L.resident l'']
+  (* let slider = L.resident ~background:L.bg_color s in *)
+  (* let slider' = L.resident ~background:(L.color_bg Draw.(transp green)) s' in *)
+  (* let slider'' = L.resident ~background:(L.color_bg Draw.(transp red)) s'' in *)
+  let lay =  L.resident @@ new Col.t [
+      new Row.t ~align:Draw.Center W.[s |> gen; l |> gen];
+      new Row.t ~align:Draw.Center W.[s' |> gen; l' |> gen];
+      new Row.t ~align:Draw.Center W.[s'' |> gen; l'' |> gen]
     ] in
-  let board = make [lay] in
+  let board = make lay in
   run board
 
 (* FIXME no parallelism inherently supported. *)
@@ -295,7 +294,7 @@ let example15 () =
   W.connect l ~target:l (clock l l) T.buttons_down;
   W.connect l' ~target:l' (clock l' l') [T.startup];
   let lay =  L.resident @@ new Row.t W.[l |> W.gen; l' |> W.gen] in
-  let board = make [lay] in
+  let board = make lay in
   run board
 
 let desc16 = "buttons with label"
@@ -311,250 +310,248 @@ let example16 () =
     ~label_off:(new Icon.t ~fg:(Draw.(lighter (lighter fg))) "train")
     "" in
   let layout = L.resident @@ new Row.t W.[b |> W.gen;c |> W.gen;d |> W.gen] in
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc17 = "a simple image at original pixel size"
 let example17 () =
   let img = new Image.t (*~w:300*) ~noscale:true ~bg:Draw.(opaque white) "images/chl.png" in
   let layout = L.resident img in
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 (* TODO *)
-let desc18 = "zoom_in and oscillate animations"
-let example18 () =
-  let img1 = new Image.t ~w:300 ~h:300 ~bg:Draw.(opaque white) "images/chl.png" in
-  let img2 = new Image.t ~w:250 ~h:300 ~bg:Draw.(opaque grey) "images/chl.png" in
-  let l1 = L.resident img1 in
-  let l2 = L.resident img2 in
-  let layout = L.flat [l1; l2] in
-  L.set_width layout 700;
-  L.oscillate ~frequency:10. 20 l2;
-  (* put this AFTER creating the layout, otherwise the x-pos of l2 is 0 *)
-  L.zoom ~from_factor:0.1 ~to_factor:1. l1;
-  let board = make [layout] in
-  run board
+(* let desc18 = "zoom_in and oscillate animations" *)
+(* let example18 () = *)
+(*   let img1 = new Image.t ~w:300 ~h:300 ~bg:Draw.(opaque white) "images/chl.png" in *)
+(*   let img2 = new Image.t ~w:250 ~h:300 ~bg:Draw.(opaque grey) "images/chl.png" in *)
+(*   let l1 = L.resident img1 in *)
+(*   let l2 = L.resident img2 in *)
+(*   let layout = L.resident @@ new Row.t [l1; l2] in *)
+(*   L.set_width layout 700; *)
+(*   L.oscillate ~frequency:10. 20 l2; *)
+(*   (\* put this AFTER creating the layout, otherwise the x-pos of l2 is 0 *\) *)
+(*   L.zoom ~from_factor:0.1 ~to_factor:1. l1; *)
+(*   let board = make layout in *)
+(*   run board *)
 
 (* FIXME tabs not working properly. That requires a bit of work and will become useless once more is rewritten *)
-let desc19 = "tabs"
-let example19 () =
-  let img = new Image.t ~w:320 ~h:300 ~bg:Draw.(opaque white) "images/chl.png" in
-  let ti = new Text_input.t ~font_size:16 ~prompt:"Click and enter some text " "" in
-  let b,l = W.check_box_with_label "you may click here too" in
-  let tab1 = L.resident img in
-  let tab2 = L.resident ti in
-  let tab3 = L.tower_of_w [(b :> 'a W.t);(l :> 'a W.t)] in
-  let tabs = Tabs.create ~slide:Avar.Right ~adjust:Layout.Nothing
-      ["Check box", tab3; "Image", tab1; "Text entry", tab2; ] in
-  let board = make [tabs] in
-  run board
+(* let desc19 = "tabs" *)
+(* let example19 () = *)
+(*   let img = new Image.t ~w:320 ~h:300 ~bg:Draw.(opaque white) "images/chl.png" in *)
+(*   let ti = new Text_input.t ~font_size:16 ~prompt:"Click and enter some text " "" in *)
+(*   let b,l = W.check_box_with_label "you may click here too" in *)
+(*   let tab1 = L.resident img in *)
+(*   let tab2 = L.resident ti in *)
+(*   let tab3 = L.tower_of_w [(b :> 'a W.t);(l :> 'a W.t)] in *)
+(*   let tabs = Tabs.create ~slide:Avar.Right ~adjust:Layout.Nothing *)
+(*       ["Check box", tab3; "Image", tab1; "Text entry", tab2; ] in *)
+(*   let board = make [tabs] in *)
+(*   run board *)
 
 let desc20 = "two images"
 let example20 () =
   let img1 = new Image.t ~w:300 ~h:300 ~bg:Draw.(opaque white) "images/chl.png" in
   let img2 = new Image.t ~w:300 ~h:300 ~bg:Draw.(opaque grey) "images/chl.png" in
-  let l1 = L.resident img1 in
-  let l2 = L.resident img2 in
   (* this has no effct: L.animate_w l1 (Avar.fromto ~duration:600 10 300); *)
-  let layout = L.flat [l1;l2] in
-  let board = make [layout] in
+  let layout = L.resident @@ new Row.t [img1;img2] in
+  let board = make layout in
   run board
 
-let desc21 = "popup"
-let example21 () =
-  let b = W.check_box () in
-  let ti = new Text_input.t ~font_size:16 ~prompt:"Click and enter some text " "" in
-  let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in
-  let l = new Label.t " This is on top of the other widgets " in
-  let close_btn = new Button.t ~border_r:3 ~border_c:Draw.(opaque blue) "Close" in
-  (* FIXME introduce wrapper*)
-  let popup = L.tower_of_w [(l :> 'a W.t);(*(ti :> 'a W.t);*)(close_btn :> 'a W.t)] in
-  let layout = L.tower_of_w [(b :> 'a W.t);(td :> 'a W.t)] in
-  let screen = Popup.attach ~show:false ~bg:(Draw.(set_alpha 240 dark_grey)) layout popup in
-  let b = new Button.t ~switch:true ~border_r:4 ~border_c:Draw.(opaque grey) "Popup" in
-  let release b =
-    popup#set_show b#state;
-    screen#set_show b#state
-  in
-  (* FIXME this is not nicely written *)
-  W.on_release ~release b;
-  W.connect_main close_btn ~target:b (fun _ -> b#press; release b) T.buttons_up;
+(* let desc21 = "popup" *)
+(* let example21 () = *)
+(*   let b = W.check_box () in *)
+(*   let ti = new Text_input.t ~font_size:16 ~prompt:"Click and enter some text " "" in *)
+(*   let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in *)
+(*   let l = new Label.t " This is on top of the other widgets " in *)
+(*   let close_btn = new Button.t ~border_r:3 ~border_c:Draw.(opaque blue) "Close" in *)
+(*   (\* FIXME introduce wrapper*\) *)
+(*   let popup = L.tower_of_w [(l :> 'a W.t);(\*(ti :> 'a W.t);*\)(close_btn :> 'a W.t)] in *)
+(*   let layout = L.tower_of_w [(b :> 'a W.t);(td :> 'a W.t)] in *)
+(*   let screen = Popup.attach ~show:false ~bg:(Draw.(set_alpha 240 dark_grey)) layout popup in *)
+(*   let b = new Button.t ~switch:true ~border_r:4 ~border_c:Draw.(opaque grey) "Popup" in *)
+(*   let release b = *)
+(*     popup#set_show b#state; *)
+(*     screen#set_show b#state *)
+(*   in *)
+(*   (\* FIXME this is not nicely written *\) *)
+(*   W.on_release ~release b; *)
+(*   W.connect_main close_btn ~target:b (fun _ -> b#press; release b) T.buttons_up; *)
 
-  let global = L.tower [L.resident b; layout] in
-  let board = make [global] in
-  run board
+(*   let global = L.tower [L.resident b; layout] in *)
+(*   let board = make [global] in *)
+(*   run board *)
 
-let desc21bis = "Close popup"
-let example21bis () =
-  let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in
-  let layout = L.tower_of_w [(W.check_box () :> 'a W.t); (td :> 'a W.t)] in
-  Popup.info ~size:(100,70) "Click on Close to close the popup" layout;
-  let board = make [layout] in
-  run board
+(* let desc21bis = "Close popup" *)
+(* let example21bis () = *)
+(*   let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in *)
+(*   let layout = L.tower_of_w [(W.check_box () :> 'a W.t); (td :> 'a W.t)] in *)
+(*   Popup.info ~size:(100,70) "Click on Close to close the popup" layout; *)
+(*   let board = make layout in *)
+(*   run board *)
 
-let desc21ter = "Yes/No popup"
-let example21ter () =
-  let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in
-  let layout = L.tower_of_w [td] in
-  let yes_action () = print_endline "YES!" in
-  let no_action () = print_endline "NO!" in
-  Popup.yesno ~size:(100,50) "Are you happy?" ~yes_action ~no_action layout;
-  let board = make [layout] in
-  run board
+(* let desc21ter = "Yes/No popup" *)
+(* let example21ter () = *)
+(*   let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in *)
+(*   let layout = L.tower_of_w [td] in *)
+(*   let yes_action () = print_endline "YES!" in *)
+(*   let no_action () = print_endline "NO!" in *)
+(*   Popup.yesno ~size:(100,50) "Are you happy?" ~yes_action ~no_action layout; *)
+(*   let board = make layout in *)
+(*   run board *)
 
-(* TODO this one does not work as expected. Cf menus *)
-(* BUG: when you hide the inner box, and then the outer box; and then open the
-   outer box again, then the offset position of the innex box isn't
-   correct. After two clicks, it comes back to the right position. *)
-let desc22 = "hide/show"
-let example22 () =
-  let b = W.check_box ~init:true () in
-  let l = new Label.t "Click button to hide/show" in
-  let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in
-  let b2 = W.check_box ~init:true () in
-  let l2 = new Label.t "Click button to hide/show" in
-  let td2 = new Text_display.t (Text_display.paragraphs_of_string lorem) in
-  let button2 = L.resident @@ new Row.t W.[b2 |> W.gen;l2 |> W.gen] in
-  let hide_show2 = L.resident td2 in
-  let hide_show = L.flat [L.resident td; button2; hide_show2] in
-  let button = L.resident @@ new Row.t W.[b |> W.gen;l |> W.gen] in
-  let layout = L.tower [button; hide_show] in
-  let action room w _ =
-    if w#state
-    then (L.show (* ~from:Anim.Top *) room; L.fade_in room)
-    else (L.hide (* ~towards:Anim.Top *) room; L.fade_out room)  in
-  W.connect b ~target:td (action hide_show b) T.buttons_down;
-  W.connect b2 ~target:td2 (action hide_show2 b2) T.buttons_down;
-  let board = make [layout] in
-  run board
+(* (\* TODO this one does not work as expected. Cf menus *\) *)
+(* (\* BUG: when you hide the inner box, and then the outer box; and then open the *)
+(*    outer box again, then the offset position of the innex box isn't *)
+(*    correct. After two clicks, it comes back to the right position. *\) *)
+(* let desc22 = "hide/show" *)
+(* let example22 () = *)
+(*   let b = W.check_box ~init:true () in *)
+(*   let l = new Label.t "Click button to hide/show" in *)
+(*   let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in *)
+(*   let b2 = W.check_box ~init:true () in *)
+(*   let l2 = new Label.t "Click button to hide/show" in *)
+(*   let td2 = new Text_display.t (Text_display.paragraphs_of_string lorem) in *)
+(*   let button2 = L.resident @@ new Row.t W.[b2 |> W.gen;l2 |> W.gen] in *)
+(*   let hide_show2 = L.resident td2 in *)
+(*   let hide_show = L.flat [L.resident td; button2; hide_show2] in *)
+(*   let button = L.resident @@ new Row.t W.[b |> W.gen;l |> W.gen] in *)
+(*   let layout = L.tower [button; hide_show] in *)
+(*   let action room w _ = *)
+(*     if w#state *)
+(*     then (L.show (\* ~from:Anim.Top *\) room; L.fade_in room) *)
+(*     else (L.hide (\* ~towards:Anim.Top *\) room; L.fade_out room)  in *)
+(*   W.connect b ~target:td (action hide_show b) T.buttons_down; *)
+(*   W.connect b2 ~target:td2 (action hide_show2 b2) T.buttons_down; *)
+(*   let board = make layout in *)
+(*   run board *)
 
 let desc23 = "fade-in"
 let example23 () =
   let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in
-  let layout = L.tower_of_w [td] in
+  let layout = L.resident td in
   L.fade_in ~duration:2000 layout;
   (* layout.L.anim <- Some (Anim.fade_in ~duration:600 ()); *)
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc23bis = "fade-out"
 let example23bis () =
   let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in
-  let layout = L.tower_of_w [td] in
+  let layout = L.resident td in
   L.fade_out ~duration:2000 layout;
   (* layout.L.anim <- Some (Anim.fade_in ~duration:600 ()); *)
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 (* TODO this doesn't work anymore after modification of mouse_focus in main. Cf
    check_mouse_motion not being called when animating? *)
-let desc24 = "two moving check buttons covered by a screen"
-let example24 () =
-  let b1 = W.check_box () in
-  let b2 = W.check_box () in
-  let blank = "[________________________________]" in
-  let l = new Label.t blank in
-  let btns = L.resident @@ new Row.t W.[b1 |> W.gen; b2 |> W.gen] in
-  L.oscillate ~frequency:10. 20 btns;
-  let layout = L.flat [btns; L.resident l] in
-  let screen = Popup.add_screen btns in
-  let action w2 _ =
-    w2#set_text "You clicked on the screen layer!";
-    w2#update;
-    Thread.delay 5.;
-    L.hide screen;
-    w2#set_text "Now we remove the screen"
-  in
+(* let desc24 = "two moving check buttons covered by a screen" *)
+(* let example24 () = *)
+(*   let b1 = W.check_box () in *)
+(*   let b2 = W.check_box () in *)
+(*   let blank = "[________________________________]" in *)
+(*   let l = new Label.t blank in *)
+(*   let btns = L.resident @@ new Row.t W.[b1 |> W.gen; b2 |> W.gen] in *)
+(*   L.oscillate ~frequency:10. 20 btns; *)
+(*   let layout = L.flat [btns; L.resident l] in *)
+(*   let screen = Popup.add_screen btns in *)
+(*   let action w2 _ = *)
+(*     w2#set_text "You clicked on the screen layer!"; *)
+(*     w2#update; *)
+(*     Thread.delay 5.; *)
+(*     L.hide screen; *)
+(*     w2#set_text "Now we remove the screen" *)
+(*   in *)
 
-  W.connect (L.widget screen) ~target:l (action l) T.buttons_down;
+(*   W.connect (L.widget screen) ~target:l (action l) T.buttons_down; *)
 
-  let board = make [layout] in
-  run board
+(*   let board = make layout in *)
+(*   run board *)
 
 (* BUG checkbox layout broken? *)
-let desc25 = "a menu bar"
-let example25 () =
+(* let desc25 = "a menu bar" *)
+(* let example25 () = *)
 
-  (* First we define a dummy layout, just to see how the menu will cover it.*)
-  let border = Style.(border ~radius:25
-                        (line ~color:Draw.(opaque red) ~width:6 ~style:Solid ())) in
-  let box = new Box.t ~border ~bg:(Style.color_bg Draw.(transp blue)) ~size:(400,300) () in
-  let menu_placeholder = L.empty ~w:400 ~h:40 () in
-  let main = L.tower
-      [menu_placeholder;
-       L.superpose
-         [L.tower [L.resident @@ new Row.t W.[ new Label.t "   Hello there" |> W.gen;  W.check_box () |> W.gen];
-                   L.empty ~w:0 ~h:100 ();
-                   L.resident (W.check_box ())];
-          L.resident box]] in
-  (* : recall that for the moment, the first item in the list of rooms gets
-     focus before the next ones (bug, we should change, this is not usual) *)
+(*   (\* First we define a dummy layout, just to see how the menu will cover it.*\) *)
+(*   let border = Style.(border ~radius:25 *)
+(*                         (line ~color:Draw.(opaque red) ~width:6 ~style:Solid ())) in *)
+(*   let box = new Box.t ~border ~bg:(Style.color_bg Draw.(transp blue)) ~size:(400,300) () in *)
+(*   let menu_placeholder = L.empty ~w:400 ~h:40 () in *)
+(*   let main = L.tower *)
+(*       [menu_placeholder; *)
+(*        L.superpose *)
+(*          [L.tower [L.resident @@ new Row.t W.[ new Label.t "   Hello there" |> W.gen;  W.check_box () |> W.gen]; *)
+(*                    L.empty ~w:0 ~h:100 (); *)
+(*                    L.resident (W.check_box ())]; *)
+(*           L.resident box]] in *)
+(*   (\* : recall that for the moment, the first item in the list of rooms gets *)
+(*      focus before the next ones (bug, we should change, this is not usual) *\) *)
 
-  (* Now we construct the menu... *)
-  let () =
-    let open Menu in
-    let action1 () = print_endline "Action = Item 1" in
-    let action2 () = print_endline "Action = Item 2" in
+(*   (\* Now we construct the menu... *\) *)
+(*   let () = *)
+(*     let open Menu in *)
+(*     let action1 () = print_endline "Action = Item 1" in *)
+(*     let action2 () = print_endline "Action = Item 2" in *)
 
-    (* We define the About entry: *)
-    let about () = Popup.info "This is Bogue example 25:\n\nA menu bar.." main in
-    let about =  { label = Text "About..."; content = Action about } in
+(*     (\* We define the About entry: *\) *)
+(*     let about () = Popup.info "This is Bogue example 25:\n\nA menu bar.." main in *)
+(*     let about =  { label = Text "About..."; content = Action about } in *)
 
-    (* We define the File menu: *)
-    let save () = print_endline "Saving..." in
-    let save = { label = Text "Save"; content = Action save } in
-    let quit () = print_endline "Quitting."; raise Bogue.Exit in
-    let quit = { label = Text "Quit"; content = Action quit } in
-    let file_menu = [save; quit] in
-    let file = { label = Text "File";
-                 content = Tower file_menu} in
+(*     (\* We define the File menu: *\) *)
+(*     let save () = print_endline "Saving..." in *)
+(*     let save = { label = Text "Save"; content = Action save } in *)
+(*     let quit () = print_endline "Quitting."; raise Bogue.Exit in *)
+(*     let quit = { label = Text "Quit"; content = Action quit } in *)
+(*     let file_menu = [save; quit] in *)
+(*     let file = { label = Text "File"; *)
+(*                  content = Tower file_menu} in *)
 
-    (* We define another menu with two submenus: *)
-    (* It is ok to re-use an entry or an action because everything is immutable
-       here. *)
-    let label1 = { label = Text "Copy of action 1";
-                   content = Action action1 } in
-    let label2 = { label = Text "Entry with action 2";
-                   content = Action action2 } in
-    let submenu = [ label1; label2 ] in
-    let submenu2 = (List.concat [submenu;
-                                 [{ label = Text "submenu";
-                                    content = Tower submenu }]]) in
-    let submenu3 = List.concat [submenu2; [separator];
-                                [{ label = Text "submenu2";
-                                   content = Tower submenu2 }]] in
-    let menu2 = { label = Text "This a long menu title";
-                  content = Tower submenu3 } in
+(*     (\* We define another menu with two submenus: *\) *)
+(*     (\* It is ok to re-use an entry or an action because everything is immutable *)
+(*        here. *\) *)
+(*     let label1 = { label = Text "Copy of action 1"; *)
+(*                    content = Action action1 } in *)
+(*     let label2 = { label = Text "Entry with action 2"; *)
+(*                    content = Action action2 } in *)
+(*     let submenu = [ label1; label2 ] in *)
+(*     let submenu2 = (List.concat [submenu; *)
+(*                                  [{ label = Text "submenu"; *)
+(*                                     content = Tower submenu }]]) in *)
+(*     let submenu3 = List.concat [submenu2; [separator]; *)
+(*                                 [{ label = Text "submenu2"; *)
+(*                                    content = Tower submenu2 }]] in *)
+(*     let menu2 = { label = Text "This a long menu title"; *)
+(*                   content = Tower submenu3 } in *)
 
-    (* Now we define the complete menu bar: *)
-    bar ~dst:main [file; menu2; about]
-  in
-  let layout = L.tower ~margins:0
-      ~background:(L.color_bg (Draw.(lighter (opaque pale_grey)))) [main] in
-  let board = make [layout] in
-  run board
+(*     (\* Now we define the complete menu bar: *\) *)
+(*     bar ~dst:main [file; menu2; about] *)
+(*   in *)
+(*   let layout = L.tower ~margins:0 *)
+(*       ~background:(L.color_bg (Draw.(lighter (opaque pale_grey)))) [main] in *)
+(*   let board = make layout in *)
+(*   run board *)
 
-let desc26 = "the mouse enter/leave event"
-let example26 () =
-  let box = new Box.t ~size:(200,64) () in
-  let room = L.resident box in
-  let l = new Label.t "Put the mouse over the box" in
-  let action_enter w2 _ = print_endline "action_enter";
-    L.animate_w room (Avar.fromto ~duration:100 (L.width room) 210);
-    w2#set_text "Mouse entered" in
-  W.connect box ~target:l (action_enter l) [T.mouse_enter];
-  let action_leave w2 _ = print_endline "action_leave";
-    L.animate_w room (Avar.fromto ~duration:100 (L.width room) 200);
-    w2#set_text "Mouse left";
-    w2#update;
-    (* after leaving, the box is not active, so it is possible that no event get
-       triggered, therefore we manually update the target. *)
-  in
-  W.connect box ~target:l (action_leave l) [T.mouse_leave];
-  let layout = L.flat ~margins:20 [room; L.resident l] in
-  let board = make [layout] in
-  run board
+(* let desc26 = "the mouse enter/leave event" *)
+(* let example26 () = *)
+(*   let box = new Box.t ~size:(200,64) () in *)
+(*   let room = L.resident box in *)
+(*   let l = new Label.t "Put the mouse over the box" in *)
+(*   let action_enter w2 _ = print_endline "action_enter"; *)
+(*     L.animate_w room (Avar.fromto ~duration:100 (L.width room) 210); *)
+(*     w2#set_text "Mouse entered" in *)
+(*   W.connect box ~target:l (action_enter l) [T.mouse_enter]; *)
+(*   let action_leave w2 _ = print_endline "action_leave"; *)
+(*     L.animate_w room (Avar.fromto ~duration:100 (L.width room) 200); *)
+(*     w2#set_text "Mouse left"; *)
+(*     w2#update; *)
+(*     (\* after leaving, the box is not active, so it is possible that no event get *)
+(*        triggered, therefore we manually update the target. *\) *)
+(*   in *)
+(*   W.connect box ~target:l (action_leave l) [T.mouse_leave]; *)
+(*   let layout = L.flat ~margins:20 [room; L.resident l] in *)
+(*   let board = make layout in *)
+(*   run board *)
 
 let desc26bis = "the mouse enter/leave event + box shadow"
 let example26bis () =
@@ -577,7 +574,7 @@ let example26bis () =
   in
   W.mouse_over ~enter ~leave box;
   let layout = L.flat ~margins:20 [room; L.resident l] in
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc27 = "scrolling and print layout information"
@@ -592,7 +589,7 @@ let example27 () =
   let container2 = L.make_clip ~h:300 short in
   let layout = L.flat [hello; container; container2] in
   (* L.scroll_to ~duration:2000 300 long; *)
-  let board = make [layout] in
+  let board = make layout in
   print_endline (Print.layout_down container);
 
   run board
@@ -607,7 +604,7 @@ let example28 () =
   let select_fruit = Select.create fruits 2 in
   let layout = L.tower [L.flat [l; select; select_fruit]; box] in
   let shortcuts = [Shortcut.exit_on_escape] in
-  let board = make ~shortcuts [layout] in
+  let board = make ~shortcuts layout in
   let _ = Timeout.add 5000 (fun () -> print_endline "HELLO!---------------------") in
   run board
 
@@ -636,7 +633,7 @@ let example30 () =
   let background = Layout.color_bg Draw.(set_alpha 40 blue) in
   let layout = L.flat ~align:Draw.Center [Radiolist.layout radio;
                                           L.resident ~background label] in
-  let board = make [layout] in
+  let board = make layout in
   let _ = Timeout.add 5000 (fun () ->
       print_endline "SET INDEX TO 3";
       Radiolist.set_index radio 3) in
@@ -754,7 +751,7 @@ let example35bis () =
 
   let layout = L.tower [L.resident (new Label.t "This is a nice table"); table] in
 
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc35ter = "a table from a list"
@@ -772,7 +769,7 @@ let example35ter () =
 
   let layout = L.tower [L.resident (new Label.t "This is a nice table"); table] in
 
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 
@@ -799,7 +796,7 @@ let example37 () =
   let p = new Image.t "images/chl.png" in
   let box = new Box.t ~border ~bg:(Style.Image p) () in
   let layout = L.resident @@ new Row.t W.[b |> W.gen; td |> W.gen; box |> W.gen] in
-  let board = make [layout] in
+  let board = make layout in
   Mixer.unpause mixer;
   run board;
   Mixer.close mixer
@@ -822,7 +819,7 @@ let example38 () =
       "images/koala.svg" in
 
   let layout = L.resident @@ new Row.t W.[box |> W.gen; img |> W.gen] in
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc39 = "the hfill/vfill elements. Try and resize the window."
@@ -860,7 +857,7 @@ let example39 () =
        L.resident (new Label.t "The first room is made into an hfill:");
        line2] in
 
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc40 = "rearrange, and gradient background"
@@ -918,7 +915,7 @@ let example41 () =
   let layout = L.superpose [image; title] in
   L.setx title 35; L.sety title 150;
   L.rotate ~duration:1000 ~angle:360. title;
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc42 = "effect of rotate on a composite room"
@@ -928,7 +925,7 @@ let example42 () =
   let background = L.bg_color in
   let layout = L.tower_of_w ~background [(l :> 'a W.t);(td :> 'a W.t)] in
   L.rotate ~duration:5000 ~angle:180. layout;
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc43 = "snapshot, rotation and zoom"
@@ -954,7 +951,7 @@ let example43 () =
             L.flat [room; snap]
           ]
       ] in
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc44 = "tooltips"
@@ -971,7 +968,7 @@ let example44 () =
   Popup.tooltip "Tooltip below the button"
     ~position:Popup.Below ~target:target' b' layout;
 
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc45 = "layout shadow"
@@ -1003,7 +1000,7 @@ let example47 () =
                                           <em>great</em>.</p><p>Have fun,<br><br><em>and stay \
                                           <strong>calm</strong></em>... Thank you</p><b>This should <b>stay</b> bold.</b>" in
   let layout = L.resident td in
-  let board = make [layout] in
+  let board = make layout in
   run board
 
 let desc48 = "change window size"
@@ -1011,7 +1008,7 @@ let example48 () =
   let td = new Text_display.t (Text_display.paragraphs_of_string lorem) in
   let layout = L.resident td in
   let _ = Timeout.add 5000 (fun () -> L.set_size layout (200, 200)) in
-  run (make [layout])
+  run (make layout)
 
 let desc49 = "Testbed for effect handlers"
 let example49 () =

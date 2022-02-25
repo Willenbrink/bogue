@@ -64,7 +64,6 @@ and virtual common ?id ?(name = "UNNAMED") size () =
     method id : int = id
     method name : string = name
 
-    method virtual children : common list
     method virtual canvas : Draw.canvas option
 
     val mutable connections : connection list = []
@@ -108,7 +107,6 @@ class virtual ['a] w ?id size name cursor =
   object (self)
     inherit common ?id ~name size ()
 
-    method children = []
     method canvas = None
 
     val mutable _cursor : Cursor.t = cursor

@@ -1,6 +1,12 @@
 (executable
  (name example)
- (modules (:standard \ toplevel_example))
+ (modules (:standard \ toplevel_example effects))
  (public_name boguex)
  (libraries bogue)
  (package bogue))
+
+(executable
+ (name effects)
+ (modules effects)
+  (modes byte exe)
+ (libraries bogue))

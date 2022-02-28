@@ -6,7 +6,8 @@ open Base
 (* TODO
    Handle alignment
 *)
-class ['a] t ?(flip = false) ?(sep = Theme.room_margin) ?(align) ?(name = "Row") children =
+class ['a] t ?(flip = false) ?(sep = Theme.room_margin)
+    ?(align) ?(name = "Row") (children : 'a Base.w list) =
   let children' =
     let f (x,cs) c =
       ((x + (if flip then snd else fst) c#size + sep), (x, (c :> 'b w))::cs)
@@ -33,28 +34,28 @@ class ['a] t ?(flip = false) ?(sep = Theme.room_margin) ?(align) ?(name = "Row")
 
     method triggers = List.concat_map (fun (_,c) -> c#triggers) children
 
-    method! handle ev (g : Draw.geometry) =
-      super#handle ev g;
+    method handle ev (g : Draw.geometry) =
       let (x_m,y_m) = Mouse.pointer_pos ev in
       assert (g.x <= x_m && x_m <= g.x + g.w);
       assert (g.y <= y_m && y_m <= g.y + g.h);
       let base = if flip then g.y else g.x in
-      Printf.printf "%i,%i\n" x_m y_m;
-      let f (x,c) =
-        let offset' = base + x in
-        Printf.printf "At offset %i\n" offset';
-        (* TODO we need a more general method to determine whether an event hits a widget*)
-        if x_m >= offset'
-        then ((if y_m < snd c#size && List.mem (Trigger.of_event ev) c#triggers
-               then c#handle ev g);
-              raise Not_found)
+      Printf.printf "Row, mouse: %i,%i\n" x_m y_m;
+      let f acc (x,c) = match acc with
+        | Some _ -> acc
+        | None ->
+          let offset' = base + x in
+          Printf.printf "At offset %i\n" offset';
+          (* TODO we need a more general method to determine whether an event hits a widget*)
+          if x_m >= offset'
+          then
+            if y_m < snd c#size && List.mem (Trigger.of_event ev) c#triggers
+            then Some c
+            else acc
+          else acc
       in
-      (match
-         List.iter f children
-       with
-       | exception Not_found -> ()
-       | _ -> ());
-      self#update
+      match List.fold_left f None children with
+      | None -> raise Not_found
+      | Some c -> let ret = c#handle ev g in self#update; ret
 
     method display canvas layer geom =
       let f (x,c) =

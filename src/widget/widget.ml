@@ -72,7 +72,7 @@ let image_from_svg ?w ?h ?bg file =
 let check_box_with_label text =
   let b = check_box () in
   let l = new Label.t text in
-  connect_main l ~target:b (fun ev -> b#handle ev (Draw.make_geom ())) Trigger.buttons_down;
+  connect_main l ~target:b (fun ev -> b#handle ev (Draw.make_geom ()) |> ignore) Trigger.buttons_down;
   b,l
 
 (****)

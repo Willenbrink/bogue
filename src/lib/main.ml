@@ -13,6 +13,8 @@ module E = Sdl.Event
 
 exception Exit
 
+let x = (None : bool Layout.t option)
+
 type 'a board = {
   mutable windows: 'a Window.t list;
   (* : one layout per window. This is (mostly) redundant with the next field
@@ -385,7 +387,7 @@ let drag board ev room =
   (* TODO: drag and drop to another window *)
   | _ -> Some ev
 
-let activate (type a) board (roomo : a Layout.t option) =
+let activate : 'a. 'a board -> 'a Layout.t option -> unit = fun board roomo ->
   board.button_down <- roomo;
   (match board.keyboard_focus, roomo with
    | Some kr, Some mr when not (kr == mr) ->
@@ -632,23 +634,8 @@ let one_step (type a) ?before_display anim (start_fps, fps) ?clear (board : a bo
                 x#focus_with_keyboard);
             board.keyboard_focus <- board.button_down; (* OK ?? *)
           end
-        | `Mouse_wheel ->
-          (* TODO change. mouse_wheel should be captured by the widget itself. *)
-          do_option (get_mouse_focus board) (fun room ->
-              do_option (Layout.find_clip_house room)
-                (fun room ->
-                   (* now we add up the number of wheel events in the queue. With
-                        a standard mouse wheel one can easily add up to 5
-                        events. With a touchpad, this can add up to 10 or more *)
-                   let list = Trigger.filter_events (fun e ->
-                       Trigger.event_kind e <> `Mouse_wheel) in
-                   let total = List.fold_left
-                       (fun s ev -> s + get ev mouse_wheel_y)
-                       E.(get e mouse_wheel_y) list in
-                   printd debug_event "Total mouse wheels=%d" total;
-                   let dy = - total * 50 in
-                   Layout.scroll ~duration:500 dy room;
-                   Trigger.push_var_changed room#id))
+        | `Mouse_wheel -> ()
+        (* TODO change. mouse_wheel should be captured by the widget itself. *)
         | `Window_event ->
           let wid = get e window_event_id in
           printd debug_event "Window event [%d]" wid;

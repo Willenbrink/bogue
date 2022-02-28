@@ -7,13 +7,13 @@ module T = Trigger
 let example () =
   let b = W.check_box () in
   let l = new Label.t "Init" in
-  let comb = object
+  let comb = object (self)
     inherit ['a] Row.t [b |> W.gen; l |> W.gen]
     method! perform =
-      let bool = b#perform in
-      if bool
-      then l#set_text "Checked"
-      else l#set_text "Unchecked"
+      (if b#perform
+       then l#set_text "Checked"
+       else l#set_text "Unchecked");
+      self#perform
   end
   in
   (* let comb = new Row.t [b |> W.gen; l |> W.gen] in *)

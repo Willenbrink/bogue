@@ -42,6 +42,8 @@ class ['a] t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
 
     method triggers = []
 
+    method handle _ _ = failwith "Box#handle called"
+
     (* As all widget display functions, the geometry g must be already scaled. *)
     method display canvas layer geom=
       let open Draw in

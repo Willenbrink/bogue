@@ -100,8 +100,8 @@ class virtual ['a] stateful init =
     method state = state
   end
 
-exception%effect Await : Trigger.t list -> 'a
-exception%effect Await_Draw : (Trigger.t list * Draw.blit list) -> 'a
+exception%effect Await : Trigger.t list -> (Sdl.event * Draw.geometry)
+(* exception%effect Await_Draw : (Trigger.t list * Draw.blit list) -> 'a *)
 
 class virtual ['a] w ?id size name cursor =
   object (self)
@@ -115,10 +115,10 @@ class virtual ['a] w ?id size name cursor =
 
     (* The set of interesting events. TODO change type to variant *)
     method virtual triggers : Trigger.t list
-    method handle (ev : Sdl.event) (geom : Draw.geometry) : unit =
-      Printf.printf "Handle %i at %s\n" (Trigger.of_event ev) name;
-      List.map string_of_int self#triggers
-      |> List.iter print_endline
+    method virtual handle : Sdl.event -> Draw.geometry -> 'a
+    (* Printf.printf "Handle %i at %s\n" (Trigger.of_event ev) name; *)
+    (* List.map string_of_int self#triggers *)
+    (* |> List.iter print_endline *)
 
     method update =
       (* ask for refresh *)
@@ -140,23 +140,24 @@ class virtual ['a] w ?id size name cursor =
 
 
     method perform : 'a =
-      EffectHandlers.perform (Await self#triggers)
-    (* Display self (including all content)
-       Wait for event + Perform state update
-       call display on self again (If params change, discontinue continuation) *)
-    method show canvas layer geom : 'a =
-      let bl = self#display canvas layer geom in
-      begin
-        try
-          self#perform |> ignore
-        (* This should likely only be done at the top widget/layout as we DONT want to
-           ignore actual values. A window consisting only of a text input is invalid.
-           What happens on input? Therefore show should only exist where perform has type unit*)
-        with [%effect? (Await triggers), k] ->
-          EffectHandlers.perform (Await_Draw (triggers, bl))
-          |> EffectHandlers.Deep.continue k
-      end;
-      self#show canvas layer geom
+      let ev,geom = EffectHandlers.perform (Await self#triggers) in
+      self#handle ev geom
+      (* Display self (including all content)
+         Wait for event + Perform state update
+         call display on self again (If params change, discontinue continuation) *)
+      (* method show canvas layer geom : 'a = *)
+      (*   let bl = self#display canvas layer geom in *)
+      (*   begin *)
+      (*     try *)
+      (*       self#perform |> ignore *)
+      (*     (\* This should likely only be done at the top widget/layout as we DONT want to *)
+      (*        ignore actual values. A window consisting only of a text input is invalid. *)
+      (*        What happens on input? Therefore show should only exist where perform has type unit*\) *)
+      (*     with [%effect? (Await triggers), k] -> *)
+      (*       EffectHandlers.perform (Await_Draw (triggers, bl)) *)
+      (*       |> EffectHandlers.Deep.continue k *)
+      (*   end; *)
+      (*   self#show canvas layer geom *)
 
   end
 

@@ -29,7 +29,7 @@ let update box room =
   printd debug_graphics "Rendering snapshot...";
   (* Now we assume that the blits are empty... TODO check this and issue an
      error otherwise *)
-  Layout.display ~pos0:(-x,-y) room;
+  Layout.display room;
   let save = Draw.push_target renderer target in
   Draw.render_all_layers (room#layer);
   Draw.pop_target renderer save;

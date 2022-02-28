@@ -48,7 +48,6 @@ let rec layout_up ?(indent = "") r =
     sprintf "%s┃ has anim: %s\n" indent (bool (L.has_anim r));
     sprintf "%s┃ clip: %s\n" indent (bool (r#clip));
     sprintf "%s┃ keyboard_focus: %s\n" indent (option bool r#keyboard_focus);
-    sprintf "%s┃ house: %s\n" indent (option (layout_up ~indent:(indent^"┃  ")) r#house);
     sprintf "%s┗━" indent ] in
   String.concat "" list
 
@@ -62,7 +61,6 @@ let rec layout_down ?(indent = "") r =
     sprintf "%s┃ anim: %s\n" indent (bool (L.has_anim r));
     sprintf "%s┃ clip: %s\n" indent (bool (r#clip));
     sprintf "%s┃ keyboard_focus: %s\n" indent (option bool r#keyboard_focus);
-    sprintf "%s┃ house: %s\n" indent (option house r#house);
     sprintf "%s┃ content: %s\n" indent (full_content ~indent:(indent^"┃  ") r#content);
     sprintf "%s┗━" indent ] in
   String.concat "" list
@@ -79,8 +77,8 @@ let dump r =
 
 let layout_error_kf room msg =
   Printf.kfprintf (fun ch -> flush ch) stderr msg;
-  dump (L.top_house room);;
+  dump room
 
 let layout_error room msg =
   output_string stderr msg;
-  dump (L.top_house room);;
+  dump room

@@ -168,6 +168,8 @@ class ['a] t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font =
 
     method triggers = []
 
+    method handle _ _ = failwith "Text Display#handle called"
+
     method get_font = Draw.get_font font (Theme.scale_int font_size)
 
     method display canvas layer g =

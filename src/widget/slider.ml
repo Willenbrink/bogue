@@ -261,13 +261,15 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(init = 0) ?(length = 200
 
     method triggers = Trigger.(buttons_down @ buttons_up @ pointer_motion @ [key_down])
 
-    method! handle ev _ = Trigger.(match of_event ev with
+    method handle ev _ = Trigger.(match of_event ev with
         | x when List.mem x buttons_down -> self#click ev
         | x when List.mem x buttons_up -> self#release
         | x when List.mem x pointer_motion && (mm_pressed ev || event_kind ev = `Finger_motion)
           -> self#slide ev; self#update
         | x when List.mem x [key_down] -> self#receive_key ev
-      )
+        | _ -> assert false (* TODO *)
+      );
+      self#state
 
     method! focus_with_keyboard = self#focus
 

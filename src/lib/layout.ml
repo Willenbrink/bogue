@@ -15,6 +15,7 @@
    widgets with a connection between them to synchronize the data *)
 
 open Utils
+module W = Widget
 
 (* FIXME copy of style? *)
 type background = (* TODO instead we should keep track of how the box was created... in case we want to recreate (eg. use it for another window... ?) *)
@@ -108,11 +109,11 @@ let sprint_id r =
       | "" -> ""
       | s -> Printf.sprintf " (%s)" s)
 
-class ['a] t ?id ?name ?(set_house = true) ?(adjust = Fit)
+class ['a] t ?id ?name ?(adjust = Fit)
     ?(resize = fun _ -> ()) ?(layer = Draw.get_current_layer ())
-    ?mask ?background ?shadow ?house ?keyboard_focus ?(mouse_focus=false)
+    ?mask ?background ?shadow ?keyboard_focus ?(mouse_focus=false)
     ?(show = true) ?(clip = false) ?(draggable = false) ?canvas
-    _geometry content =
+    _geometry (content : 'a W.t) =
   object (self)
     (* FIXME what is the size of a room? We have a resize but no base size *)
     inherit Base.common ?id ?name (0,0) ()
@@ -209,18 +210,6 @@ class ['a] t ?id ?name ?(set_house = true) ?(adjust = Fit)
     method canvas = canvas
     method set_canvas x = canvas <- x
 
-    (* house = parent: this is the "room" that contains this room in his "Rooms"
-    *)
-    (* this is mutable because of cyclic definition: one cannot set the house
-       before defining it... It is our responsibility to make sure that the house
-       really corresponds to the parent element, in order to avoid cycles etc. *)
-    (* cache : Sdlvideo.surface; *) (* ou texture ? mettre un cache pour
-                                       accélerer l'affichage, plutôt que d'effacer
-                                       tout à chaque itération ? *)
-    val mutable house : 'a t option = house
-    method house = house
-    method set_house x = house <- x
-
     (* set interactively when has mouse focus *)
     val mutable mouse_focus = mouse_focus
     method mouse_focus = mouse_focus
@@ -263,7 +252,7 @@ class ['a] t ?id ?name ?(set_house = true) ?(adjust = Fit)
       let widget = self#content in
       let {x;y;w;h;voffset} = self#current_geom in
       (if List.mem (Trigger.of_event ev) widget#triggers
-       then widget#handle ev Draw.{x;y;w;h;voffset});
+       then widget#handle ev Draw.{x;y;w;h;voffset} |> ignore);
       Widget.wake_up_all ev widget
   end
 
@@ -349,8 +338,6 @@ let rec remove_wtable room =
    in an event. (?) *)
 let keyboard_focus_before_tab : Widget.common option ref = ref None
 
-let create = new t ~set_house:true
-
 (* return the first resident widget with show=true inside the layout, or
    Not_found *)
 let rec first_show_widget layout =
@@ -395,17 +382,6 @@ let window t = match t#canvas with
                           because no canvas was defined" (sprint_id t);
       raise Not_found
     end
-
-(* return the top-level layout *)
-(* This is relevent only once the main loop has started. Before this, the
-   top_house is not even created, so it will not return what you expect. *)
-let rec top_house layout =
-  match layout#house with
-  | None -> layout
-  | Some r -> top_house r
-
-let is_top layout =
-  layout#house = None
 
 let get_canvas l =
   match l#canvas with
@@ -469,10 +445,6 @@ let width l =
 let height l =
   l#current_geom.h
 
-let resize room =
-  do_option room#house (fun house ->
-      room#resize (get_size house))
-
 let disable_resize room =
   room#set_resize (fun _ -> ())
 
@@ -480,10 +452,7 @@ let resize_content room = room#content#resize (get_size room)
 
 (* l must be the top house *)
 let adjust_window_size l =
-  if not (is_top l)
-  then printd debug_error "[adjust_window_size] should only be called with a top \
-                           house, what %s is not." (sprint_id l)
-  else if l#canvas <> None
+  if l#canvas <> None
   then let w,h = get_physical_size l in
     let win = window l in
     if (w,h) <> Sdl.get_window_size win
@@ -517,7 +486,7 @@ let set_size ?(keep_resize = false) ?(check_window = true) ?(update_bg = false) 
   if update_bg && l#canvas <> None then compute_background l;
   (* = ou plutot unload_background ?? *)
   if not keep_resize then disable_resize l;
-  if check_window && is_top l then adjust_window_size l;
+  if check_window then adjust_window_size l;
   resize_content l
 
 let set_height ?keep_resize ?check_window ?update_bg l h =
@@ -541,16 +510,6 @@ let xpos l =
 (** get current absolute y position *)
 let ypos l =
   l#current_geom.y
-
-(* left absolute coordinate of the layout's house *)
-let x_origin l = match l#house with
-  | None -> 0
-  | Some h -> xpos h
-
-(* top absolute coordinate of the layout's house *)
-let y_origin l = match l#house with
-  | None -> 0
-  | Some h -> ypos h
 
 (* position of room relative to house *)
 let pos_from house room =
@@ -644,18 +603,10 @@ let rec rec_set_show b l = l#set_show b
 (* of course this test will fail for hidden rooms *)
 let compute_pos room =
   let rec loop x0 y0 (r : 'a t) =
-    let x,y = x0 + (Avar.get r#geometry.x),
-              y0 + (Avar.get r#geometry.y) + (Avar.get r#geometry.voffset) in
-    match r#house with
-    | None -> x,y
-    | Some h -> loop x y h in
+    x0 + (Avar.get r#geometry.x),
+    y0 + (Avar.get r#geometry.y) + (Avar.get r#geometry.voffset)
+  in
   loop 0 0 room
-
-(** get absolute position of the parent house *)
-let house_pos room =
-  match room#house with
-  | None -> 0,0
-  | Some h -> compute_pos h;;
 
 (* return the first resident *below (or including) room* for which test w =
     true, or None *)
@@ -715,11 +666,6 @@ let remove_canvas room =
    house. This can be needed because inserting will trigger fit_content which
    uses current_geom *)
 let global_translate room dx dy =
-  do_option room#house (fun h ->
-      printd debug_warning
-        "You are translating the current_geom of room #%u which already has a \
-         house #%u. This is likely to have no effect, as the current_geom is \
-         automatically updated at each display" room#id h#id);
   room#set_current_geom { room#current_geom with x = room#current_geom.x + dx;
                                                  y = room#current_geom.y + dy }
 
@@ -738,8 +684,7 @@ let rec fit_content ?(sep = Theme.room_margin/2) l =
     let oldg = l#current_geom in
     if g' <> oldg then begin
       printd debug_graphics "ADJUST %s to New SIZE %d,%d" (sprint_id l) w h;
-      set_size l (g'.w, g'.h);
-      do_option l#house fit_content  (* we adjust the parent (???) *)
+      set_size l (g'.w, g'.h)
     end
 
 (** return the list of widgets used inside the layout *)
@@ -768,7 +713,7 @@ let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?draggable ?canvas ?layer
     | Some false -> None
     | None -> widget#guess_unset_keyboard_focus |> (fun b -> if b then None else Some false) in
   let geometry = geometry ~x ~y ~w ~h () in
-  create ?name ?background ?keyboard_focus ?draggable ?layer ?canvas
+  new t ?name ?background ?keyboard_focus ?draggable ?layer ?canvas
     geometry widget
 
 (* Set the given widget as the new resident of the given room. If w,h are not
@@ -806,17 +751,6 @@ let scale_resize_list ?scale_width ?scale_height ?scale_x ?scale_y (w,h) rooms =
   List.iter (scale_resize ?scale_width ?scale_height ?scale_x ?scale_y (w,h))
     rooms
 
-(* Overrides scale_resize to retreive the house size automatically. Can only be
-   applied if the room is already in a house. *)
-let scale_resize ?scale_width ?scale_height ?scale_x ?scale_y room =
-  match room#house with
-  | None -> printd debug_error
-              "Cannot compute the resize function of room %s since it does not \
-               belong to a house" (sprint_id room)
-  | Some h ->
-    let s = get_size h in
-    scale_resize ?scale_width ?scale_height ?scale_x ?scale_y s room
-
 let resize_follow_house room =
   room#set_resize (fun size ->
       set_size ~keep_resize:true room size)
@@ -851,7 +785,7 @@ let maximize l =
   setx l 0;
   sety l 0;
 
-  let w,h = get_size (top_house l) in
+  let w,h = get_size l in
   l#set_current_geom { l#current_geom with h; w };
   Avar.set l#geometry.h h;
   Avar.set l#geometry.w w;
@@ -1102,22 +1036,6 @@ let hide ?(duration=default_duration) ?(towards = Avar.Bottom) room =
     animate_voffset room voffset
   end
 
-(** scrolling to a particular vertical position y, for a prescribed duration. *)
-(* y should be between 0 and the total height *)
-(* Warning: in principle, room#house#clip should be set to true for this *)
-let scroll_to ?(duration=1000) (*?(weight=0.5)*) y room =
-  match room#house with
-  | None -> printd debug_error "Cannot scroll the top layout (need a house)"
-  | Some house ->
-    let current_vo = get_voffset house in
-    let y' = max 0 (min y (height room - height house)) in
-    let duration = duration * (abs(current_vo + y') + 1) / (abs (current_vo + y) + 1) in
-    printd debug_graphics "Scroll room#%u in house #%u, from %d to %d, duration=%d"
-      room#id house#id current_vo (-y') duration;
-    let voffset = Avar.fromto ~duration current_vo (-y') in
-    (* TODO: make a special animation when reaching bounds *)
-    animate_voffset house voffset
-
 (** relative scrolling *)
 (* the specifications are: the scrolling must be continuous (no jump), and n
    calls to (scroll dy) should end up in the same position as (scroll (n*dy)),
@@ -1131,40 +1049,6 @@ let scroll_to ?(duration=1000) (*?(weight=0.5)*) y room =
 let scroll_delay = ref 0.5
 
 let last_time = ref (Time.now ());; (* TODO replace this by the time of the Avar *)
-let scroll ?(duration=default_duration) dy room =
-  do_option room#house (fun house ->
-      let current_vo = get_voffset house in
-      let avar = house#geometry.voffset in
-      let jump_vo = Avar.final_value avar in (* à vérifier *)
-      let final_vo = - (max 0 (min (dy - jump_vo) (height room - height house))) in
-      let elapsed = Time.(now () - !last_time) in
-      let duration =
-        if (elapsed = 0)
-        || (elapsed > 300)
-        || current_vo = final_vo
-        then duration
-        else let speed = (float (-dy)) /. (float elapsed) in
-          (* = the speed that user expects to have, because she's rolling the
-             mouse wheel *this* fast. In pixels per ms. Now we need to adjust
-             the duration so that the expected final value is indeed reached at
-             that speed. *)
-          let final = current_vo + (round (speed *. (float duration))) in
-          if final = current_vo then duration
-          else abs (duration * (final_vo - current_vo) / (final - current_vo)) in
-      printd debug_graphics
-        "Scroll room #%u: current:%d, final_vo=%d, duration=%d"
-        room#id current_vo final_vo duration;
-      let voffset = Avar.fromto ~duration current_vo final_vo in
-      last_time := Time.now ();
-      animate_voffset house voffset)
-
-(* find a parent whose house has the 'clip' property *)
-let rec find_clip_house room =
-  match room#house with
-  | None -> None
-  | Some h ->
-    if h#clip then Some room
-    else find_clip_house h
 
 (** add fade_in transform to the existing animation of the room *)
 let fade_in ?duration ?(from_alpha = 0.) ?(to_alpha = 1.) room =
@@ -1246,7 +1130,7 @@ let mouse_motion_x ?dx ?modifier room =
   let init () =
     x0 := default dx (fst (Mouse.window_pos (window room)) - xpos room) in
   let update _ _ =
-    let x = fst (Mouse.window_pos (window room)) - (x_origin room) - !x0 in
+    let x = fst (Mouse.window_pos (window room)) - !x0 in
     match modifier with
     | None -> x
     | Some f -> x + f x in
@@ -1257,7 +1141,7 @@ let mouse_motion_y ?dy ?modifier room =
   let init () =
     y0 := default dy (snd (Mouse.window_pos (window room)) - ypos room) in
   let update _ _ =
-    let y = snd (Mouse.window_pos (window room)) - (y_origin room) - !y0 in
+    let y = snd (Mouse.window_pos (window room)) - !y0 in
     match modifier with
     | None -> y
     | Some f -> y + f y in
@@ -1391,12 +1275,8 @@ let rec display_loop x0 y0 clip0 tr0 (r : 'a t) =
 (* this function sends all the blits to be displayed to the layers *)
 (* it does not directly interact with the renderer *)
 (* pos0 is the position of the house containing the room *)
-let display ?pos0 (room : 'a t) =
-  let x0,y0 = match pos0 with
-    | None -> house_pos room
-    | Some p -> p
-  in
-  display_loop x0 y0 None (Draw.make_transform ()) room
+let display (room : 'a t) =
+  display_loop 0 0 None (Draw.make_transform ()) room
 
 let get_focus room =
   room#mouse_focus
@@ -1463,21 +1343,17 @@ let render (layout : 'a t) =
 
 (* the function to call when the window has been resized *)
 let resize_from_window ?(flip=true) layout =
-  let top = top_house layout in
-  if not (Widget.equal layout top)
-  then printd debug_error "The layout for resizing window should be the top \
-                           layout";
-  let w,h = Sdl.get_window_size (window top)
+  let w,h = Sdl.get_window_size (window layout)
             |> Draw.unscale_pos in
-  let w', h' = get_size top in
+  let w', h' = get_size layout in
   if (w',h') <> (w,h)
   then begin
     (* TODO in rare occasions, it might happen that this test is different
        from get_physical_size top <> Sdl.get_window_size win*)
     printd debug_graphics "Resize (%d,%d) --> (%d,%d)" w' h' w h;
-    set_size ~keep_resize:true ~check_window:false top (w,h);
-    Draw.update_background (get_canvas top);
-    if flip then Draw.sdl_flip (renderer top)
+    set_size ~keep_resize:true ~check_window:false layout (w,h);
+    Draw.update_background (get_canvas layout);
+    if flip then Draw.sdl_flip (renderer layout)
   end
 (* : somehow we need this intermediate flip so that the renderer takes into
     account the new size. Otherwise texture are still clipped to the old
@@ -1487,10 +1363,7 @@ let resize_from_window ?(flip=true) layout =
 (** initialize SDL if necessary and create a window of the size of the layout *)
 let make_window ?window layout =
   printd debug_graphics "Make window";
-  let top = top_house layout in
-  if not (Widget.equal layout top)
-  then printd debug_error "  The layout for creating a window should be the top layout";
-  let w,h = get_physical_size top in
+  let w,h = get_physical_size layout in
   let wmax, hmax = 4096, 4096 in
   (* = TODO ? instead clip to ri_max_texture_width,ri_max_texture_height ? *)
   if wmax < w || hmax < h
@@ -1499,7 +1372,7 @@ let make_window ?window layout =
   let h = min h hmax in
   let x,y = get_window_pos layout in
   let canvas = Draw.init ?window ~name:layout#name ?x ?y ~w ~h () in
-  global_set_canvas top canvas
+  global_set_canvas layout canvas
 
 (* adjust the window size to the top layout *)
 (* This should enforced all the time *)

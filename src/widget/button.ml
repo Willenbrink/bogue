@@ -63,11 +63,13 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
 
     method triggers = Trigger.(buttons_down @ buttons_up @ [mouse_enter; mouse_leave])
 
-    method! handle ev _ = Trigger.(match of_event ev with
+    method handle ev _ = Trigger.(match of_event ev with
         | x when List.mem x buttons_down -> self#press
         | x when List.mem x buttons_up -> self#release
         | x when x = mouse_enter -> self#mouse_enter
-        | x when x = mouse_leave -> self#mouse_leave)
+        | x when x = mouse_leave -> self#mouse_leave
+        | _ -> failwith "Invalid event");
+      self#state
 
     method text =
       if self#state

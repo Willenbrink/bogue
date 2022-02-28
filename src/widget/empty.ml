@@ -9,5 +9,7 @@ class ['a] t ?id size =
 
     method triggers = []
 
+    method handle _ _ = failwith "Empty#handle called"
+
     method display _ _ _ = []
   end

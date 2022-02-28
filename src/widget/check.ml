@@ -21,7 +21,7 @@ class t ?(init = false) ?(style = Square) () =
   in
 
   object (self)
-    inherit [bool] w size "Check" Cursor.Hand as super
+    inherit [bool] w size "Check" Cursor.Hand
     inherit [bool] stateful init
 
     method set_state x = state <- x
@@ -29,12 +29,11 @@ class t ?(init = false) ?(style = Square) () =
     method unload = ()
 
     method triggers = Trigger.buttons_down
-    method! handle ev geom =
-      super#handle ev geom;
-      print_endline (string_of_bool state);
-      match Trigger.event_kind ev with
-      | `Mouse_button_down -> state <- (not state); self#update
-      | _ -> ()
+    method handle ev _ =
+      (match Trigger.event_kind ev with
+       | `Mouse_button_down -> state <- (not state); self#update
+       | _ -> ());
+      self#state
 
     method style = style
 

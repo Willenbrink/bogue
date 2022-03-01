@@ -122,7 +122,7 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
         | x when List.mem x Sdl.Event.[text_editing; text_input; key_down; key_up]
           -> self#receive_key ev
         | _ -> assert false (* TODO *));
-      self#state
+      Some self#state
 
     method text = String.concat "" keys
     (* because there is a length test, it should be placed ad the end of

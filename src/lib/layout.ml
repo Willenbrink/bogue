@@ -109,10 +109,6 @@ let sprint_id r =
       | "" -> ""
       | s -> Printf.sprintf " (%s)" s)
 
-type cc =
-  | Cc : Trigger.t list * (Sdl.event * Draw.geometry, _) EffectHandlers.Deep.continuation -> cc
-  | Invalid
-
 class ['a] t ?id ?name ?(adjust = Fit)
     ?(resize = fun _ -> ()) ?(layer = Draw.get_current_layer ())
     ?mask ?background ?shadow ?keyboard_focus ?(mouse_focus=false)
@@ -252,32 +248,35 @@ class ['a] t ?id ?name ?(adjust = Fit)
     method draggable = draggable
     method set_draggable x = draggable <- x
 
-    val mutable cc = Invalid
+    (* val mutable cc = W.Invalid *)
 
     (* return the resident widget, or Not_found *)
     method handle_widget ev =
-      let Cc (triggers,k) = cc in
+      (* let W.Cc (triggers,cc) = cc in *)
       let widget = self#content in
       let {x;y;w;h;voffset} = self#current_geom in
-      if List.mem (Trigger.of_event ev) triggers
+      if List.mem (Trigger.of_event ev) widget#triggers
       then begin
-        EffectHandlers.Deep.continue k (ev,Draw.{x;y;w;h;voffset})
+        print_endline "handle_w";
+        widget#handle ev Draw.{x;y;w;h;voffset}
         |> ignore;
         Widget.wake_up_all ev widget;
         widget#update
       end
       else
-        Widget.wake_up_all ev widget
+        Widget.wake_up_all ev widget;
+      (* print_endline "handle_w return" *)
 
-    initializer
-      (* This uses deep continuations.
-         While I do not understand it in detail, this essentially means that
-         every Await thrown in the continuation will also be handled here.
-         I.e. exp will never be evaluated in try continue k with Await k -> exp *)
-      match content#perform with
-      | _ -> failwith "Widget terminated!"
-      | [%effect? (W.Await triggers), k] ->
-        cc <- Cc (triggers, k)
+      (* initializer *)
+      (*   (\* This uses deep continuations. *)
+      (*      While I do not understand it in detail, this essentially means that *)
+      (*      every Await thrown in the continuation will also be handled here. *)
+      (*      I.e. exp will never be evaluated in try continue k with Await k -> exp *\) *)
+      (*   match content#perform with *)
+      (*   | _ -> failwith "Widget terminated!" *)
+      (*   | [%effect? (W.Await triggers), k] -> *)
+      (*     print_endline "Set cc in layout"; *)
+      (*     cc <- Cc (triggers, (fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))) *)
   end
 
 let x = (None : bool t option)

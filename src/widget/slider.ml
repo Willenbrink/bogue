@@ -269,7 +269,7 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(init = 0) ?(length = 200
         | x when List.mem x [key_down] -> self#receive_key ev
         | _ -> assert false (* TODO *)
       );
-      self#state
+      Some self#state
 
     method! focus_with_keyboard = self#focus
 

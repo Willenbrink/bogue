@@ -33,7 +33,7 @@ class t ?(init = false) ?(style = Square) () =
       (match Trigger.event_kind ev with
        | `Mouse_button_down -> state <- (not state); self#update
        | _ -> ());
-      self#state
+      Some self#state
 
     method style = style
 

@@ -102,6 +102,10 @@ class virtual ['a] stateful init =
 
 exception%effect Await : Trigger.t list -> (Sdl.event * Draw.geometry)
 (* exception%effect Await_Draw : (Trigger.t list * Draw.blit list) -> 'a *)
+type 'a cc =
+  | Cc : Trigger.t list * (Sdl.event -> Draw.geometry -> 'a) -> 'a cc
+  | Invalid
+
 
 class virtual ['a] w ?id size name cursor =
   object (self)
@@ -115,14 +119,19 @@ class virtual ['a] w ?id size name cursor =
 
     (* The set of interesting events. TODO change type to variant *)
     method virtual triggers : Trigger.t list
-    method virtual handle : Sdl.event -> Draw.geometry -> 'a
+    method virtual handle : Sdl.event -> Draw.geometry -> 'a option
     (* Printf.printf "Handle %i at %s\n" (Trigger.of_event ev) name; *)
     (* List.map string_of_int self#triggers *)
     (* |> List.iter print_endline *)
 
     method perform : 'a =
-      let ev,geom = EffectHandlers.perform (Await self#triggers) in
-      self#handle ev geom
+      Printf.printf "%s awaiting event\n" self#name;
+      let ev, geom = EffectHandlers.perform (Await self#triggers) in
+      Printf.printf "%s got event\n" self#name;
+      match self#handle ev geom with
+      | Some res -> res
+      | None -> self#perform
+
     (* Display self (including all content)
        Wait for event + Perform state update
        call display on self again (If params change, discontinue continuation) *)
@@ -141,14 +150,7 @@ class virtual ['a] w ?id size name cursor =
     (*   self#show canvas layer geom *)
 
     method update =
-      (* ask for refresh *)
-      (* Warning: this is frequently called by other threads *)
-      (* Warning: this *resets to 0* the user_window_id *)
-      (* anyway, it is not clear if the user_window_id field for created event types
-         is really supported by (T)SDL *)
-      printd debug_board "Please refresh";
-      (* if !draw_boxes then Trigger.(push_event refresh_event) *)
-      (* else *)
+      Printf.printf "updating %s\n" self#name;
       Trigger.push_redraw self#id
     (* refresh is not used anymore. We redraw everyhting at each frame ... *)
     (* before, it was not very subtle either: if !draw_boxes is false, we ask for

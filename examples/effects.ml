@@ -6,8 +6,12 @@ module T = Trigger
 
 let example () =
   let b = new Check.t () in
+  let b' = new Check.t () in
+  let b'' = new Check.t () in
   let l = new Label.t "Init" in
-  let comb = object (self)
+  let l' = new Label.t "Init2" in
+  let l'' = new Label.t "Init3" in
+  let comb b l = object (self)
     inherit ['a] Row.t [b |> W.gen; l |> W.gen]
     method! perform =
       if b#perform
@@ -16,7 +20,8 @@ let example () =
       self#perform
   end
   in
-  let board = make @@ L.resident comb in
+  let col = new Col.t [comb b l; comb b' l'; comb b'' l''] in
+  let board = make @@ L.resident col in
   run board
 
 let _ =

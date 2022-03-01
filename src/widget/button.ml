@@ -69,7 +69,7 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
         | x when x = mouse_enter -> self#mouse_enter
         | x when x = mouse_leave -> self#mouse_leave
         | _ -> failwith "Invalid event");
-      self#state
+      Some self#state
 
     method text =
       if self#state

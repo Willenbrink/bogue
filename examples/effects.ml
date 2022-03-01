@@ -5,18 +5,17 @@ module L = Layout
 module T = Trigger
 
 let example () =
-  let b = W.check_box () in
+  let b = new Check.t () in
   let l = new Label.t "Init" in
   let comb = object (self)
     inherit ['a] Row.t [b |> W.gen; l |> W.gen]
     method! perform =
-      (if b#perform
-       then l#set_text "Checked"
-       else l#set_text "Unchecked");
+      if b#perform
+      then l#set_text "Checked"
+      else l#set_text "Unchecked";
       self#perform
   end
   in
-  (* let comb = new Row.t [b |> W.gen; l |> W.gen] in *)
   let board = make @@ L.resident comb in
   run board
 

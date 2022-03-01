@@ -13,8 +13,6 @@ module E = Sdl.Event
 
 exception Exit
 
-let x = (None : bool Layout.t option)
-
 type 'a board = {
   mutable windows: 'a Window.t list;
   (* : one layout per window. This is (mostly) redundant with the next field

@@ -8,5 +8,6 @@
 (executable
  (name effects)
  (modules effects)
-  (modes byte exe)
+ (preprocess
+  (pps ppx_effects))
  (libraries bogue))

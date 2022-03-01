@@ -120,6 +120,26 @@ class virtual ['a] w ?id size name cursor =
     (* List.map string_of_int self#triggers *)
     (* |> List.iter print_endline *)
 
+    method perform : 'a =
+      let ev,geom = EffectHandlers.perform (Await self#triggers) in
+      self#handle ev geom
+    (* Display self (including all content)
+       Wait for event + Perform state update
+       call display on self again (If params change, discontinue continuation) *)
+    (* method show canvas layer geom : 'a = *)
+    (*   let bl = self#display canvas layer geom in *)
+    (*   begin *)
+    (*     try *)
+    (*       self#perform |> ignore *)
+    (*     (\* This should likely only be done at the top widget/layout as we DONT want to *)
+    (*        ignore actual values. A window consisting only of a text input is invalid. *)
+    (*        What happens on input? Therefore show should only exist where perform has type unit*\) *)
+    (*     with [%effect? (Await triggers), k] -> *)
+    (*       EffectHandlers.perform (Await_Draw (triggers, bl)) *)
+    (*       |> EffectHandlers.Deep.continue k *)
+    (*   end; *)
+    (*   self#show canvas layer geom *)
+
     method update =
       (* ask for refresh *)
       (* Warning: this is frequently called by other threads *)
@@ -137,28 +157,6 @@ class virtual ['a] w ?id size name cursor =
        probably need it. This should not be necessary in case we draw a solid
        background -- for instance if draw_boxes = true *)
     method virtual display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list
-
-
-    method perform : 'a =
-      let ev,geom = EffectHandlers.perform (Await self#triggers) in
-      self#handle ev geom
-      (* Display self (including all content)
-         Wait for event + Perform state update
-         call display on self again (If params change, discontinue continuation) *)
-      (* method show canvas layer geom : 'a = *)
-      (*   let bl = self#display canvas layer geom in *)
-      (*   begin *)
-      (*     try *)
-      (*       self#perform |> ignore *)
-      (*     (\* This should likely only be done at the top widget/layout as we DONT want to *)
-      (*        ignore actual values. A window consisting only of a text input is invalid. *)
-      (*        What happens on input? Therefore show should only exist where perform has type unit*\) *)
-      (*     with [%effect? (Await triggers), k] -> *)
-      (*       EffectHandlers.perform (Await_Draw (triggers, bl)) *)
-      (*       |> EffectHandlers.Deep.continue k *)
-      (*   end; *)
-      (*   self#show canvas layer geom *)
-
   end
 
 (** create new connection *)

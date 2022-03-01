@@ -109,11 +109,16 @@ let sprint_id r =
       | "" -> ""
       | s -> Printf.sprintf " (%s)" s)
 
+type cc =
+  | Cc : Trigger.t list * (Sdl.event * Draw.geometry, _) EffectHandlers.Deep.continuation -> cc
+  | Invalid
+
 class ['a] t ?id ?name ?(adjust = Fit)
     ?(resize = fun _ -> ()) ?(layer = Draw.get_current_layer ())
     ?mask ?background ?shadow ?keyboard_focus ?(mouse_focus=false)
     ?(show = true) ?(clip = false) ?(draggable = false) ?canvas
     _geometry (content : 'a W.t) =
+
   object (self)
     (* FIXME what is the size of a room? We have a resize but no base size *)
     inherit Base.common ?id ?name (0,0) ()
@@ -247,14 +252,35 @@ class ['a] t ?id ?name ?(adjust = Fit)
     method draggable = draggable
     method set_draggable x = draggable <- x
 
+    val mutable cc = Invalid
+
     (* return the resident widget, or Not_found *)
     method handle_widget ev =
+      let Cc (triggers,k) = cc in
       let widget = self#content in
       let {x;y;w;h;voffset} = self#current_geom in
-      (if List.mem (Trigger.of_event ev) widget#triggers
-       then widget#handle ev Draw.{x;y;w;h;voffset} |> ignore);
-      Widget.wake_up_all ev widget
+      if List.mem (Trigger.of_event ev) triggers
+      then begin
+        EffectHandlers.Deep.continue k (ev,Draw.{x;y;w;h;voffset})
+        |> ignore;
+        Widget.wake_up_all ev widget;
+        widget#update
+      end
+      else
+        Widget.wake_up_all ev widget
+
+    initializer
+      (* This uses deep continuations.
+         While I do not understand it in detail, this essentially means that
+         every Await thrown in the continuation will also be handled here.
+         I.e. exp will never be evaluated in try continue k with Await k -> exp *)
+      match content#perform with
+      | _ -> failwith "Widget terminated!"
+      | [%effect? (W.Await triggers), k] ->
+        cc <- Cc (triggers, k)
   end
+
+let x = (None : bool t option)
 
 (* The whole connected component of a layout is a tree, whose vertices (nodes)
    are rooms and leaves are widgets (=Resident). The number of branches (=Rooms
@@ -342,9 +368,10 @@ let keyboard_focus_before_tab : Widget.common option ref = ref None
    Not_found *)
 let rec first_show_widget layout =
   if layout#show
-  then match layout#content with
-    | w ->
-      (printd debug_board "first_show_widget selects %u" w#id; w)
+  then
+    let w = layout#content in
+    printd debug_board "first_show_widget selects %u" w#id;
+    w
   else raise Not_found
 
 (* only for debugging: *)

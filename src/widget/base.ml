@@ -31,6 +31,13 @@ let of_id_opt id =
   try Some (of_id id) with
   | Not_found -> None
 
+exception%effect Await : Trigger.t list -> (Sdl.event * Draw.geometry)
+exception Reset
+
+type 'a cc =
+  | Cc : Trigger.t list * (Sdl.event -> Draw.geometry -> 'a) -> 'a cc
+  | Init
+
 class connection ?target action ?(priority=Forget) ?join triggers =
   object
     method action (ev : Sdl.event) : unit =
@@ -82,56 +89,7 @@ and virtual common ?id ?(name = "UNNAMED") size () =
 
     initializer WHash.add common_wtable (self :> < id : int; name : string >)
 
-
-
-    method focus_with_keyboard = ()
-    method remove_keyboard_focus = ()
-    method guess_unset_keyboard_focus = true
-  end
-
-(* A virtual class storing a state. By convention, a widget has a state =/= unit when it is
-   an interactive widget. A label therefore has unit state, even though it can be changed.
-   TODO Investigate how this interacts with inheritance. What about a clickable label?
-   It should work well as the type of inheritance can be specified.
-*)
-class virtual ['a] stateful init =
-  object
-    val mutable state : 'a = init
-    method state = state
-  end
-
-exception%effect Await : Trigger.t list -> (Sdl.event * Draw.geometry)
-(* exception%effect Await_Draw : (Trigger.t list * Draw.blit list) -> 'a *)
-type 'a cc =
-  | Cc : Trigger.t list * (Sdl.event -> Draw.geometry -> 'a) -> 'a cc
-  | Invalid
-
-
-class virtual ['a] w ?id size name cursor =
-  object (self)
-    inherit common ?id ~name size ()
-
-    method canvas = None
-
-    val mutable _cursor : Cursor.t = cursor
-    method cursor = _cursor
-    method set_cursor x = _cursor <- x
-
-    (* The set of interesting events. TODO change type to variant *)
-    method virtual triggers : Trigger.t list
-    method virtual handle : Sdl.event -> Draw.geometry -> 'a option
-    (* Printf.printf "Handle %i at %s\n" (Trigger.of_event ev) name; *)
-    (* List.map string_of_int self#triggers *)
-    (* |> List.iter print_endline *)
-
-    method perform : 'a =
-      Printf.printf "%s awaiting event\n" self#name;
-      let ev, geom = EffectHandlers.perform (Await self#triggers) in
-      Printf.printf "%s got event\n" self#name;
-      match self#handle ev geom with
-      | Some res -> res
-      | None -> self#perform
-
+    (* method virtual perform : 'a *)
     (* Display self (including all content)
        Wait for event + Perform state update
        call display on self again (If params change, discontinue continuation) *)
@@ -149,8 +107,53 @@ class virtual ['a] w ?id size name cursor =
     (*   end; *)
     (*   self#show canvas layer geom *)
 
+    method focus_with_keyboard = ()
+    method remove_keyboard_focus = ()
+    method guess_unset_keyboard_focus = true
+  end
+
+(* A virtual class storing a state. By convention, a widget has a state =/= unit when it is
+   an interactive widget. A label therefore has unit state, even though it can be changed.
+   TODO Investigate how this interacts with inheritance. What about a clickable label?
+   It should work well as the type of inheritance can be specified.
+*)
+class virtual ['a] stateful init =
+  object
+    val mutable state : 'a = init
+    method state = state
+  end
+
+class virtual ['a] w ?id size name cursor =
+  object (self)
+    inherit common ?id ~name size ()
+
+    method canvas = None
+
+    val mutable _cursor : Cursor.t = cursor
+    method cursor = _cursor
+    method set_cursor x = _cursor <- x
+
+    (* The set of interesting events. TODO change type to variant *)
+    (* FIXME this is obsolete and should be removed.
+       Instead, use the triggers provided by the Await effect.
+       There should be no triggers inherent to a widget except those defined in Await. *)
+    method virtual triggers : Trigger.t list
+    method virtual handle : Sdl.event -> Draw.geometry -> 'a option
+
+    method perform =
+      Printf.printf "%s ???\n" self#name;
+      let ev, geom = EffectHandlers.perform (Await self#triggers) in
+      Printf.printf "%s <--\n" self#name;
+      match self#handle ev geom with
+      | Some res ->
+        Printf.printf "%s succeeds\n" self#name;
+        res
+      | None ->
+        Printf.printf "%s fails\n" self#name;
+        self#perform
+
     method update =
-      Printf.printf "updating %s\n" self#name;
+      Printf.printf "%s updates\n" self#name;
       Trigger.push_redraw self#id
     (* refresh is not used anymore. We redraw everyhting at each frame ... *)
     (* before, it was not very subtle either: if !draw_boxes is false, we ask for

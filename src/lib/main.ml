@@ -385,7 +385,7 @@ let drag board ev room =
   (* TODO: drag and drop to another window *)
   | _ -> Some ev
 
-let activate : 'a. 'a board -> 'a Layout.t option -> unit = fun board roomo ->
+let activate : 'a board -> 'a Layout.t option -> unit = fun board roomo ->
   board.button_down <- roomo;
   (match board.keyboard_focus, roomo with
    | Some kr, Some mr when not (kr == mr) ->
@@ -400,7 +400,7 @@ let activate : 'a. 'a board -> 'a Layout.t option -> unit = fun board roomo ->
 let set_mouse_focus board target =
   check_mouse_motion ?target board
 
-let set_keyboard_focus (type a) (board : a board) (ro : a Layout.t option) =
+let set_keyboard_focus (board : 'a board) (ro : 'a Layout.t option) =
   activate board ro;
   board.keyboard_focus <- ro;
   do_option ro (fun r ->
@@ -429,7 +429,7 @@ let tab board =
 
 (** open/close the debugging window *)
 let toggle_debug_window =
-  let window = ref None in fun (board : unit board) ->
+  let window = ref None in fun (board : 'a board) ->
     match !window with
     | None ->
       print_endline "OPENING DEBUG WINDOW"
@@ -468,7 +468,7 @@ let refresh_custom_windows board =
     board.windows
 
 (* [one_step] is what is executed during the main loop *)
-let one_step (type a) ?before_display anim (start_fps, fps) ?clear (board : a board) =
+let one_step ?before_display anim (start_fps, fps) ?clear (board : 'a board) =
   Timeout.run ();
   let e = !Trigger.my_event in
   (* if not (is_fresh board) then Trigger.(push_event redraw_event); (* useful ? *) *)
@@ -854,7 +854,7 @@ let make_sdl_windows ?windows board =
 
 (* make the board. Each layout in the list will be displayed in a different
    window. *)
-let make (type a) ?(shortcuts = []) layout : a board =
+let make ?(shortcuts = []) layout : 'a board =
   let window = Window.create ~bogue:true layout in
   (* let canvas = match layouts with *)
   (*   | [] -> failwith "At least one layout is needed to make the board" *)
@@ -893,7 +893,7 @@ let make (type a) ?(shortcuts = []) layout : a board =
    CTRL-L which would occur before it. "after_display" means just after all
    textures have been calculated and rendered. Of course these two will not be
    executed at all if there is no event to trigger display. *)
-let run (type a) ?before_display ?after_display (board : a board) =
+let run ?before_display ?after_display (board : 'a board) =
   Trigger.flush_all ();
   if not (Sync.is_empty ()) then Trigger.push_action ();
   if not (Update.is_empty ()) then Update.push_all ();
@@ -933,9 +933,10 @@ let run (type a) ?before_display ?after_display (board : a board) =
 
   Trigger.renew_my_event ();
   let rec loop anim =
-    let anim' = one_step ?before_display ~clear:true anim fps board in
-    do_option after_display (fun f -> f ()); (* TODO ? *)
-    loop anim' in
+    let anim = one_step ?before_display ~clear:true anim fps board in
+    Option.iter (fun f -> f ()) after_display; (* TODO ? *)
+    loop anim
+  in
   try
     loop false
   with

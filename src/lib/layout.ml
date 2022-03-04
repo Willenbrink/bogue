@@ -113,8 +113,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
     ?(resize = fun _ -> ()) ?(layer = Draw.get_current_layer ())
     ?mask ?background ?shadow ?keyboard_focus ?(mouse_focus=false)
     ?(show = true) ?(clip = false) ?(draggable = false) ?canvas
-    _geometry (content : 'a W.t) =
-
+    _geometry (content' : 'a W.t) =
   object (self)
     (* FIXME what is the size of a room? We have a resize but no base size *)
     inherit Base.common ?id ?name (0,0) ()
@@ -189,7 +188,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
        alpha values. (TODO) *)
     method mask : Sdl.surface option = mask
 
-    val mutable content : 'a Widget.t = content
+    val mutable content : 'a Widget.t = content'
     method content = content
     method set_content x = content <- x
 
@@ -248,35 +247,56 @@ class ['a] t ?id ?name ?(adjust = Fit)
     method draggable = draggable
     method set_draggable x = draggable <- x
 
-    (* val mutable cc = W.Invalid *)
+    val mutable cc = None
 
     (* return the resident widget, or Not_found *)
     method handle_widget ev =
-      (* let W.Cc (triggers,cc) = cc in *)
       let widget = self#content in
       let {x;y;w;h;voffset} = self#current_geom in
-      if List.mem (Trigger.of_event ev) widget#triggers
-      then begin
-        print_endline "handle_w";
-        widget#handle ev Draw.{x;y;w;h;voffset}
-        |> ignore;
+      let geom = Draw.{x;y;w;h;voffset} in
+      match cc with
+      | None ->
+        print_endline "init in handle_w";
+        begin
+          match widget#perform with
+          | x ->
+            Printf.printf "Top Level Widget terminated with %b\n" x;
+            cc <- None
+          | [%effect? (W.Await triggers), k] ->
+            cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))
+        end;
         Widget.wake_up_all ev widget;
         widget#update
-      end
-      else
-        Widget.wake_up_all ev widget;
-      (* print_endline "handle_w return" *)
+      | Some (triggers, cont) ->
+        let widget = self#content in
+        if List.mem (Trigger.of_event ev) triggers
+        then begin
+          print_endline "handle_w";
+          begin
+            match cont ev geom with
+            | _ ->
+              Printf.printf "Top Level Widget terminated without retval\n";
+              cc <- None
+            | [%effect? (W.Await triggers), k] ->
+              cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))
+          end;
+          Widget.wake_up_all ev widget;
+          widget#update
+        end
+        else
+          Widget.wake_up_all ev widget;
+        (* print_endline "handle_w return" *)
 
-      (* initializer *)
-      (*   (\* This uses deep continuations. *)
-      (*      While I do not understand it in detail, this essentially means that *)
-      (*      every Await thrown in the continuation will also be handled here. *)
-      (*      I.e. exp will never be evaluated in try continue k with Await k -> exp *\) *)
-      (*   match content#perform with *)
-      (*   | _ -> failwith "Widget terminated!" *)
-      (*   | [%effect? (W.Await triggers), k] -> *)
-      (*     print_endline "Set cc in layout"; *)
-      (*     cc <- Cc (triggers, (fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))) *)
+        (* initializer *)
+        (*   (\* This uses deep continuations. *)
+        (*      While I do not understand it in detail, this essentially means that *)
+        (*      every Await thrown in the continuation will also be handled here. *)
+        (*      I.e. exp will never be evaluated in try continue k with Await k -> exp *\) *)
+        (*   match content#perform with *)
+        (*   | _ -> failwith "Widget terminated!" *)
+        (*   | [%effect? (W.Await triggers), k] -> *)
+        (*     print_endline "Set cc in layout"; *)
+        (*     cc <- Cc (triggers, (fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))) *)
   end
 
 let x = (None : bool t option)

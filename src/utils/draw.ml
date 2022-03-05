@@ -338,7 +338,7 @@ type geometry = {
   w : int;
   h : int;
   voffset : int;
-};;
+}
 
 (* get "physical size" in pixel from the geometry *)
 let scale_geom g =
@@ -360,8 +360,9 @@ let unscale_size = unscale_pos;;
 let geom_to_rect g =
   Sdl.Rect.create ~x:g.x ~y:g.y ~w:g.w ~h:g.h;;
 
-let make_geom ?(x=0) ?(y=0) ?(w=0) ?(h=0) ?(voffset=0) () =
-  { x; y; w; h; voffset };;
+let geometry ?(x=0) ?(y=0) ?(w=0) ?(h=0) ?(voffset=0) () =
+  { x; y; w; h; voffset }
+let make_geom = geometry (* TODO deprecate *)
 
 let window_id canvas =
   Sdl.get_window_id canvas.window;;

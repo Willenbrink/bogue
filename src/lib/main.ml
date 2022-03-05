@@ -14,9 +14,7 @@ module E = Sdl.Event
 exception Exit
 
 type 'a board = {
-  mutable windows: 'a Window.t list;
-  (* : one layout per window. This is (mostly) redundant with the next field
-     'windows_house' *)
+  mutable windows : 'a Layout.t list;
   mutable mouse_focus: 'a Layout.t option;
   (* : the room containing the mouse. It must contain a Widget. *)
   mutable keyboard_focus: 'a Layout.t option;
@@ -37,9 +35,6 @@ type 'a board = {
      when the window opens, but we dont want to activate a widget if it is
      located at 0,0...*)
 }
-
-let get_layouts board =
-  List.map Window.get_layout board.windows
 
 (* We return the mouse_focus. Sometimes it does not belong to the active tree,
    see example 19 (tabs) *)
@@ -103,7 +98,7 @@ let exit_board board =
   Update.clear ();
   Timeout.clear ();
   check_cemetery ();
-  List.iter close_window_layout (get_layouts board);
+  List.iter close_window_layout board.windows;
   board.mouse_focus <- None;
   board.keyboard_focus <- None;
   board.button_down <- None;
@@ -124,25 +119,23 @@ let display board =
   (* We flush the events asking for redrawing. TODO: make it window-specific. *)
   Trigger.(flush redraw);
   List.iter (fun w ->
-      if not (Window.is_fresh w) then Window.render w)
+      if not w#is_fresh then Layout.render w)
     board.windows
 
 (** Render all layers and flip window buffers, only for windows with the
     is_fresh=false field *)
 let flip ?clear board =
-  List.iter (Window.flip ?clear) board.windows;
+  List.iter (Layout.flip ?clear) board.windows;
   Draw.destroy_textures ()
 
 (** update window that was resized by user *)
 let resize window =
-  let layout = Window.get_layout window in
-  if Window.size window <> Layout.get_physical_size layout
+  if window#size <> Layout.get_physical_size window
   then begin
-    printd debug_graphics "Resize window (Layout #%u)" layout#id;
-    Layout.resize_from_window layout;
-    Window.render window;
-    Window.flip window;
-    Window.to_refresh window;
+    printd debug_graphics "Resize window (Layout #%u)" window#id;
+    Layout.render window;
+    Layout.flip window;
+    window#set_fresh false;
     (* Window.set_fresh window; ?*)
     (* we remove all the window_event_exposed event: *)
     (* TODO: move this to the reaction to the exposed event only ? *)
@@ -151,16 +144,14 @@ let resize window =
   end
 
 (** add a new window (given by the layout) to the board *)
-let add_window board layout =
-  let window = Window.create ~bogue:true layout in
-
+let add_window board window =
   (* update board *)
   let windows = List.rev (window :: (List.rev board.windows)) in
   set_windows board windows;
 
   (* show *)
-  Sdl.show_window (Layout.window layout);
-  Draw.update_background (Layout.get_canvas layout);
+  Sdl.show_window (Layout.window window);
+  Draw.update_background (Layout.get_canvas window);
 
   (* run *)
   display board;
@@ -168,7 +159,7 @@ let add_window board layout =
   flip board;
   (* We send the startup_event to all widgets *)
   List.iter (Widget.wake_up (Trigger.startup_event ()))
-    (List.flatten (List.map (fun x -> x#connections) (Layout.get_widgets layout)));
+    (List.flatten (List.map (fun x -> x#connections) (Layout.get_widgets window)));
   Trigger.renew_my_event ();
   window
 
@@ -179,17 +170,16 @@ let get_window_by_id board id =
   let rec loop = function
     | [] -> printd debug_error "There is no window with this id#%d" id;
       List.hd board.windows;
-    | w::rest -> if id = Window.id w then w
+    | w::rest -> if id = Layout.id w then w
       else loop rest in
   loop board.windows
 
 let remove_window board window =
-  let windows = List.filter (fun w -> not (Window.equal window w)) board.windows in
+  let windows = List.filter (fun w -> not (Widget.equal window w)) board.windows in
   set_windows board windows;
-  let layout = Window.get_layout window in
   printd debug_board "** Remove window #%u (Layout #%u)"
-    (Window.id window) layout#id;
-  close_window_layout layout;
+    (Layout.id window) window#id;
+  close_window_layout window;
   (* We reset all focus for safety. TODO: one could reset only those that
      belonged to the removed window. *)
   board.mouse_focus <- None;
@@ -199,9 +189,9 @@ let remove_window board window =
 (*************)
 let show board =
   List.iter (fun w ->
-      Sdl.show_window (Window.window w);
-      Window.to_refresh w;
-      Draw.update_background (Window.get_canvas w)) board.windows
+      Sdl.show_window (Layout.window w);
+      w#set_fresh false;
+      Draw.update_background (Layout.get_canvas w)) board.windows
 
 (* return the widget with mouse focus *)
 let mouse_focus_widget board =
@@ -219,7 +209,7 @@ let layout_focus board =
   match Sdl.get_mouse_focus () with
   | None -> None (* the mouse is outside of the SDL windows *)
   | Some w -> list_check_ok
-                (fun l -> same_window (Layout.window l)  w) (get_layouts board)
+                (fun l -> same_window (Layout.window l)  w) board.windows
 
 (** which window corresponds to the event ? *)
 let window_of_event board ev =
@@ -228,15 +218,15 @@ let window_of_event board ev =
       | `Bogue_redraw ->
         let id = E.(get ev user_code) in
         board.windows
-        |> List.map (fun x -> (x,[x.Window.layout#content]))
+        |> List.map (fun x -> (x,[x#content]))
         |> List.find (fun (_,cs) -> List.mem id (List.map (fun x -> x#id) cs))
         |> (fun (r,_) ->
-            let id = Sdl.get_window_id (Layout.window r.Window.layout) in
+            let id = Sdl.get_window_id (Layout.window r) in
             printd debug_event "Redraw event window_id=%d" id;
             id)
       | _ -> Trigger.window_id ev
     in
-    list_check_ok (fun w -> w_id = Window.id w) board.windows
+    list_check_ok (fun w -> w_id = Layout.id w) board.windows
   with Not_found ->
     printd debug_error "Search window for event %s caused an error" (Trigger.sprint_ev ev);
     None
@@ -302,13 +292,10 @@ let check_mouse_motion ?target board =
 (* Rm: in case of triggered action, this is already done by the redraw/refresh
    event *)
 
-let dragging = ref None;; (* the initial position of the dragged room *)
-(* put this in board, or local to the drag & drop functions ? *)
-
 (* guess which widget the event should be targetted to (or None) *)
 let hand_to_target_widget board ev =
   let wid = Trigger.window_id ev in
-  let roomo = List.find_opt (fun x -> Window.id x = wid) board.windows in
+  let roomo = List.find_opt (fun x -> Layout.id x = wid) board.windows in
   (* let roomo = *)
   (*   if not (E.(get ev typ) = Trigger.mouse_enter || *)
   (*           E.(get ev typ) = Trigger.mouse_leave) *)
@@ -336,54 +323,6 @@ let hand_to_target_widget board ev =
              (*                             the mouse enter/leave event" id) id *)
   (* in *)
   roomo
-
-let has_anim board =
-  (* !Avar.alive_animations > 0 || *)
-  (* useful ? only if we have some animated variables that are not used in the
-     Layout.display *)
-  (List.fold_left (fun b w ->
-       let h = Layout.has_anim (Window.get_layout w) in
-       if h then Window.to_refresh w;
-       h || b ) false board.windows)
-
-(* the "drop" part of drag-and-drop. It is only called by "drag" *)
-let drop board =
-  match board.button_down with
-  | None -> ()
-  | Some room -> begin
-      printd debug_board " ----> Drop";
-      (*board.button_down <- None;*)
-      let open Layout in
-      do_option !dragging (slide_to room);
-      dragging := None;
-    end
-
-(* to drag, we use the anim mechanism *)
-(* TODO: drag Rooms layouts, not only Residents *)
-let drag board ev room =
-  let open Layout in
-  match Trigger.event_kind ev with
-  | `Mouse_motion when not (!dragging <> None) && Trigger.mm_pressed ev ->
-    (* if room.keyboard_focus <> Some true (* TODO use a "dragable" property
-       instead *) then *)
-    (* save initial position: *)
-    dragging := Some (getx room, gety room);
-    follow_mouse room;
-    board.button_down <- Some room;
-    printd debug_board " ----> Drag";
-
-    None (* drag *)
-  | `Mouse_button_up when !dragging <> None -> drop board; Some ev
-  (* : we pass the button_up event *)
-  | `Mouse_motion when (!dragging <> None && E.(get ev mouse_motion_state) = 0l)
-    (* : button is not pressed *)
-    -> drop board; None
-  (* we do this because the mousebuttonup event might have been deleted before
-     treated... Problem: if the window initially has no focus, and you drag
-     something directly, and move the cursor out of the window, and then release
-     button, the mouse_button_up event is NOT registered... ??  *)
-  (* TODO: drag and drop to another window *)
-  | _ -> Some ev
 
 let activate : 'a board -> 'a Layout.t option -> unit = fun board roomo ->
   board.button_down <- roomo;
@@ -423,7 +362,7 @@ let tab board =
       | Some r -> r
       | None -> match layout_focus board with
         | Some l -> l
-        | None -> Window.get_layout (List.hd board.windows) in
+        | None -> List.hd board.windows in
   printd debug_board "Current room #%u" current_room#id;
   Layout.keyboard_focus_before_tab := Some (current_room :> Widget.common)
 
@@ -463,8 +402,8 @@ let debug_shortcuts =
   ]
 
 let refresh_custom_windows board =
-  List.iter (fun w -> printd debug_board "BOGUE WINDOW=%b" w.Window.bogue;
-              if not w.Window.bogue then w.Window.is_fresh <- false)
+  List.iter (fun w -> printd debug_board "BOGUE WINDOW=%b" w#bogue;
+              if not w#bogue then w#set_fresh false)
     board.windows
 
 (* [one_step] is what is executed during the main loop *)
@@ -495,15 +434,6 @@ let one_step ?before_display anim (start_fps, fps) ?clear (board : 'a board) =
      empty_events *)
   (* Note, do not flush var_changed, it is used by radiolist.ml,
      cf. example30 *)
-
-  (* the new value of anim *)
-  (* TODO à réécrire *)
-  let anim = if has_anim board
-    then begin
-      if not anim then start_fps ();  (* we start a new animation sequence *)
-      true
-    end
-    else false in
 
   (* We put here the events that should be filtered or modified. This
      returns the evo_layout that the layout (& widget) is authorized to treat
@@ -659,24 +589,23 @@ let one_step ?before_display anim (start_fps, fps) ?clear (board : 'a board) =
                  several regions of the window. This seems to be unreachable
                  via SDL. *)
               printd debug_event "Exposed";
-              (* for some reason, when the size changes quickly, Exposed is
-                 triggered but not Resized nor `Size_changed...*)
-              do_option (window_of_event board e) (fun w ->
-                  let l = Window.get_layout w in
-                  if Window.size w <> Layout.get_physical_size l
-                  then (Layout.resize_from_window ~flip:false l;
-                        Thread.delay 0.002); (* only to be nice *)
-                  (* else Trigger.flush_but_n 8; *) (* DEBUG *)
-                  (* the renderer changed, we need to recreate all
-                     textures *)
-                  Window.to_refresh w)
+              (* (\* for some reason, when the size changes quickly, Exposed is *)
+              (*    triggered but not Resized nor `Size_changed...*\) *)
+              (* do_option (window_of_event board e) (fun w -> *)
+              (*     if Window.size w <> Layout.get_physical_size w *)
+              (*     then (Layout.resize_from_window ~flip:false l; *)
+              (*           Thread.delay 0.002); (\* only to be nice *\) *)
+              (*     (\* else Trigger.flush_but_n 8; *\) (\* DEBUG *\) *)
+              (*     (\* the renderer changed, we need to recreate all *)
+              (*        textures *\) *)
+              (*     Window.to_refresh w) *)
             | `Close ->
               printd (debug_board+debug_event) "Asking window to close";
               do_option (window_of_event board e) (remove_window board);
             | _ as enum ->
               printd debug_event "%s" (Trigger.window_event_name enum);
               do_option (window_of_event board e) (fun w ->
-                  Window.to_refresh w;
+                  w#set_fresh false;
                   check_mouse_motion board;
                   (* Otherwise we don't get mouse_leave when the mouse leaves the
                        window. OK here ? *)
@@ -695,38 +624,20 @@ let one_step ?before_display anim (start_fps, fps) ?clear (board : 'a board) =
 
   do_option before_display (fun f -> f ()); (* TODO ? *)
 
-  (* Second, the event is treated by the global layout for drag-and-drop,
-     and we return the evo_widget for the widgets *)
-  let evo_widget = match evo_layout with
-    | None -> None
-    | Some e ->
-      (* match window_of_event board e with *) (* TODO ne sert à rien ?? *)
-      (* | None -> (print_debug "No layout for this event !"; Some e) *)
-      (* | Some _ ->  *)
-      (match board.button_down with
-       | Some room -> if room#draggable
-         then drag board e room (*Layout.drag_n_drop e room*)
-         else Some e
-       | None -> printd debug_board "No board.button_down"; Some e)
-      (* it happens for instance when you drag outside the SDL window and then
-             release mouse button. Still, the event will be treated by the original
-             widget below (in case of a keyboard_focus) *)
-  in
-
   let has_no_event = Trigger.has_no_event () in
   (* Now, the widget has the event *)
   (* note that the widget will usually emit a redraw event, this is why we save
      the state of Trigger.has_no_event () *)
-  (match evo_widget with
+  (match evo_layout with
    | None -> ()
    | Some ev ->
      match hand_to_target_widget board ev with
      | None -> ()
-     | Some room -> room.layout#handle_widget ev
+     | Some room -> room#handle_widget ev
   );
 
   (* the board can use the event that was filtered by the widget *)
-  do_option evo_widget (fun ev ->
+  do_option evo_layout (fun ev ->
       match Trigger.event_kind ev with
       (*          | `Key_down when E.(get e keyboard_keycode) = Sdl.K.tab -> tab board e *)
       | _ -> ());
@@ -762,7 +673,7 @@ let one_step ?before_display anim (start_fps, fps) ?clear (board : 'a board) =
     (* : even if the mouse doesn't actually move, some animated widget can
        collide the mouse and become (un)selected. *)
     (* display board; *)
-    List.iter Window.to_refresh board.windows;
+    List.iter (fun w -> w#set_fresh false) board.windows;
     (* : we could only select the one which really has an animation *)
     (*fps 60*)
   end;
@@ -807,7 +718,7 @@ let one_step ?before_display anim (start_fps, fps) ?clear (board : 'a board) =
           do_option Trigger.(get_last redraw) (fun ev -> Trigger.push_event ev);
           if not anim then begin
             printd debug_event "Redraw";
-            do_option (window_of_event board e) Window.to_refresh
+            do_option (window_of_event board e) (fun w -> w#set_fresh false)
           end
         (* board.mouse_focus <- (check_mouse_focus board); *)  (* ? *)
         (* could use window_of_event instead *)
@@ -840,31 +751,29 @@ let one_step ?before_display anim (start_fps, fps) ?clear (board : 'a board) =
    are created. If there are more, the excess is disregarded. *)
 let make_sdl_windows ?windows board =
   match windows with
-  | None -> List.iter Window.make_sdl_window board.windows
+  | None -> List.iter Layout.make_window board.windows
   | Some list ->
     let rec loop sdl ws =
       match sdl,ws with
       | _, [] -> ()
-      | [], _::rest -> List.iter Window.make_sdl_window rest
+      | [], _::rest -> List.iter Layout.make_window rest
       | s::srest, w::wrest -> begin
-          Layout.make_window ~window:s (Window.get_layout w);
+          Layout.make_window ~window:s w;
           loop srest wrest
         end in
     loop list board.windows
 
 (* make the board. Each layout in the list will be displayed in a different
    window. *)
-let make ?(shortcuts = []) layout : 'a board =
-  let window = Window.create ~bogue:true layout in
+let make ?(shortcuts = []) window : 'a board =
+  window#set_bogue true;
   (* let canvas = match layouts with *)
   (*   | [] -> failwith "At least one layout is needed to make the board" *)
   (*   | l::_ -> Layout.get_canvas l in *)
   (* if adjust then List.iter (Layout.adjust_window ~display:false) layouts; *)
   (* TODO add "adjust" property in layout. NO this should be enforced *)
   (* TODO one could use the position of the top layout to position the window *)
-  let widgets = (* List.flatten (List.map Layout.get_widgets layouts) *)
-    Layout.get_widgets layout in
-  do_option (repeated Widget.equal widgets) (fun w ->
+  do_option (repeated Widget.equal [window#content]) (fun w ->
       print_endline (Print.widget w);
       failwith (Printf.sprintf "Widget is repeated: #%u" w#id));
   (* = ou bien dans "run" ? (ça modifie les widgets) *)
@@ -923,7 +832,6 @@ let run ?before_display ?after_display (board : 'a board) =
 
   (* We send the startup_event to all widgets *)
   board.windows
-  |> List.map (fun x -> x.Window.layout)
   |> List.map Layout.get_widgets
   |> List.flatten
   |> List.map (fun x -> x#connections)

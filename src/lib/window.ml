@@ -48,18 +48,6 @@ let equal w1 w2 =
 let render w =
   Layout.render w.layout
 
-let flip ?clear w =
-  if not (is_fresh w)
-  then begin
-    render w;
-    let clear = default clear w.bogue in
-    printd debug_graphics "clear=%b" clear;
-    let present = w.bogue in
-    Layout.flip ~clear ~present w.layout;
-    set_fresh w
-  end
-  else Draw.clear_layers (w.layout#layer)
-
 let make_sdl_window w =
   printd debug_board "Make_window for layout %s" (Layout.sprint_id w.layout);
   Layout.make_window w.layout;

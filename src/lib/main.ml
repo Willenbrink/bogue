@@ -73,21 +73,6 @@ let close_window_layout layout =
   Draw.destroy_canvas (Layout.get_canvas layout);
   Layout.remove_canvas layout
 
-(* only for debugging *)
-let check_cemetery () =
-  let nzombies = List.length !Layout.cemetery in
-  if Layout.check_cemetery ()
-  then printd debug_memory "All zombies have been killed ! Congratulations !"
-  else if !debug then begin
-    printd debug_memory "==> Still some living deads around. Invoking GC";
-    Gc.compact ();
-    if Layout.check_cemetery ()
-    then printd debug_memory "All zombies have been killed ! Congratulations !"
-    else printd debug_memory "Percentage of killed zombies = %u%% (out of %u)."
-        (round (100. -. 100. *. (float (List.length !Layout.cemetery) /.
-                                 (float nzombies)))) nzombies
-  end
-
 (* call this to close everything. Don't use the layouts after this ! *)
 (* However in principle you can run board again, and then the layouts are
    usable(?) *)
@@ -97,7 +82,6 @@ let exit_board board =
                              before exiting board.";
   Update.clear ();
   Timeout.clear ();
-  check_cemetery ();
   List.iter close_window_layout board.windows;
   board.mouse_focus <- None;
   board.keyboard_focus <- None;
@@ -109,7 +93,6 @@ let exit_board board =
   flush_log ()
 
 let quit = Draw.quit
-
 
 (** redisplay the layouts to the layers *)
 (* there is no clear screen here *)
@@ -218,9 +201,8 @@ let window_of_event board ev =
       | `Bogue_redraw ->
         let id = E.(get ev user_code) in
         board.windows
-        |> List.map (fun x -> (x,[x#content]))
-        |> List.find (fun (_,cs) -> List.mem id (List.map (fun x -> x#id) cs))
-        |> (fun (r,_) ->
+        |> List.find (fun l -> id = l#content#id)
+        |> (fun r ->
             let id = Sdl.get_window_id (Layout.window r) in
             printd debug_event "Redraw event window_id=%d" id;
             id)
@@ -238,11 +220,6 @@ let check_mouse_focus board =
     printd debug_board "Mouse pos:(%u,%u)" x y;
     Option.bind (layout_focus board) (Layout.top_focus x y)
   else None
-
-(* detect layout (room or widget) under mouse; only used for testing *)
-let check_mouse_hover board =
-  let (x,y) = Mouse.pos () in
-  Option.bind (layout_focus board) (Layout.hover x y)
 
 (* [check_mouse_motion] deals with sending the mouse_enter/mouse_leave events *)
 (* The optional [target] argument can be used to specify the layout that should
@@ -407,22 +384,20 @@ let refresh_custom_windows board =
     board.windows
 
 (* [one_step] is what is executed during the main loop *)
-let one_step ?before_display anim (start_fps, fps) ?clear (board : 'a board) =
+let one_step ?before_display ?clear (board : 'a board) =
   Timeout.run ();
   let e = !Trigger.my_event in
   (* if not (is_fresh board) then Trigger.(push_event redraw_event); (* useful ? *) *)
-  let evo = if anim
-  (* if there is an animation running, we should not wait for an event *)
-    then if Sdl.poll_event (Some e) then Some e else None
-    else (* (go (Sdl.wait_event (Some e)); Some e) *)
-      (* DOC: As of SDL 2.0, this function does not put the
-         application's process to sleep waiting for events; it polls for
-         events in a loop internally. This may change in the future to
-         improve power savings. *)
-      (* ME: as a result, it seems that Sdl.wait_event prevents other
-         threads from executing nicely *)
-      Some (Trigger.wait_event ~action:Timeout.run e)
-      (* While we wait for events, we execute the Timeout Queue. *)
+  let evo =
+    (* (go (Sdl.wait_event (Some e)); Some e) *)
+    (* DOC: As of SDL 2.0, this function does not put the
+       application's process to sleep waiting for events; it polls for
+       events in a loop internally. This may change in the future to
+       improve power savings. *)
+    (* ME: as a result, it seems that Sdl.wait_event prevents other
+       threads from executing nicely *)
+    Some (Trigger.wait_event ~action:Timeout.run e)
+    (* While we wait for events, we execute the Timeout Queue. *)
   in
   (* Flush any motion events to avoid lag when there are too many events.
      Note that we already stored the latest event in e *)
@@ -643,41 +618,6 @@ let one_step ?before_display anim (start_fps, fps) ?clear (board : 'a board) =
       | _ -> ());
 
   (* now some specifics in case of animation *)
-  if anim then begin
-    (* if board.mouse_focus <> None then board.mouse_focus <- None; *)
-    (* = we desactivate focus during animation ?? *)
-    printd debug_graphics " * Animation running...";
-
-    (* Warning: Finally we chose this behaviour: mouse_enter/leave events are
-       sent only when the mouse really moves. If a widget hits the idle mouse
-       cursor because of an animation, these events are NOT sent. For instance
-       this can happen when scrolling a Select list. It is NOT ideal (what is?),
-       for instance when inserting new elements on the fly, like popups, one has
-       to tell the mouse to update its focus, even if it didn't move (otherwise
-       it will still connect to the widget that's below the popup...). For this
-       we have to push mouse_focus event.
-
-       TODO: ça affecte drad-and-drop, cf exemple5 à corriger. ça affecte aussi
-       example24 (cliquer sur un objet animé)
-
-       Read below for various trys... *)
-
-    (* Comment this for Menu2 keyboard navigation... *)
-    (* if (\*Trigger.*\)has_no_event (\* () *\) then check_mouse_motion board; *)
-
-    (* the has_no_event test is important, otherwise this CAUSES IMPORTANT
-       LAGS because check_mouse_motion can generate more events than we can
-       handle (we can handle only one per iteration) *)
-    (* TODO even with this, there is lag when scrolling with the mouse +
-       having the mouse over the widgets *)
-    (* : even if the mouse doesn't actually move, some animated widget can
-       collide the mouse and become (un)selected. *)
-    (* display board; *)
-    List.iter (fun w -> w#set_fresh false) board.windows;
-    (* : we could only select the one which really has an animation *)
-    (*fps 60*)
-  end;
-  (* else *)
 
   (* Finally we do final updates before flip with the original, unfiltered
      event "e" *)
@@ -693,8 +633,7 @@ let one_step ?before_display anim (start_fps, fps) ?clear (board : 'a board) =
         (* List.iter Window.to_refresh board.windows; *)
         (* TODO ? display ? *)
         (* = ou seulement ce qui a été (dé)sélectionné ? *)
-        | `Mouse_motion -> printd debug_custom "MOTION anim=%b no_event=%b"
-                             anim has_no_event;
+        | `Mouse_motion ->
           if not board.mouse_alive then board.mouse_alive <- true;
           if has_no_event && not (Trigger.mm_pressed e) then check_mouse_motion board
         (* In most situations, when the button is pressed, we don't want to lose
@@ -716,10 +655,8 @@ let one_step ?before_display anim (start_fps, fps) ?clear (board : 'a board) =
              all here is NOT recommended, it can prevent the correct detection
              of new animations (ex: adding sliding popups). *)
           do_option Trigger.(get_last redraw) (fun ev -> Trigger.push_event ev);
-          if not anim then begin
-            printd debug_event "Redraw";
-            do_option (window_of_event board e) (fun w -> w#set_fresh false)
-          end
+          printd debug_event "Redraw";
+          do_option (window_of_event board e) (fun w -> w#set_fresh false)
         (* board.mouse_focus <- (check_mouse_focus board); *)  (* ? *)
         (* could use window_of_event instead *)
         (* do_option board.mouse_focus Layout.set_focus *) (* ? *)
@@ -732,7 +669,7 @@ let one_step ?before_display anim (start_fps, fps) ?clear (board : 'a board) =
         | `Bogue_mouse_at_rest ->
           printd debug_event "Mouse AT REST"; (* TODO *)
         | _ -> ());
-    if anim then fps () else Thread.delay 0.005;
+    Thread.delay 0.005;
     (* even when there is no anim, we need to to be nice to other treads, in
              particular when an event is triggered very rapidly (mouse_motion) and
              captured by a connection, without anim. Should we put also here a FPS
@@ -742,8 +679,7 @@ let one_step ?before_display anim (start_fps, fps) ?clear (board : 'a board) =
   flip ?clear board; (* This is where all rendering takes place. *)
   printd debug_graphics "==> Rendering took %u ms" (Time.now () - t);
   Avar.new_frame (); (* this is used for updating animated variables *)
-  printd debug_graphics "---------- end of loop -----------";
-  anim
+  printd debug_graphics "---------- end of loop -----------"
 
 (* creates an SDL window for each top layout *)
 (* one can use predefined windows, they will be used by the layouts in the order
@@ -767,16 +703,6 @@ let make_sdl_windows ?windows board =
    window. *)
 let make ?(shortcuts = []) window : 'a board =
   window#set_bogue true;
-  (* let canvas = match layouts with *)
-  (*   | [] -> failwith "At least one layout is needed to make the board" *)
-  (*   | l::_ -> Layout.get_canvas l in *)
-  (* if adjust then List.iter (Layout.adjust_window ~display:false) layouts; *)
-  (* TODO add "adjust" property in layout. NO this should be enforced *)
-  (* TODO one could use the position of the top layout to position the window *)
-  do_option (repeated Widget.equal [window#content]) (fun w ->
-      print_endline (Print.widget w);
-      failwith (Printf.sprintf "Widget is repeated: #%u" w#id));
-  (* = ou bien dans "run" ? (ça modifie les widgets) *)
   let shortcuts =
     let open Shortcut in
     empty
@@ -806,7 +732,6 @@ let run ?before_display ?after_display (board : 'a board) =
   Trigger.flush_all ();
   if not (Sync.is_empty ()) then Trigger.push_action ();
   if not (Update.is_empty ()) then Update.push_all ();
-  let fps = Time.adaptive_fps 60 in
   make_sdl_windows board;
   show board;
   Thread.delay 0.01; (* we need some delay for the initial Mouse position to be detected *)
@@ -840,13 +765,13 @@ let run ?before_display ?after_display (board : 'a board) =
   |> List.iter (Widget.wake_up (Trigger.startup_event ())) ;
 
   Trigger.renew_my_event ();
-  let rec loop anim =
-    let anim = one_step ?before_display ~clear:true anim fps board in
-    Option.iter (fun f -> f ()) after_display; (* TODO ? *)
-    loop anim
+  let rec loop () =
+    one_step ?before_display ~clear:true board;
+    Option.iter (fun f -> f ()) after_display;
+    loop ()
   in
   try
-    loop false
+    loop ()
   with
   | Exit -> exit_board board
   | e ->

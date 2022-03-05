@@ -45,32 +45,6 @@ type adjust =
   | Height
   | Nothing
 
-type transform =
-  { angle : float Avar.t;
-    center : (Sdl.point option) Avar.t;
-    flip : Sdl.flip Avar.t;
-    alpha : float Avar.t
-  }
-
-(* type geometry = { *)
-(*   x : int Avar.t; *)
-(*   y : int Avar.t; *)
-(*   (\* the (x,y) coords define the position of the layout wrt its container (the *)
-(*      house). Origin is top-left. *\) *)
-(*   w : int Avar.t; *)
-(*   h : int Avar.t; *)
-(*   voffset : int Avar.t; *)
-(*   (\* the voffset is the vertical offset = the y value of where the content of *)
-(*      the layout will be drawn. It is typically used for scrolling. It is similar *)
-(*      to the 'y' variable', except that: *)
-
-(*      1. the clipping rect (if defined) is *not* translated in case of voffset *)
-(*      2. the background is not translated either *\) *)
-(*   transform: transform; *)
-(* } *)
-
-let fresh_id = fresh_int ()
-
 let sprint_id r =
   Printf.sprintf "#%u%s" r#id (match r#name with
       | "" -> ""
@@ -88,7 +62,7 @@ let window t = match t#canvas with
 class ['a] t ?id ?name ?(adjust = Fit)
     ?(layer = Draw.get_current_layer ())
     ?mask ?background ?shadow ?keyboard_focus ?(mouse_focus=false)
-    ?(show = true) ?(clip = false) ?(draggable = false) ?canvas
+    ?(clip = false) ?canvas
     ?(is_fresh = false) ?(bogue = false)
     _geometry (content' : 'a W.t) =
   object (self)
@@ -105,10 +79,6 @@ class ['a] t ?id ?name ?(adjust = Fit)
     val mutable bogue = bogue
     method bogue = bogue
     method set_bogue b = bogue <- b
-
-    val mutable show = show
-    method show = show
-    method set_show x = show <- x
 
     (* This field is only useful when t#show = true. Then t#hidden = true if the
        layout is currently not displayed onscreen. (Upon creation, all layouts are
@@ -200,8 +170,6 @@ class ['a] t ?id ?name ?(adjust = Fit)
     (* TODO: should we move the keyboard_focus to the Widget ? A layout which
        contains a Rooms list cannot really have keyboard_focus...and in fact it
        will not be detected by 'next_keyboard' *)
-    (* TODO : mutable draggable : int option; *) (* None = not draggable; Some
-                                                    delay = drag after delay (in ms) *)
     val mutable keyboard_focus : bool option = keyboard_focus
     method keyboard_focus = keyboard_focus
     method set_keyboard_focus x = keyboard_focus <- x
@@ -221,13 +189,6 @@ class ['a] t ?id ?name ?(adjust = Fit)
       do_option self#keyboard_focus (fun b -> if b then self#set_keyboard_focus @@ Some false);
       self#content#remove_keyboard_focus
 
-    (* TODO keep_focus_on_pressed: bool (default = true) CF. menu2. BUT It's not
-       so easy because many layouts can cover a widget. Ideally, this property
-       should belong to the widget. *)
-    val mutable draggable = draggable
-    method draggable = draggable
-    method set_draggable x = draggable <- x
-
     val mutable cc = None
 
     (* return the resident widget, or Not_found *)
@@ -240,7 +201,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
       | None ->
         begin
           match widget#execute with
-          | x ->
+          | _ ->
             print_endline "Root widget terminated";
             (* TODO consider this case *)
             cc <- None
@@ -318,33 +279,6 @@ let no_clip = ref false
 let draw_boxes = Widget.draw_boxes
 (* this is only used for debugging. This can slow down rendering quite a bit *)
 
-(* Only for debugging: we insert here the room ids we think are not used
-   anymore. Then we can check if the GC did remove them from the rooms_wtable *)
-let cemetery = ref []
-let send_to_cemetery room =
-  cemetery := room#id :: !cemetery
-(* TODO: use GC.finalise to automatically unload (but not destroy) textures from
-   GCed layouts ? *)
-(* (or maybe better for GCed widgets) *)
-
-let rec remove_wtable room =
-  let open Widget in
-  if WHash.mem common_wtable room
-  then begin
-    printd debug_memory "Removing room %s from Wtable" (sprint_id room);
-    WHash.remove common_wtable room;
-    if WHash.mem common_wtable room
-    then begin
-      printd debug_error
-        "Several instances of room %s are registered in the weak hash table."
-        (sprint_id room);
-      remove_wtable room;
-      (* The hash can host several instances of the room. However this signals
-         a bug somewhere. *)
-    end;
-    send_to_cemetery room;
-  end
-
 (*let rooms_table : (int, room) Hashtbl.t = Hashtbl.create 50;;*)
 (* this is where we store the reverse lookup: room#id ==> room *)
 (* of course the problem is to free this when rooms are not used anymore... to
@@ -370,28 +304,6 @@ let rec first_show_widget layout =
   if layout#show
   then layout#content
   else raise Not_found
-
-(* only for debugging: *)
-(* check if rooms sent to cemetery have effectively been removed by GC *)
-let check_cemetery () =
-  let check id = try
-      let r = Widget.of_id id in
-      printd debug_memory "Dead room %s seems to be living. Beware of zombies." (sprint_id r);
-      false
-    with
-    | Not_found -> printd debug_memory "Dead room #%u was correctly burried by the GC. RIP." id;
-      true
-  in
-  let rec loop list newlist empty = (* easier to use a Queue *)
-    match list with
-    | [] -> empty, newlist
-    | id::rest ->
-      if check id
-      then loop rest newlist empty
-      else loop rest (id :: newlist) false in
-  let empty, newlist = loop !cemetery [] true in
-  cemetery := newlist;
-  empty
 
 (* get the renderer of the layout *)
 let renderer t = match t#canvas with
@@ -666,7 +578,7 @@ let claim_keyboard_focus r = Trigger.push_keyboard_focus r#id
 (* warning, the widget is always centered *)
 (* x,y specification will be overwritten if the room is then included in a flat
    or tower, which is essentially always the case... *)
-let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?draggable ?canvas ?layer
+let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?canvas ?layer
     ?keyboard_focus widget =
   let widget = (widget :> 'a Widget.t) in
   let (w',h') = widget#size in
@@ -677,7 +589,7 @@ let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?draggable ?canvas ?layer
     | Some false -> None
     | None -> widget#guess_unset_keyboard_focus |> (fun b -> if b then None else Some false) in
   let geometry = Draw.geometry ~x ~y ~w ~h () in
-  new t ?name ?background ?keyboard_focus ?draggable ?layer ?canvas
+  new t ?name ?background ?keyboard_focus ?layer ?canvas
     geometry widget
 
 (* Set the given widget as the new resident of the given room. If w,h are not
@@ -865,91 +777,88 @@ let scale_clip clip =
                   ~w:(Theme.scale_int (w c))))
 
 (** Display a room: *)
-let rec display_loop x0 y0 clip0 tr0 (r : 'a t) =
+let rec display_loop x0 y0 clip0 (r : 'a t) =
   (* clip contains the rect that should contain the current room r. But of
      course, clip can be much bigger than r. *)
-  if not r#show then ()
-  else begin
-    let g = r#geometry in
-    let x = x0 + g.x in
-    let y = y0 + g.y + g.voffset in
-    (* update current position, independent of clip *)
-    r#set_current_geom @@ { g with x; y };
-    (*print_endline ("ALPHA=" ^ (string_of_float (Avar.old room#geometry.transform.alpha)));*)
-    let rect = Sdl.Rect.create ~x ~y ~w:g.w ~h:g.h in
+  let g = r#geometry in
+  let x = x0 + g.x in
+  let y = y0 + g.y + g.voffset in
+  (* update current position, independent of clip *)
+  r#set_current_geom @@ { g with x; y };
+  (*print_endline ("ALPHA=" ^ (string_of_float (Avar.old room#geometry.transform.alpha)));*)
+  let rect = Sdl.Rect.create ~x ~y ~w:g.w ~h:g.h in
 
-    (* if there is a nonzero offset, we perform a new clip : this is used for
-       "show/hide" animation *)
-    (* TODO clip should be enlarged in case of shadow *)
-    let clip =
-      if (*g.voffset = 0*) not r#clip || !no_clip then clip0
-      else Draw.intersect_rect clip0 (Some rect)
-    in
-    let sclip = scale_clip clip in
-    match clip with
-    | Some clip_rect when not (Sdl.has_intersection clip_rect rect) ->
-      (r#set_hidden @@ true;
-       printd debug_warning "Room #%u is hidden (y=%d)" r#id y)
-    (* because of clip, the rendered size can be smaller than what the geom
-       says *)
-    (* If the clip is empty, there is nothing to display. Warning: this means
-       that all children will be hidden, even if they happen to pop out of
-       this rect. *)
-    | _ -> begin
-        r#set_hidden @@ false;
-        (* background (cf compute_background)*)
-        let bg = map_option r#background (fun bg ->
-            let box = match bg with
-              | Solid c ->
-                (* let c = Draw.random_color () in *)  (* DEBUG *)
-                let b = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) ?shadow:r#shadow () in
+  (* if there is a nonzero offset, we perform a new clip : this is used for
+     "show/hide" animation *)
+  (* TODO clip should be enlarged in case of shadow *)
+  let clip =
+    if (*g.voffset = 0*) not r#clip || !no_clip then clip0
+    else Draw.intersect_rect clip0 (Some rect)
+  in
+  let sclip = scale_clip clip in
+  match clip with
+  | Some clip_rect when not (Sdl.has_intersection clip_rect rect) ->
+    (r#set_hidden @@ true;
+     printd debug_warning "Room #%u is hidden (y=%d)" r#id y)
+  (* because of clip, the rendered size can be smaller than what the geom
+     says *)
+  (* If the clip is empty, there is nothing to display. Warning: this means
+     that all children will be hidden, even if they happen to pop out of
+     this rect. *)
+  | _ -> begin
+      r#set_hidden @@ false;
+      (* background (cf compute_background)*)
+      let bg = map_option r#background (fun bg ->
+          let box = match bg with
+            | Solid c ->
+              (* let c = Draw.random_color () in *)  (* DEBUG *)
+              let b = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) ?shadow:r#shadow () in
 
-                r#set_background @@ (Some (Box b));
-                ();
-                b
-              | Box b -> b in
-            let blits = box#display (get_canvas r) (r#layer)
-                Draw.(scale_geom {x; y; w = g.w; h = g.h;
-                                  voffset = - g.voffset}) in
-            blits) in
-        (* !!! in case of shadow, the blits contains several elements!! *)
+              r#set_background @@ (Some (Box b));
+              ();
+              b
+            | Box b -> b in
+          let blits = box#display (get_canvas r) (r#layer)
+              Draw.(scale_geom {x; y; w = g.w; h = g.h;
+                                voffset = - g.voffset}) in
+          blits) in
+      (* !!! in case of shadow, the blits contains several elements!! *)
 
-        begin
-          let w = r#content in
-          let blits = w#display (get_canvas r) r#layer Draw.{g with x; y} in
-          let blits = match bg with
-            | None -> blits
-            | Some b -> List.rev_append b blits in
+      begin
+        let w = r#content in
+        let blits = w#display (get_canvas r) r#layer Draw.{g with x; y} in
+        let blits = match bg with
+          | None -> blits
+          | Some b -> List.rev_append b blits in
 
-          (* debug boxes *)
-          let blits = if !draw_boxes
-            then
-              let color = (255,0,0,200) in
-              let rect = debug_box ~color r x y in
-              rect :: blits
-            else blits in
+        (* debug boxes *)
+        let blits = if !draw_boxes
+          then
+            let color = (255,0,0,200) in
+            let rect = debug_box ~color r x y in
+            rect :: blits
+          else blits in
 
-          List.iter
-            (fun blit ->
-               let open Draw in
-               let clip = sclip in
-               blit_to_layer { blit with clip }) blits
-        end;
-        if !draw_boxes  (* we print the room number at the end to make sure it's visible *)
-        then let label = new Label.t ~font_size:7 ~fg:(Draw.(transp blue))
-               (sprint_id r) in
-          let geom = Draw.scale_geom {Draw.x; y; w=g.w+1; h=g.h+1; voffset = g.voffset} in
-          List.iter
-            Draw.blit_to_layer
-            (label#display (get_canvas r) (r#layer) geom)
-      end
-  end
+        List.iter
+          (fun blit ->
+             let open Draw in
+             let clip = sclip in
+             blit_to_layer { blit with clip }) blits
+      end;
+      if !draw_boxes  (* we print the room number at the end to make sure it's visible *)
+      then let label = new Label.t ~font_size:7 ~fg:(Draw.(transp blue))
+             (sprint_id r) in
+        let geom = Draw.scale_geom {Draw.x; y; w=g.w+1; h=g.h+1; voffset = g.voffset} in
+        List.iter
+          Draw.blit_to_layer
+          (label#display (get_canvas r) (r#layer) geom)
+    end
 
 (* this function sends all the blits to be displayed to the layers *)
 (* it does not directly interact with the renderer *)
 (* pos0 is the position of the house containing the room *)
 let display (room : 'a t) =
-  display_loop 0 0 None (Draw.make_transform ()) room
+  display_loop 0 0 None room
 
 let get_focus room =
   room#mouse_focus
@@ -1113,20 +1022,8 @@ let rec focus_list x y t =
 
 (* get the focus element in the top layer *)
 let top_focus x y (t : 'a t) =
-  let fo =
-    if t#show && inside t (x,y)
-    then Some t#content
-    else None
-  in
-  fo
-
-(** get the smallest room (with Room or Resident) containing (x,y), or None *)
-(* only used for testing *)
-(* TODO à fusionner avec le précédent pour retourner une paire ? *)
-(* TODO vérifier qu'on est dans le même calque (layer) *)
-let rec hover x y t =
-  let g = t#geometry in
-  if t#show && (inside_geom g (x,y)) then Some t#content
+  if inside t (x,y)
+  then Some t#content
   else None
 
 (** get SDL windows id, in case the canvas was created *)

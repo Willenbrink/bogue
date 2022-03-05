@@ -14,7 +14,7 @@ class virtual ['a] t ?(name = "Collection") size children =
      |> (fun (x,y,w,h) -> (w - x, h - y))
      in
   *)
-  object (self)
+  object
     inherit ['a] w size name Cursor.Arrow
     val children = children
 

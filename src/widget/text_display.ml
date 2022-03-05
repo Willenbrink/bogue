@@ -166,9 +166,9 @@ class ['a] t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font =
           render <- None
         end
 
-    method triggers = []
-
-    method handle _ _ = failwith "Text Display#handle called"
+    method execute =
+      await [] Fun.(const ());
+      self#execute
 
     method get_font = Draw.get_font font (Theme.scale_int font_size)
 

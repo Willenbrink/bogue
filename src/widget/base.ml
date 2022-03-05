@@ -32,6 +32,7 @@ let of_id_opt id =
   | Not_found -> None
 
 exception%effect Await : Trigger.t list -> (Sdl.event * Draw.geometry)
+let await triggers handler = handler @@ EffectHandlers.perform (Await triggers)
 exception Reset
 
 type 'a cc =
@@ -133,24 +134,7 @@ class virtual ['a] w ?id size name cursor =
     method cursor = _cursor
     method set_cursor x = _cursor <- x
 
-    (* The set of interesting events. TODO change type to variant *)
-    (* FIXME this is obsolete and should be removed.
-       Instead, use the triggers provided by the Await effect.
-       There should be no triggers inherent to a widget except those defined in Await. *)
-    method virtual triggers : Trigger.t list
-    method virtual handle : Sdl.event -> Draw.geometry -> 'a option
-
-    method perform =
-      Printf.printf "%s ???\n" self#name;
-      let ev, geom = EffectHandlers.perform (Await self#triggers) in
-      Printf.printf "%s <--\n" self#name;
-      match self#handle ev geom with
-      | Some res ->
-        Printf.printf "%s succeeds\n" self#name;
-        res
-      | None ->
-        Printf.printf "%s fails\n" self#name;
-        self#perform
+    method virtual execute : 'a
 
     method update =
       Printf.printf "%s updates\n" self#name;

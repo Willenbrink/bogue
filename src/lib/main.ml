@@ -429,7 +429,7 @@ let tab board =
 
 (** open/close the debugging window *)
 let toggle_debug_window =
-  let window = ref None in fun (board : 'a board) ->
+  let window = ref None in fun (board : unit board) ->
     match !window with
     | None ->
       print_endline "OPENING DEBUG WINDOW"

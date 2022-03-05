@@ -69,11 +69,12 @@ let image_from_svg ?w ?h ?bg file =
  * FIXME Removed constructors *)
 
 (** creation of combined widgets *)
-let check_box_with_label text =
-  let b = check_box () in
-  let l = new Label.t text in
-  connect_main l ~target:b (fun ev -> b#handle ev (Draw.make_geom ()) |> ignore) Trigger.buttons_down;
-  b,l
+(* let check_box_with_label text = *)
+(*   let b = check_box () in *)
+(*   let l = new Label.t text in *)
+(*   (\* new Row.t [b |> gen; l |> gen] *\) *)
+(*   connect_main l ~target:b (fun ev -> b#handle ev (Draw.make_geom ()) |> ignore) Trigger.buttons_down; *)
+(*   b,l *)
 
 (****)
 

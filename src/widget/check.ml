@@ -28,12 +28,11 @@ class t ?(init = false) ?(style = Square) () =
 
     method unload = ()
 
-    method triggers = Trigger.buttons_down
-    method handle ev _ =
-      (match Trigger.event_kind ev with
-       | `Mouse_button_down -> state <- (not state); self#update
-       | _ -> ());
-      Some self#state
+    method execute =
+      await Trigger.buttons_down (fun _ -> ());
+      state <- not state;
+      self#update;
+      self#state
 
     method style = style
 

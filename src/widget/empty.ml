@@ -7,9 +7,9 @@ class ['a] t ?id size =
 
     method unload = ()
 
-    method triggers = []
-
-    method handle _ _ = failwith "Empty#handle called"
+    method execute =
+      await [] Fun.(const ());
+      self#execute
 
     method display _ _ _ = []
   end

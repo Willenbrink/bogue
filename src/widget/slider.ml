@@ -259,17 +259,24 @@ class t ?(priority = Main) ?step ?(kind = Horizontal) ?(init = 0) ?(length = 200
           | _ -> printd debug_event "Warning: Event should not happen here"
         end
 
-    method triggers = Trigger.(buttons_down @ buttons_up @ pointer_motion @ [key_down])
-
-    method handle ev _ = Trigger.(match of_event ev with
-        | x when List.mem x buttons_down -> self#click ev
-        | x when List.mem x buttons_up -> self#release
-        | x when List.mem x pointer_motion && (mm_pressed ev || event_kind ev = `Finger_motion)
-          -> self#slide ev; self#update
-        | x when List.mem x [key_down] -> self#receive_key ev
-        | _ -> assert false (* TODO *)
-      );
-      Some self#state
+    method execute =
+      await Trigger.(buttons_down @ buttons_up @ pointer_motion @ [key_down]) @@ fun (ev,_) ->
+      if Trigger.(match of_event ev with
+          | x when List.mem x buttons_down -> self#click ev; false
+          | x when List.mem x buttons_up -> self#release; true
+          | x when List.mem x pointer_motion ->
+            if mm_pressed ev
+            || event_kind ev = `Finger_motion
+            then begin
+              self#slide ev;
+              self#update;
+              true
+            end else false
+          | x when List.mem x [key_down] -> self#receive_key ev; false
+          | _ -> assert false
+        )
+      then self#state
+      else self#execute
 
     method! focus_with_keyboard = self#focus
 

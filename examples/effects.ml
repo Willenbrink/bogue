@@ -4,53 +4,48 @@ module W = Widget
 module L = Layout
 module T = Trigger
 
-exception%effect Test : bool -> int
-
 let example () =
-  (* let p i x = *)
-  (*   Printf.printf "%i\n" i; x *)
-  (* in *)
-
-  (* let cc = (ref None : (int, unit) EffectHandlers.Deep.continuation option ref) in *)
-  (* begin *)
-  (*   match EffectHandlers.perform (Test true) |> p 1 with *)
-  (*   | i -> p i () *)
-  (*   | [%effect? (Test b), k] -> *)
-  (*     p 3 (); *)
-  (*     cc := Some k; *)
-  (*     10 *)
-  (* end; *)
-
-
-
-
   let b = new Check.t () in
   let b' = new Check.t () in
   let b'' = new Check.t () in
   let l = new Label.t "Init" in
   let l' = new Label.t "Init2" in
   let l'' = new Label.t "Init3" in
+  let ti = new Text_input.t "Text field" in
   let comb b l = object (self)
     inherit ['a] Row.t [b |> W.gen; l |> W.gen] as super
-    method! perform =
-      Printf.printf "  Row starts!\n";
-      let b = super#perform in
-      Printf.printf "  Row returned %b!\n" b;
-      if b
+    method! execute =
+      let res = super#execute in
+      if res
       then l#set_text "Checked"
       else l#set_text "Unchecked";
-      self#perform
+      self#execute
   end
   in
-  let row = new Row.t [b |> W.gen;l |> W.gen] in
+  let comb' b l = object (self)
+    inherit ['a] Row.t [b |> W.gen; l |> W.gen] as super
+    method! execute =
+      let res = super#execute in
+      l#set_text res;
+      self#execute
+  end
+  in
+  let row_b = new Row.t [b |> W.gen; l |> W.gen] in
+  let row_ti = new Row.t [ti |> W.gen; l |> W.gen; new Single.loop b] in
   let col = new Col.t [comb b l; comb b' l'; comb b'' l''] in
-  let layout = L.resident col in
-  (* let layout = L.resident row in *)
+  (* let layout = L.resident col in *)
   (* let layout = L.resident (comb b l) in *)
+  (* let layout = L.resident row_b in *)
+  let layout = L.resident row_ti in
   let board = make layout in
   run board
 let _ =
   Printexc.record_backtrace true;
+  (* Sys.( *)
+  (*   let handler = Signal_handle (fun _ -> Printexc.print_backtrace stdout; failwith "") in *)
+  (*   signal sigint handler |> ignore; *)
+  (*   signal sigsegv handler |> ignore; *)
+  (* ); *)
   (try
      example ();
      Draw.quit ()

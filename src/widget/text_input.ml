@@ -72,10 +72,10 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
     ?(font_size = Theme.text_font_size)
     ?(filter = no_filter) ?(font = Theme.text_font) text =
   let size = (0,font_size) (* TODO missing calculation *) in
-  let keys = Utf8.split text in
   object (self)
-    inherit [string list] w size "TextInput" Cursor.Ibeam
-    inherit [string list] stateful keys
+    inherit [string] w size "TextInput" Cursor.Ibeam
+
+    val mutable keys = Utf8.split text
 
     initializer Draw.ttf_init ()
     val mutable cursor = None
@@ -86,14 +86,14 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
     method font = Draw.get_font font (Theme.scale_int font_size)
 
     val mutable active = false
-    method is_active = active
     method clear =
-      do_option render Draw.forget_texture;
+      Option.iter Draw.forget_texture render;
       render <- None
 
     method stop =
       printd debug_event "Stopping text input";
-      if Sdl.is_text_input_active () then Sdl.stop_text_input ();
+      if Sdl.is_text_input_active ()
+      then Sdl.stop_text_input ();
       self#clear;
       active <- false
 
@@ -104,34 +104,82 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
     val filter = filter
 
     method unload =
-      do_option render Draw.forget_texture;
+      Option.iter Draw.forget_texture render;
       render <- None;
-      do_option cursor Draw.forget_texture;
+      Option.iter Draw.forget_texture cursor;
       cursor <- None
 
-    method triggers = Trigger.buttons_down @ Trigger.buttons_up
-                      @ Sdl.Event.[key_down; mouse_motion;
-                                   text_editing; text_input;
-                                   key_down; key_up]
+    method private activate =
+      (* if not check *)
+      (* || Sdl.Event.(get ev mouse_button_state) = Sdl.pressed *)
+      (*    (\* = DIRTY trick, see bogue.ml *\) *)
+      (* then begin *)
+      printd debug_event "Activating text_input";
+      Sdl.start_text_input ();
+      active <- true;
+      self#clear
 
-    method handle ev _ = (match Trigger.of_event ev with
-        | x when List.mem x Trigger.buttons_down -> self#button_down ev
-        | x when List.mem x Trigger.buttons_up -> self#click ev
-        | x when x = Sdl.Event.key_down -> self#tab ev
-        | x when x = Sdl.Event.mouse_motion && Trigger.mm_pressed ev -> self#mouse_select ev; self#update
-        | x when List.mem x Sdl.Event.[text_editing; text_input; key_down; key_up]
-          -> self#receive_key ev
-        | _ -> assert false (* TODO *));
-      Some self#state
+    method execute =
+      let rec await ts handler =
+        Base.await (Sdl.Event.mouse_motion :: ts) @@ function
+        | ev,g when Trigger.of_event ev = Sdl.Event.mouse_motion ->
+          if Trigger.mm_pressed ev
+          then begin
+            self#mouse_select ev;
+            self#update;
+          end;
+          if List.mem Sdl.Event.mouse_motion ts
+          then handler (ev,g)
+          else await ts handler
+        | x -> handler x
+      in
+      let rec await_with_tab ts handler =
+        await (Sdl.Event.key_down :: ts) @@ function
+        | ev,g when Trigger.of_event ev = Sdl.Event.key_down ->
+          if Sdl.Event.(get ev keyboard_keycode) = Sdl.K.tab then begin
+            self#activate;
+            self#select_all
+          end;
+          if List.mem Sdl.Event.key_down ts
+          then handler (ev,g)
+          else await_with_tab ts handler
+        | x -> handler x
+      in
 
-    method text = String.concat "" keys
+      let active =
+        await_with_tab Trigger.buttons_down @@ function
+        | _ ->
+          await_with_tab (Trigger.buttons_up @ [Trigger.mouse_leave]) @@ function
+          | ev,_ when Trigger.of_event ev = Trigger.mouse_leave ->
+            false
+          | ev,_ ->
+            self#click ev;
+            true
+      in
+      if active then self#activate;
+      while active do
+        await_with_tab (Sdl.Event.[key_down; text_editing; text_input; key_up] @ Trigger.buttons_down)
+        @@ function
+        | ev,_ when List.mem (Trigger.of_event ev) Trigger.buttons_down ->
+          self#click_cursor ev;
+          self#start_selection
+        | ev,_ ->
+          print_endline "Received key";
+          self#receive_key ev
+      done;
+      if active
+      then self#execute
+      else self#state
+
+    method state = String.concat "" keys
     (* because there is a length test, it should be placed ad the end of
        all modifications of ti *)
 
-    method set_text_raw _keys =
+    method private set_text_raw _keys =
       if _keys <> keys
       then begin
-        let _keys = if List.length _keys > max_size
+        let _keys =
+          if List.length _keys > max_size
           then (printd debug_memory
                   "Warning: text_input was truncated because it\
                    should not exceed %u symbols" max_size;
@@ -139,31 +187,18 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
                 self#stop;
                 let head, _ = split_list _keys max_size in head)
           else _keys in
-        state <- _keys;
+        keys <- _keys;
         self#clear
       end
+
     method set_text x =
-      let x = Utf8.split x in
-      self#set_text_raw x
-
-
-    (*** input ***)
-
-    method activate ?(check=true) ev =
-      if (not check) || Sdl.Event.(get ev mouse_button_state) = Sdl.pressed
-      (* = DIRTY trick, see bogue.ml *)
-      then begin
-        printd debug_event "Activating text_input";
-        Sdl.start_text_input ();
-        active <- true;
-        self#clear;
-      end
+      Utf8.split x
+      |> self#set_text_raw
 
     method start_selection =
       let n = cursor_pos in
       printd debug_board "Starting text selection at %d" n;
-      selection <- (Start n)
-
+      selection <- Start n
 
     (** validate selection from starting point to current cursor_pos *)
     method make_selection =
@@ -304,14 +339,8 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
       printd debug_event "Click cursor";
       let x0u, _ = Mouse.pointer_pos ev in
       let x0 = Theme.scale_int x0u in (* on pourrait éviter de faire unscale-scale *)
-      cursor_pos <- (self#x_to_cursor x0);
+      cursor_pos <- self#x_to_cursor x0;
       self#clear
-
-    (* This should be called on mouse_button_down *)
-    method button_down ev =
-      if self#is_active then
-        (self#click_cursor ev;
-         self#start_selection)
 
     method select_word =
       let sel = self#find_word
@@ -320,7 +349,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
     (* This should be called on mouse_button_up *)
     method click ev =
-      if self#is_active then
+      if active then
         (
           if Trigger.was_double_click () then self#select_word
           else begin
@@ -329,13 +358,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
             ignore (self#make_selection)
           end
         )
-      else self#activate ev
-
-    method tab ev =
-      if Sdl.Event.(get ev keyboard_keycode) = Sdl.K.tab then begin
-        self#activate ~check:false ev;
-        self#select_all
-      end
+      else self#activate
 
     method kill_selection =
       match selection with
@@ -455,8 +478,8 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
           let start_time = Unix.gettimeofday () in (* =for debug only *)
           let keys = keys in
           let fg = if keys <> [] then Draw.(opaque text_color) else
-              (* if self#is_active then Draw.(opaque pale_grey) else *) Draw.(opaque faint_color) in
-          let keys = if keys = [] && not (self#is_active) then [prompt] else keys in
+              (* if active then Draw.(opaque pale_grey) else *) Draw.(opaque faint_color) in
+          let keys = if keys = [] && not (active) then [prompt] else keys in
           let surf = self#draw_keys (self#font) keys ~fg in
           (* TODO: draw only the relevent text, not everything. *)
           let tw,th = Sdl.get_surface_size surf in
@@ -548,7 +571,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
       (* we could instead have used a box surface of larger size, including margins,
          and use tex_to_layer instead of copy_tex_to_layer *)
 
-      if self#is_active
+      if active
       then   (* (re...)compute cursor position *)
         (* The cursor is an additional blit. We don't pre-blend the two textures
            (text+cursor) into a single blit, because the SDL current blend modes
@@ -634,76 +657,47 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
     (* SDL_Keycode values are mapped to the current layout of the keyboard and
        correlate to an SDL_Scancode *)
     method receive_key ev =
-      if self#is_active then let
-        (* in principe, if not active, text-input events are already disabled, but
-           one could still receive keyboard input events. This is why we have to
-           double check here *)
-        open Sdl.Event in
-        match Trigger.event_kind ev with
-        | `Text_input -> (* a letter is recognized *)
-          let s = get ev text_input_text in
-          if filter s then self#insert s
-        | `Text_editing -> print_endline "Text composing mode"
-        (* TODO:
-           Update the composition text.
-           Update the cursor position.
-           Update the selection length (if any). *)
-        | `Key_down -> (match get ev keyboard_keycode with
-            | c when c = Sdl.K.backspace -> self#backspace
-            | c when c = Sdl.K.left -> self#left
-            | c when c = Sdl.K.right -> self#right
-            | c when c = Sdl.K.up -> self#home
-            | c when c = Sdl.K.home -> self#home
-            | c when c = Sdl.K.down -> self#last
-            | c when c = Sdl.K.kend -> self#last
-            | c when c = Sdl.K.return -> self#stop
-            | c when c = Sdl.K.a && ctrl_pressed () -> self#select_all
-            | c when c = Sdl.K.c && ctrl_pressed () -> self#copy (* : desactivate this for debugging the emacs problem *)
-            | c when c = Sdl.K.x && ctrl_pressed () -> self#kill
-            | c when c = Sdl.K.v && ctrl_pressed () -> self#paste
-            | c -> (printd debug_event "==> Key down event discarded.";
-                    printd debug_event "Key=[%s], mod=%u, Keycode:%u" (Sdl.get_key_name c) (Sdl.get_mod_state ()) c)
-          )
-        | `Key_up -> (match get ev keyboard_keycode with
-            | c when c = Sdl.K.lshift -> self#make_selection
-            | c when c = Sdl.K.rshift -> self#make_selection
-            | c -> (printd debug_event "==> Key up event discarded.";
-                    printd debug_event "Key=[%s], mod=%u, Keycode:%u" (Sdl.get_key_name c) (Sdl.get_mod_state ()) c)
-          )
-        | _ -> printd debug_warning "Warning: Event should not happen here"
-
-    initializer
-      connect_main self ~target:self self#button_down Trigger.buttons_down;
-      connect_main self ~target:self self#click Trigger.buttons_up;
-      connect_main self ~target:self self#tab [Sdl.Event.key_down];
-      let selection ev =
-        if Trigger.mm_pressed ev then (self#mouse_select ev; self#update)
-      in
-      connect_main self selection [Sdl.Event.mouse_motion];
-      connect_main self self#receive_key
-        [Sdl.Event.text_editing; Sdl.Event.text_input; Sdl.Event.key_down; Sdl.Event.key_up];
+      (* in principe, if not active, text-input events are already disabled, but
+         one could still receive keyboard input events. This is why we have to
+         double check here *)
+      let open Sdl.Event in
+      match Trigger.event_kind ev with
+      | `Text_input -> (* a letter is recognized *)
+        print_endline "A letter is recognized";
+        let s = get ev text_input_text in
+        if filter s then self#insert s
+      | `Text_editing ->
+        print_endline "Text composing mode"
+      (* TODO:
+         Update the composition text.
+         Update the cursor position.
+         Update the selection length (if any). *)
+      | `Key_down ->
+        print_endline "Key_down";
+        (match get ev keyboard_keycode with
+         | c when c = Sdl.K.backspace -> self#backspace
+         | c when c = Sdl.K.left -> self#left
+         | c when c = Sdl.K.right -> self#right
+         | c when c = Sdl.K.up -> self#home
+         | c when c = Sdl.K.home -> self#home
+         | c when c = Sdl.K.down -> self#last
+         | c when c = Sdl.K.kend -> self#last
+         | c when c = Sdl.K.return -> self#stop
+         | c when c = Sdl.K.a && ctrl_pressed () -> self#select_all
+         | c when c = Sdl.K.c && ctrl_pressed () -> self#copy (* : desactivate this for debugging the emacs problem *)
+         | c when c = Sdl.K.x && ctrl_pressed () -> self#kill
+         | c when c = Sdl.K.v && ctrl_pressed () -> self#paste
+         | c -> (printd debug_event "==> Key down event discarded.";
+                 printd debug_event "Key=[%s], mod=%u, Keycode:%u" (Sdl.get_key_name c) (Sdl.get_mod_state ()) c)
+        )
+      | `Key_up ->
+        print_endline "Key_up";
+        (match get ev keyboard_keycode with
+         | c when c = Sdl.K.lshift -> self#make_selection
+         | c when c = Sdl.K.rshift -> self#make_selection
+         | c -> (printd debug_event "==> Key up event discarded.";
+                 printd debug_event "Key=[%s], mod=%u, Keycode:%u" (Sdl.get_key_name c) (Sdl.get_mod_state ()) c)
+        )
+      | _ ->
+        print_endline "Warning: Event should not happen here"
   end
-
-      (*
-type t =
-  { keys : (string list) Var.t;
-    (* = each string is just a letter (cf utf8 encoding problems...) *)
-    cursor : (Draw.texture option) Var.t; (* make this a global variable? *)
-    cursor_font : (Label.font) Var.t; (* make this a Theme variable? *)
-    cursor_pos : int Var.t;
-    cursor_char : string;
-    render : (Draw.texture option) Var.t;
-    offset : int Var.t;
-    (* = this is the x-offset of the section to be rendered on
-       screen, with respect to the whole text if it was rendered on
-       a full line *)
-    font : (Label.font) Var.t;
-    size : int; (* font size *)
-    active : bool Var.t;
-    room_x : int Var.t; (* physical x *) (* TODO this is a hack to access room geometry (we need this to treat click events). do better? *)
-    selection : selection Var.t;
-    max_size : int; (* max number of letters *)
-    prompt : string; (* text to display when there is no user input *)
-    filter : filter; (* which letters are accepted *)
-  }
-*)

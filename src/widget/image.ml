@@ -1,7 +1,6 @@
 (** a simple image display *)
 
 open Base
-open Utils
 
 type resize =  (* not implemented *)
   | Crop of int (* cut the image at origin x *)
@@ -46,9 +45,9 @@ class ['a] t ?w ?h ?(noscale = false)
           render <- None
         end
 
-    method triggers = []
-
-    method handle _ _ = failwith "Image#handle called"
+    method execute =
+      await [] Fun.(const ());
+      self#execute
 
     (* FIXME somehow, this is flipped*)
     method display canvas layer g =

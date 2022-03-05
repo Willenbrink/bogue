@@ -26,7 +26,7 @@ class ['a] t ?(flip = false) ?(sep = Theme.room_margin)
     List.fold_left f (0,0) children
   in
   object (self)
-    inherit ['a] w size name Cursor.Arrow as super
+    inherit ['a] w size name Cursor.Arrow
 
     val mutable children
     (* : (int * 'a w * unit cc option) list *)
@@ -35,15 +35,7 @@ class ['a] t ?(flip = false) ?(sep = Theme.room_margin)
 
     method unload = List.iter (fun (_,c,_) -> c#unload) children
 
-    method triggers = List.concat_map
-        (* (fun r -> *)
-        (* match !r with *)
-        (* | None -> [] *)
-        (* | Some (ts,_) -> ts) *)
-        (* ccs *)
-        (fun (_,c) -> c#triggers) children'
-
-    method handle ev (g : Draw.geometry) =
+    method private handle (ev,(g : Draw.geometry)) =
       let x_m, y_m = Mouse.pointer_pos ev in
       (* Printf.printf "%s, geom: %i,%i\n" name g.x g.y; *)
       assert (g.x <= x_m && x_m <= g.x + g.w);
@@ -51,41 +43,43 @@ class ['a] t ?(flip = false) ?(sep = Theme.room_margin)
       let x_m, y_m = x_m - g.x, y_m - g.y in
       let base = if flip then g.y else g.x in
       (* Printf.printf "%s, mouse: %i,%i\n" name x_m y_m; *)
-      let f acc (o,(c : bool w), cco) = match acc with
-        | Some _ -> acc
-        | None ->
-          let offset' = base + o in
-          if (if flip then y_m else x_m) >= offset'
-          && (if flip then x_m else y_m) < (if flip then fst else snd) c#size
+      let res = ref None in
+      let f (o,c, cco) =
+        let offset' = base + o in
+        if (if flip then y_m else x_m) >= offset'
+        then if (if flip then x_m else y_m) < (if flip then fst else snd) c#size
           then begin
             let x = if flip then g.x else g.x + offset' in
             let y = if flip then g.y + offset' else g.y in
             (* Printf.printf "Success at offset %i with geom %i %i\n" offset' x y; *)
-            Some (c,{g with x; y}, cco)
+            res := Some (c#name,{g with x; y}, !cco);
+            raise Reset
           end
-          else acc
+          else raise Reset
+        else ()
       in
-      match List.fold_left f (None) children with
-      | None ->
-        Printf.printf "Click missed target\n";
+      match List.iter f children with
+      | () ->
+        (* Printf.printf "Click missed target\n"; *)
         None
-      | Some (c,g,cco) ->
-        match !cco with
-        | None -> failwith "Child of row has no continuation"
-        | Some (ts,cc) ->
+      | exception Reset ->
+        match !res with
+        | None -> None
+        | Some (n,_,None) -> failwith @@ "Child " ^ n ^ " of row has no continuation"
+        | Some (name,g, Some (ts,cc)) ->
           if List.mem (Trigger.of_event ev) ts
           then begin
-            Printf.printf "%s --> %s\n" self#name c#name;
+            Printf.printf "%s --> %s\n" self#name name;
             let res = cc ev g in
             self#update;
             res
           end
           else begin
-            Printf.printf "Click not in %s triggers\n" c#name;
+            (* Printf.printf "Click not in %s triggers\n" c#name; *)
             None
           end
 
-    method! perform =
+    method execute =
       let ret = ref None in
       (* TODO This currently automatically restarts any widget that terminated.
          What is row supposed to do? Automatically remove that widget?
@@ -97,7 +91,7 @@ class ['a] t ?(flip = false) ?(sep = Theme.room_margin)
                             not directly possible *)
           | None ->
             Printf.printf "%s performing %s\n" self#name c#name;
-            let _ = match c#perform with
+            let _ = match c#execute with
               | x ->
                 Printf.printf "%s <<< %s\n" self#name c#name;
                 ret := Some x;
@@ -113,8 +107,22 @@ class ['a] t ?(flip = false) ?(sep = Theme.room_margin)
       match !ret with
       | Some x -> x
       | None ->
-        super#perform
-
+        let triggers =
+          List.concat_map (fun (_,_,ccor) -> match !ccor with Some (ts,_) -> ts | _ -> []) children
+        in
+        let rec loop () =
+          match await triggers self#handle with
+          | Some res ->
+            Printf.printf "Result obtained\n%!";
+            res
+          | None ->
+            Printf.printf "Looping\n%!";
+            loop ()
+        in
+        Printf.printf "Starting loop\n%!";
+        let res = loop () in
+        Printf.printf "Ending loop\n%!";
+        res
 
     method display canvas layer geom =
       let f (x,c,_) =
@@ -128,6 +136,3 @@ class ['a] t ?(flip = false) ?(sep = Theme.room_margin)
       blits
 
   end
-
-(* TODO *)
-let x = (None : bool t option)

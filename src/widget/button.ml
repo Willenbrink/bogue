@@ -61,15 +61,17 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
       box_off#unload;
       do_option box_over (fun o -> o#unload)
 
-    method triggers = Trigger.(buttons_down @ buttons_up @ [mouse_enter; mouse_leave])
-
-    method handle ev _ = Trigger.(match of_event ev with
-        | x when List.mem x buttons_down -> self#press
-        | x when List.mem x buttons_up -> self#release
-        | x when x = mouse_enter -> self#mouse_enter
-        | x when x = mouse_leave -> self#mouse_leave
-        | _ -> failwith "Invalid event");
-      Some self#state
+    method execute =
+      await Trigger.(buttons_down @ buttons_up @ [mouse_enter; mouse_leave]) (fun (ev,_) ->
+          if Trigger.(match Trigger.of_event ev with
+              | x when List.mem x buttons_down -> self#press; false
+              | x when List.mem x buttons_up -> self#release; true
+              | x when x = mouse_enter -> self#mouse_enter; false
+              | x when x = mouse_leave -> self#mouse_leave; false
+              | _ -> failwith "Invalid event")
+          then self#state
+          (* TODO check that this is actually a tail call *)
+          else self#execute)
 
     method text =
       if self#state

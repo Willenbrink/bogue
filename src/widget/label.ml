@@ -33,10 +33,9 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
       render <- None;
       do_option tex Draw.forget_texture
 
-    method triggers = []
-
-    method handle _ _ = failwith "Label#handle called"
-    (* FIXME Nontermination without using CPU. Use effect handlers? *)
+    method execute =
+      await [] Fun.(const ());
+      self#execute
 
     val mutable fg = fg
     method set_fg_color x = fg <- x

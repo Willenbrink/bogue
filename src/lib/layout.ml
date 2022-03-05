@@ -256,11 +256,11 @@ class ['a] t ?id ?name ?(adjust = Fit)
       let geom = Draw.{x;y;w;h;voffset} in
       match cc with
       | None ->
-        print_endline "init in handle_w";
         begin
-          match widget#perform with
+          match widget#execute with
           | x ->
-            Printf.printf "Top Level Widget terminated with %b\n" x;
+            print_endline "Root widget terminated";
+            (* TODO consider this case *)
             cc <- None
           | [%effect? (W.Await triggers), k] ->
             cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))
@@ -275,7 +275,6 @@ class ['a] t ?id ?name ?(adjust = Fit)
           begin
             match cont ev geom with
             | _ ->
-              Printf.printf "Top Level Widget terminated without retval\n";
               cc <- None
             | [%effect? (W.Await triggers), k] ->
               cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))

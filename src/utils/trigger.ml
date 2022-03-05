@@ -502,12 +502,17 @@ let filter_events filter =
   remove;;
 
 (* remove all events of this kind and return the last one (=most recent) *)
-(* not used *)
 let get_last kind =
   if Sdl.has_event kind
-  then let remove = filter_events (fun ev -> E.(get ev typ) <> kind) in
-    Some (List.hd (List.rev remove)) (* TODO check remove <> empty *)
-  else None;;
+  then
+    let remove =
+      filter_events (fun ev -> E.(get ev typ) <> kind)
+    in
+    match List.rev remove with
+    | [] -> None
+    | x::_ -> Some x
+  else
+    None
 (* TODO optimize by using a get_all_events which does not do List.rev *)
 
 

@@ -40,9 +40,9 @@ class ['a] t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
       | Style.Image img -> img#unload
       | _ -> ()
 
-    method triggers = []
-
-    method handle _ _ = failwith "Box#handle called"
+    method execute =
+      await [] Fun.(const ());
+      self#execute
 
     (* As all widget display functions, the geometry g must be already scaled. *)
     method display canvas layer geom=

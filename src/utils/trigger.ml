@@ -22,74 +22,74 @@ let () =
   let a,b,c = Sdl.get_version () in
   Sdl.log "Using SDL %u.%u.%u" a b c;
   go(Sdl.(init_sub_system Init.events));
-  printd debug_event "SDL Events initialized";;
+  printd debug_event "SDL Events initialized"
 
-type t = Sdl.event_type;;
+type t = Sdl.event_type
 
-let event_names : (t,string) Hashtbl.t = Hashtbl.create 10;;
+let event_names : (t,string) Hashtbl.t = Hashtbl.create 10
 
 let new_event_type name =
   match Sdl.register_event () with
   | None -> failwith "Cannot register event."
-  | Some t -> (
-      Hashtbl.add event_names t name;
-      printd debug_event "Register new event type:%s (%d)" name t;
-      t);;
+  | Some t ->
+    Hashtbl.add event_names t name;
+    printd debug_event "Register new event type:%s (%d)" name t;
+    t
 
 let create_event t =
   let e = E.create () in
   E.(set e typ t);
-  e;;
+  e
 
 (* some aliases *)
 
-let buttons_down = E.[mouse_button_down; finger_down];;
-let buttons_up = E.[mouse_button_up; finger_up];;
-let pointer_motion = E.[mouse_motion; finger_motion];;
+let buttons_down = E.[mouse_button_down; finger_down]
+let buttons_up = E.[mouse_button_up; finger_up]
+let pointer_motion = E.[mouse_motion; finger_motion]
 
 (* we create new user types. The first one should be the predefined
    E.user_event *)
 
-let user_type = new_event_type "user";;
-assert (user_type = E.user_event);;  (* 32768 *)
+let user_type = new_event_type "user"
+let () = assert (user_type = E.user_event)  (* 32768 *)
 
-let stop = new_event_type "stop";;
+let stop = new_event_type "stop"
 
-let stopped = new_event_type "stopped";;
+let stopped = new_event_type "stopped"
 
-let mouse_enter = new_event_type "mouse_enter";;
+let mouse_enter = new_event_type "mouse_enter"
 
-let mouse_leave = new_event_type "mouse_leave";;
+let mouse_leave = new_event_type "mouse_leave"
 
-let redraw = new_event_type "redraw";; (* TODO: select only a particular canvas *)
+let redraw = new_event_type "redraw" (* TODO: select only a particular canvas *)
 
-(* let refresh = new_event_type ();; *)
+(* let refresh = new_event_type () *)
 
-let full_click = new_event_type "full_click";;
+let full_click = new_event_type "full_click"
 
-let startup = new_event_type "startup";;
+let startup = new_event_type "startup"
 
 (* the var_changed event can be send to notify that some widget made a change to
    a global variable. This is used for instance in radiolist.ml *)
-let var_changed = new_event_type "var_changed";;
+let var_changed = new_event_type "var_changed"
 
-let keyboard_focus = new_event_type "keyboard_focus";;
+let keyboard_focus = new_event_type "keyboard_focus"
 
-let mouse_focus = new_event_type "mouse_focus";;
+let mouse_focus = new_event_type "mouse_focus"
 
-let not_used = new_event_type "not_used";;
+let not_used = new_event_type "not_used"
 
 (* this event is used by the main loop, and sometimes we need to send
    it to other threads. In this case we create a new event for the
    main loop, using renew_my_event below. *)
-let my_event = ref (E.create ());;
+let my_event = ref (E.create ())
 
 let renew_my_event () =
   let e = create_event not_used in (* this should be innocuous *)
-  my_event := e;;
+  my_event := e
 
 let of_event ev =
-  E.(get ev typ);;
+  E.(get ev typ)
 
 (* See tsdl.mli *)
 type sdl_event = Sdl.Event.enum
@@ -177,7 +177,7 @@ type field =
   | Window of E.window_event_id E.field
 
 let common_fields = let open E in
-  [ Type typ; Timestamp timestamp ];;
+  [ Type typ; Timestamp timestamp ]
 
 let touch_finger_fields = let open E in
   [ Touch touch_finger_touch_id;
@@ -187,12 +187,12 @@ let touch_finger_fields = let open E in
     Float touch_finger_dx;
     Float touch_finger_dy;
     Float touch_finger_pressure;
-  ];;
+  ]
 
 let controller_button_fields = let open E in
   [ Joystick controller_button_which;
     Uint8 controller_button_button;
-    Button controller_button_state ];;
+    Button controller_button_state ]
 
 let dollar_gesture_fields = let open E in
   [ Touch dollar_gesture_touch_id;
@@ -200,15 +200,15 @@ let dollar_gesture_fields = let open E in
     Int dollar_gesture_num_fingers;
     Float dollar_gesture_error;
     Float dollar_gesture_x;
-    Float dollar_gesture_y ];;
+    Float dollar_gesture_y ]
 
 let joy_button_fields = let open E in
   [ Joystick joy_button_which;
     Uint8 joy_button_button;
-    Button joy_button_state ];;
+    Button joy_button_state ]
 
 let joy_device_fields = let open E in
-  [ Joystick joy_device_which ];;
+  [ Joystick joy_device_which ]
 
 let keyboard_fields = let open E in
   [ Int keyboard_window_id;
@@ -216,7 +216,7 @@ let keyboard_fields = let open E in
     Int keyboard_repeat;
     Scancode keyboard_scancode;
     Keycode keyboard_keycode;
-    Keymod keyboard_keymod ];;
+    Keymod keyboard_keymod ]
 
 let mouse_button_fields = let open E in
   [ Int mouse_button_window_id;
@@ -225,7 +225,7 @@ let mouse_button_fields = let open E in
     Button mouse_button_state;
     Uint8 mouse_button_clicks;
     Int mouse_button_x;
-    Int mouse_button_y ];;
+    Int mouse_button_y ]
 
 let mouse_motion_fields = let open E in
   [ Int mouse_motion_window_id;
@@ -234,11 +234,11 @@ let mouse_motion_fields = let open E in
     Int mouse_motion_x;
     Int mouse_motion_y;
     Int mouse_motion_xrel;
-    Int mouse_motion_yrel ];;
+    Int mouse_motion_yrel ]
 
 let user_fields = let open E in
   [ Int user_window_id;
-    Int user_code ];;
+    Int user_code ]
 
 let special_fields_per_type = let open E in
   [
@@ -330,7 +330,7 @@ let special_fields_per_type = let open E in
   ]
 
 let copy_field e1 e2 field =
-  let x = E.get e1 field in E.set e2 field x;;
+  let x = E.get e1 field in E.set e2 field x
 
 let copy_field e1 e2 field =
   match field with
@@ -355,7 +355,7 @@ let copy_field e1 e2 field =
   | Window f -> copy_field e1 e2 f
 
 let copy_fields e1 e2 fields =
-  List.iter (copy_field e1 e2) fields;;
+  List.iter (copy_field e1 e2) fields
 
 let copy_event e =
   let e2 = E.create () in
@@ -367,7 +367,7 @@ let copy_event e =
     else try List.assoc t special_fields_per_type
       with Not_found -> [] in
   copy_fields e e2 fields;
-  e2;;
+  e2
 
 (* val enum : Tsdl.Sdl.event_type -> *)
 (*        [ `App_did_enter_background *)
@@ -421,15 +421,15 @@ let copy_event e =
 (*       let e = create () in *)
 (*       set e typ user_event; *)
 (*       set e user_code id; *)
-(*       e;; *)
+(*       e *)
 
-(* let user0 = user 0;; *)
+(* let user0 = user 0 *)
 
 (* let add ev =  *)
 (*   print_debug "Add USER 0"; *)
-(*   if not (go (Sdl.push_event ev)) then print_debug "Warning: Event filtered";; *)
+(*   if not (go (Sdl.push_event ev)) then print_debug "Warning: Event filtered" *)
 
-(* let add_user x = if x = 0 then add user0;; *)
+(* let add_user x = if x = 0 then add user0 *)
 
 let text_event ev =
   match event_kind ev with
@@ -438,29 +438,29 @@ let text_event ev =
   | `Key_up
   | `Text_editing
   | `Text_input -> true
-  | _ -> false;;
+  | _ -> false
 
 let flush kind =
-  Sdl.flush_event kind;;
+  Sdl.flush_event kind
 
 let sprint_ev ev =
   let open Printf in
   let t = E.(get ev typ) in
   let name = try sprintf " (%s)" (Hashtbl.find event_names t)
     with Not_found -> "" in
-  sprintf "%u%s" t name;;
+  sprintf "%u%s" t name
 
 let push_event ev =
   printd debug_event "Pushing event %s" (sprint_ev ev);
-  if not (go (Sdl.push_event ev)) then printd debug_event "Warning: Event filtered";;
+  if not (go (Sdl.push_event ev)) then printd debug_event "Warning: Event filtered"
 
 (** check if the event queue has at least n events *)
 let rec has_n_events n =
   if n <= 0 then true
-  else (Sdl.poll_event None) && has_n_events (n-1);;
+  else (Sdl.poll_event None) && has_n_events (n-1)
 
 let has_no_event () =
-  not (Sdl.poll_event None);;
+  not (Sdl.poll_event None)
 
 (** get the list of all events, and remove them from the queue *)
 (* the first of the list is the oldest, ie the one to be popped at the next
@@ -470,7 +470,7 @@ let get_all_events () =
     let e = E.create () in
     if Sdl.poll_event (Some e) then loop (e::list)
     else List.rev list in
-  loop [];;
+  loop []
 
 (** leave only those events that satisfy the filter test and return the
     others *)
@@ -483,7 +483,7 @@ let filter_events filter =
   let list = get_all_events () in
   let keep, remove = List.partition filter list in
   List.iter push_event keep;
-  remove;;
+  remove
 
 (* remove all events of this kind and return the last one (=most recent) *)
 let get_last kind =
@@ -516,16 +516,16 @@ let flush_but_n ?filter n =
         | None -> (push_event e; loop (i-1) rest)
   in
   printd debug_event "Number of events:%u" (List.length all_events);
-  loop n all_events;;
+  loop n all_events
 
 let flush_all () =
-  ignore (get_all_events ());;
+  ignore (get_all_events ())
 
 let flush_n n =
   let e = E.create () in
   let rec loop i =
     if i > 0 && Sdl.poll_event (Some e) then loop (i-1)
-  in loop n;;
+  in loop n
 
 
 (* some aliases *)
@@ -577,45 +577,45 @@ let widget_id = E.user_code
 let push_from_id ev_type id =
   let e = create_event ev_type in
   E.(set e user_code id);
-  push_event e;;
+  push_event e
 
 (* use this when the mouse enters a new widget. id is the id of the room
    containing the widget. *)
-let push_mouse_enter = push_from_id mouse_enter;;
+let push_mouse_enter = push_from_id mouse_enter
 
 (* see push_mouse_enter *)
-let push_mouse_leave = push_from_id mouse_leave;;
+let push_mouse_leave = push_from_id mouse_leave
 
 (* use this to request a redraw of the widget, id is the widget_id *)
 (* in the current implementation, it asks the whole Window to refresh *)
-let push_redraw = push_from_id redraw;;
+let push_redraw = push_from_id redraw
 
 (* use this when the layout claims keyboard focus *)
 (* the id is of the layout, which should contain a Widget. *)
-let push_keyboard_focus = push_from_id keyboard_focus;;
+let push_keyboard_focus = push_from_id keyboard_focus
 
 (* use this when the layout claims mouse focus *)
 (* the id is of the layout, which should contain a Widget. *)
-let push_mouse_focus = push_from_id mouse_focus;;
+let push_mouse_focus = push_from_id mouse_focus
 
 (* use this when a Tvar (or dynvar, not used) has changed *)
 (* at this time, the significance of the id argument is not specified. (not used
    yet). It could be a widget_id, room_id, or dynavar_id... TODO create a
    specific event for each of them *)
-let push_var_changed = push_from_id var_changed;;
+let push_var_changed = push_from_id var_changed
 
 (* send the `Quit event *)
-let push_quit () = push_from_id E.quit 0;;
+let push_quit () = push_from_id E.quit 0
 
 (** tell if the current thread should exit. This should be called within a
     widget action. We communicate via the event to decide if the thread should
     exit *)
 let should_exit ev =
   (* printd debug_thread "should exit ? event type = %d" (E.(get ev typ)); *)
-  E.(get ev typ) = stop;;
+  E.(get ev typ) = stop
 
 let will_exit ev =
-  E.(set ev typ) stopped;;
+  E.(set ev typ) stopped
 
 (** a delay that can be stopped via the event *)
 let nice_delay ev sec =
@@ -623,7 +623,7 @@ let nice_delay ev sec =
   let rec loop () =
     if (Unix.gettimeofday () >= t) || (should_exit ev) then ()
     else (Thread.delay 0.003; loop ()) in
-  loop ();;
+  loop ()
 
 (** wait until the value is observed, or timeout is elapsed. Return true is the
     value was observed *)
@@ -646,7 +646,7 @@ let wait_for ?timeout ?ev cond =
         && not (should_exit ev)
   do
     Thread.delay 0.01;
-  done;;
+  done
 
 
 (* WARNING: in the current implementation of widget.ml, all events that can be
@@ -657,14 +657,14 @@ let wait_for ?timeout ?ev cond =
 (* EDIT: now we duplicate the event before sending it to a thread, so this
    should be safer, see widget.ml/add_action *)
 
-let full_click_event () = create_event full_click;;
-let startup_event () = create_event startup;;
+let full_click_event () = create_event full_click
+let startup_event () = create_event startup
 
-let is_mouse_at_rest = ref false;;
+let is_mouse_at_rest = ref false
 
 let mouse_pos () =
   let _, (x,y) = Sdl.get_mouse_state () in
-  Theme.(unscale_int x, unscale_int y);;
+  Theme.(unscale_int x, unscale_int y)
 
 (* check if mouse didn't move for a while *)
 (* TODO use get_touch_finger *)
@@ -681,7 +681,7 @@ let check_mouse_rest =
       let p = mouse_pos () in
       if p <> !pos0 (* we have moved *)
       then t := None;
-      Unix.gettimeofday () -. t0;;
+      Unix.gettimeofday () -. t0
 
 (** wait for next event. Returns the SAME event structure e (modified) *)
 let rec wait_event e =
@@ -699,27 +699,27 @@ let rec wait_event e =
   end
 
 
-(* let redraw = 0;; *) (* redraw all *) (* TODO: select only a particular canvas *)
-(* let refresh = 1;; *) (* refresh widgets that are not fresh *)
-(* let full_click = 2;; *) (* NOT USED, see the DIRTY HACK in bogue.ml *)
+(* let redraw = 0 *) (* redraw all *) (* TODO: select only a particular canvas *)
+(* let refresh = 1 *) (* refresh widgets that are not fresh *)
+(* let full_click = 2 *) (* NOT USED, see the DIRTY HACK in bogue.ml *)
 
 
 (* let add_user id = *)
 (*   let ev = user id in *)
 (*   printd debug_event "Add USER %d" id; *)
-(*   push_event ev;; *)
+(*   push_event ev *)
 
 
 (* (\* this one can be called by threads *\) *)
 (* let push_user_new id = *)
 (*   printd debug_event "Add USER %d" id; *)
-(*   Var.set my_user_event (Some id);; *)
+(*   Var.set my_user_event (Some id) *)
 
 (* let user_code ev = *)
-(*   E.(get ev user_code);; *)
+(*   E.(get ev user_code) *)
 
 let mm_pressed ev =
-  Int32.logand E.(get ev mouse_motion_state) (Sdl.Button.lmask) <> 0l;;
+  Int32.logand E.(get ev mouse_motion_state) (Sdl.Button.lmask) <> 0l
 
 (* maybe all the window_id field in fact are the same int ? *)
 let window_id ev =
@@ -747,7 +747,7 @@ let window_id ev =
           else match Sdl.get_window_from_id id with
             | Ok _ -> id
             | Error _ -> loop (id+1)
-        in loop 0;;
+        in loop 0
 
 (* treatment of clicks *)
 (***********************)
@@ -768,7 +768,7 @@ type bc_dynamic =
 
 type button_click =
   { mutable static : bc_static;
-    dynamic : bc_dynamic };;
+    dynamic : bc_dynamic }
 
 let empty_click () =
   let static = {
@@ -780,14 +780,14 @@ let empty_click () =
     button_state = Sdl.released;
     button_x = 0;
     button_y = 0 } in
-  { static; dynamic };;
+  { static; dynamic }
 
 let button_down_event = empty_click ()
-let single_click_delay = 300;; (* between button_down and button_up *)
-let double_click_delay = 400;; (* between first button_up and second button_up *)
-let single_click = ref None;;
-let double_click = ref None;;
-let too_fast = ref false;;
+let single_click_delay = 300 (* between button_down and button_up *)
+let double_click_delay = 400 (* between first button_up and second button_up *)
+let single_click = ref None
+let double_click = ref None
+let too_fast = ref false
 
 let copy_from_event ev bc =
   let open Sdl.Event in
@@ -799,7 +799,7 @@ let copy_from_event ev bc =
   bc.dynamic.timestamp <- Int32.to_int (get ev timestamp);
   bc.dynamic.button_state <- get ev mouse_button_state;
   bc.dynamic.button_x <- get ev mouse_button_x;
-  bc.dynamic.button_y <- get ev mouse_button_y;;
+  bc.dynamic.button_y <- get ev mouse_button_y
 
 (* should be called on every button_down *)
 (* TODO for touch too... *)
@@ -841,11 +841,11 @@ let button_up ev =
          else (printd debug_event "No click: too late";
                single_click := None;
                double_click := None))
-  else printd debug_event "No click: not the same button";;
+  else printd debug_event "No click: not the same button"
 
-let was_double_click () = !double_click <> None;;
+let was_double_click () = !double_click <> None
 
-let was_single_click () = (!single_click <> None) && (!double_click = None);;
+let was_single_click () = (!single_click <> None) && (!double_click = None)
 
 (* text input *)
 
@@ -853,14 +853,14 @@ let was_single_click () = (!single_click <> None) && (!double_click = None);;
 let shift_pressed () =
   let m = Sdl.get_mod_state () in
   m = Sdl.Kmod.lshift
-  || m = Sdl.Kmod.rshift;;
+  || m = Sdl.Kmod.rshift
 
 (* only ctrl *)
 let ctrl_pressed () =
   let m = Sdl.get_mod_state () in
   m = Sdl.Kmod.ctrl
   || m = Sdl.Kmod.lctrl
-  || m = Sdl.Kmod.rctrl;;
+  || m = Sdl.Kmod.rctrl
 
 let ctrl_shift_pressed () =
   let m = Sdl.get_mod_state () in

@@ -192,20 +192,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
           end
         end
         (* print_endline "handle_w return" *)
-
-    (* initializer *)
-    (*   (\* This uses deep continuations. *)
-    (*      While I do not understand it in detail, this essentially means that *)
-    (*      every Await thrown in the continuation will also be handled here. *)
-    (*      I.e. exp will never be evaluated in try continue k with Await k -> exp *\) *)
-    (*   match content#perform with *)
-    (*   | _ -> failwith "Widget terminated!" *)
-    (*   | [%effect? (W.Await triggers), k] -> *)
-    (*     print_endline "Set cc in layout"; *)
-    (*     cc <- Cc (triggers, (fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))) *)
   end
-
-let x = (None : bool t option)
 
 (* The whole connected component of a layout is a tree, whose vertices (nodes)
    are rooms and leaves are widgets (=Resident). The number of branches (=Rooms

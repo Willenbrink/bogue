@@ -354,7 +354,6 @@ let refresh_custom_windows board =
 (* [one_step] is what is executed during the main loop *)
 let one_step before_display ?clear (board : 'a board) =
   let e = !Trigger.my_event in
-  (* if not (is_fresh board) then Trigger.(push_event redraw_event); (* useful ? *) *)
   let evo =
     (* (go (Sdl.wait_event (Some e)); Some e) *)
     (* DOC: As of SDL 2.0, this function does not put the
@@ -364,7 +363,6 @@ let one_step before_display ?clear (board : 'a board) =
     (* ME: as a result, it seems that Sdl.wait_event prevents other
        threads from executing nicely *)
     Some (Trigger.wait_event e)
-    (* While we wait for events, we execute the Timeout Queue. *)
   in
   (* Flush any motion events to avoid lag when there are too many events.
      Note that we already stored the latest event in e *)

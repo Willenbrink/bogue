@@ -196,7 +196,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
       let widget = self#content in
 
       let w,h = Sdl.get_window_size @@ window (self :> 'a t) in
-      Printf.printf "geom: %iw,%ih\n" w h;
+      (* Printf.printf "geom: %iw,%ih\n" w h; *)
       match cc with
       | None ->
         begin
@@ -209,12 +209,12 @@ class ['a] t ?id ?name ?(adjust = Fit)
             cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))
         end;
         Widget.wake_up_all ev widget;
-        widget#update
+        (* widget#update *)
       | Some (triggers, cont) ->
         let widget = self#content in
         if List.mem (Trigger.of_event ev) triggers
         then begin
-          print_endline "handle_w";
+          print_endline "";
           begin
             match cont ev self#current_geom with
             | _ ->
@@ -223,7 +223,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
               cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))
           end;
           Widget.wake_up_all ev widget;
-          widget#update
+          (* widget#update *)
         end
         else
           Widget.wake_up_all ev widget;

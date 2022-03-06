@@ -37,8 +37,8 @@ class ['a] t ?(flip = false) ?(sep = Theme.room_margin)
 
     method private handle (ev,(g : Draw.geometry)) =
       let x_m, y_m = Mouse.pointer_pos ev in
-      Printf.printf "%s, geom: %ix,%iy %iw,%ih\n" name g.x g.y g.w g.h;
-      Printf.printf "%s, mouse: %i,%i\n" name x_m y_m;
+      (* Printf.printf "%s, geom: %ix,%iy %iw,%ih\n" name g.x g.y g.w g.h; *)
+      (* Printf.printf "%s, mouse: %i,%i\n" name x_m y_m; *)
       assert (g.x <= x_m && x_m <= g.x + g.w);
       assert (g.y <= y_m && y_m <= g.y + g.h);
       let x_m, y_m = x_m - g.x, y_m - g.y in

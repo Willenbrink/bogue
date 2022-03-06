@@ -3,28 +3,16 @@
    restarts the contained widget whenever it returns. *)
 open Base
 
-class ['a] t ?id child =
-  object
-    inherit ['a] w ?id child#size "Single" Cursor.Arrow
-
-    method unload = child#unload
-
-    method execute =
-      child#execute
-
-    method display = child#display
-  end
-
-class ['a] loop child =
+class ['a] t ?id child execute =
   object (self)
-    inherit ['a] w child#size ("Single " ^ child#name) Cursor.Arrow
+    inherit ['a] w ?id child#size ("Single " ^ child#name) Cursor.Arrow
 
     method unload = child#unload
 
-    method execute =
-      child#execute
-      |> ignore;
-      self#execute
+    method execute = execute self
 
     method display = child#display
   end
+
+let printer child pp = new t child (fun self -> child#execute |> pp; self#execute)
+let loop ?id child = new t ?id child (fun self -> child#execute |> ignore; self#execute)

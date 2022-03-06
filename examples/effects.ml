@@ -5,6 +5,7 @@ module L = Layout
 module T = Trigger
 
 let example () =
+  let sl = new Slider.t ~kind:Slider.Vertical () in
   let b = new Check.t () in
   let b' = new Check.t () in
   let b'' = new Check.t () in
@@ -31,7 +32,13 @@ let example () =
   end
   in
   let row_b = new Row.t [b |> W.gen; l |> W.gen] in
-  let row_ti = new Row.t [ti |> W.gen; l |> W.gen; new Single.loop b] in
+  let row_ti = new Row.t [
+    Single.loop ti;
+    l |> W.gen;
+    Single.printer sl (Printf.printf "%i\n");
+    Single.loop b
+  ]
+  in
   let col = new Col.t [comb b l; comb b' l'; comb b'' l''] in
   (* let layout = L.resident col in *)
   (* let layout = L.resident (comb b l) in *)

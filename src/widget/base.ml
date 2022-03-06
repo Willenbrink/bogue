@@ -32,8 +32,44 @@ let of_id_opt id =
   | Not_found -> None
 
 exception%effect Await : Trigger.t list -> (Sdl.event * Draw.geometry)
-let await triggers handler = handler @@ EffectHandlers.perform (Await triggers)
+exception Repeat
 exception Reset
+let rec await triggers handler =
+  try handler @@ EffectHandlers.perform (Await triggers) with
+  | Repeat -> await triggers handler
+
+let await_loop triggers_ext handler_ext (type a) triggers (handler : _ -> a) : a =
+  await (triggers_ext @ triggers) @@ function
+  | ev,g ->
+    match
+      List.mem (Trigger.of_event ev) triggers_ext,
+      List.mem (Trigger.of_event ev) triggers
+    with
+    | true,true ->
+      handler_ext (ev,g);
+      handler (ev,g)
+    | false,true ->
+      handler (ev,g)
+    | true,false ->
+      handler_ext (ev,g);
+      raise Repeat
+    | false,false -> assert false
+
+let await_unit triggers_ext handler_ext triggers handler =
+  await (triggers_ext @ triggers) @@ function
+  | ev,g ->
+    match
+      List.mem (Trigger.of_event ev) triggers_ext,
+      List.mem (Trigger.of_event ev) triggers
+    with
+    | true,true ->
+      handler_ext (ev,g);
+      handler (ev,g)
+    | false,true ->
+      handler (ev,g)
+    | true,false ->
+      handler_ext (ev,g)
+    | false,false -> assert false
 
 type 'a cc =
   | Cc : Trigger.t list * (Sdl.event -> Draw.geometry -> 'a) -> 'a cc

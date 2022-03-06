@@ -94,19 +94,9 @@ class ['a] t ?id ?name ?(adjust = Fit)
        that need to be recomputed at each iteration. Note: rooms inside a house
        must be physically inside the geometry of the house. If not, they will
        not be detected by the mouse, for instance. *)
-    val mutable geometry : Draw.geometry = _geometry
+    val mutable geometry = _geometry
     method geometry = geometry
     method set_geometry x = geometry <- x
-
-    (* the current *absolute* geometry. Is updated at each display. But because
-       of clip, the actual rendered size can be smaller than indicated
-       size. Before the start of the main loop, it is equal to the initial
-       values of the geometry field *)
-    (* a special case of current_geom.(x,y) is to specify window position for
-       the top layouts. See set_window_pos *)
-    val mutable current_geom = _geometry
-    method current_geom : Draw.geometry = current_geom
-    method set_current_geom (x : Draw.geometry) = current_geom <- x
 
     (* if clip=true, the room (and its children) will be clipped inside its
        geometry. This should be set whenever one want to scroll the content of
@@ -195,7 +185,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
     method handle_widget ev =
       let widget = self#content in
 
-      let w,h = Sdl.get_window_size @@ window (self :> 'a t) in
+      (* let w,h = Sdl.get_window_size @@ window (self :> 'a t) in *)
       (* Printf.printf "geom: %iw,%ih\n" w h; *)
       match cc with
       | None ->
@@ -204,41 +194,37 @@ class ['a] t ?id ?name ?(adjust = Fit)
           | _ ->
             print_endline "Root widget terminated";
             (* TODO consider this case *)
-            cc <- None
+            cc <- None;
+            widget#update
           | [%effect? (W.Await triggers), k] ->
             cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))
         end;
-        Widget.wake_up_all ev widget;
-        (* widget#update *)
       | Some (triggers, cont) ->
         let widget = self#content in
         if List.mem (Trigger.of_event ev) triggers
         then begin
           print_endline "";
           begin
-            match cont ev self#current_geom with
+            match cont ev self#geometry with
             | _ ->
-              cc <- None
+              cc <- None;
+              widget#update
             | [%effect? (W.Await triggers), k] ->
               cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))
-          end;
-          Widget.wake_up_all ev widget;
-          (* widget#update *)
+          end
         end
-        else
-          Widget.wake_up_all ev widget;
         (* print_endline "handle_w return" *)
 
-        (* initializer *)
-        (*   (\* This uses deep continuations. *)
-        (*      While I do not understand it in detail, this essentially means that *)
-        (*      every Await thrown in the continuation will also be handled here. *)
-        (*      I.e. exp will never be evaluated in try continue k with Await k -> exp *\) *)
-        (*   match content#perform with *)
-        (*   | _ -> failwith "Widget terminated!" *)
-        (*   | [%effect? (W.Await triggers), k] -> *)
-        (*     print_endline "Set cc in layout"; *)
-        (*     cc <- Cc (triggers, (fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))) *)
+    (* initializer *)
+    (*   (\* This uses deep continuations. *)
+    (*      While I do not understand it in detail, this essentially means that *)
+    (*      every Await thrown in the continuation will also be handled here. *)
+    (*      I.e. exp will never be evaluated in try continue k with Await k -> exp *\) *)
+    (*   match content#perform with *)
+    (*   | _ -> failwith "Widget terminated!" *)
+    (*   | [%effect? (W.Await triggers), k] -> *)
+    (*     print_endline "Set cc in layout"; *)
+    (*     cc <- Cc (triggers, (fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))) *)
   end
 
 let x = (None : bool t option)
@@ -266,10 +252,6 @@ let x = (None : bool t option)
 
 
 exception Fatal_error of (Widget.common * string)
-
-(* a special value used to indicate that the window position should be guessed
-   by the program. TODO don't use this nasty trick. *)
-let not_specified = -66666
 
 let no_clip = ref false
 (* The normal behaviour when a non-zero voffset is specified is to clip the
@@ -338,7 +320,7 @@ let delete_background room =
 let compute_background room =
   do_option room#background (
     fun bg ->
-      let g : Draw.geometry = room#current_geom in
+      let g = room#geometry in
       Sdl.log "COMPUTE BG w=%u h=%u" g.w g.h;
       let box = match bg with
         | Solid c ->
@@ -359,18 +341,18 @@ let set_background l b =
 
 (** get size of layout *)
 let get_size l =
-  (l#current_geom : Draw.geometry).w, l#current_geom.h
+  l#geometry.w, l#geometry.h
 
 let get_physical_size l =
   get_size l |> Draw.scale_size
 
 (** get width of layout *)
 let width l =
-  l#current_geom.w
+  l#geometry.w
 
 (** get height *)
 let height l =
-  l#current_geom.h
+  l#geometry.h
 
 let resize_content room = room#content#resize (get_size room)
 
@@ -396,13 +378,10 @@ let adjust_window_size l =
 let set_size ?(check_window = true) ?(update_bg = false) ?w ?h (l : 'a t) =
   let () = match w,h with
     | Some w, Some h ->
-      l#set_current_geom { l#current_geom with w; h };
       l#set_geometry { l#geometry with w; h };
     | Some w, None ->
-      l#set_current_geom { l#current_geom with w };
       l#set_geometry { l#geometry with w };
     | None, Some h ->
-      l#set_current_geom { l#current_geom with h };
       l#set_geometry { l#geometry with h };
     | None, None -> () in
 
@@ -424,92 +403,41 @@ let set_size ?check_window ?update_bg l (w,h) =
 (** get current absolute x position (relative to the top-left corner of the
     window). Not necessarily up-to-date. *)
 let xpos l =
-  l#current_geom.x
+  l#geometry.x
 
 (** get current absolute y position *)
 let ypos l =
-  l#current_geom.y
+  l#geometry.y
 
 (** change x of layout, without adjusting parent house. Warning, by default this
     disables the resize function. *)
 (* this is the x coordinate wrt the containing house *)
 (* this won't work if there is an animation running (see Avar.set) *)
 let setx l x =
-  let x0 = l#geometry.x in
-  l#set_current_geom { l#current_geom with x = l#current_geom.x + x - x0 };
   l#set_geometry { l#geometry with x }
 
 (** change y of layout, without adjusting parent house *)
 (* see above *)
 let sety l y =
-  let y0 = l#geometry.y in
-  l#set_current_geom { l#current_geom with y = l#current_geom.y + y - y0 };
   l#set_geometry { l#geometry with y }
 
 (* see above *)
 (* warning, it the animation is not finished, using Avar.set has almost no
    effect *)
 let set_voffset (l : 'a t) vo =
-  l#set_current_geom  { l#current_geom with voffset = vo }
+  l#set_geometry  { l#geometry with voffset = vo }
 
 (* use this to shift the voffset by a constant amount without stopping an
    animation *)
 let shift_voffset (l : 'a t) dv =
-  l#set_current_geom  { l#current_geom with voffset = l#current_geom.voffset + dv }
-
-(* a special use of current_geom is to indicate the desired window position
-   within the desktop at startup. It should be set *after* Bogue.make and
-   *before* Bogue.run *)
-let get_window_pos layout =
-  let f x = if x = not_specified then None else Some x in
-  f (layout#current_geom : Draw.geometry).x, f layout#current_geom.y
+  l#set_geometry  { l#geometry with voffset = l#geometry.voffset + dv }
 
 (* see get_window_pos. It should be set *after* Bogue.make and *before*
    Bogue.run. Otherwise it has possibly no effect, or perhaps causes some
    glitches. TODO make a test to ensure this ?? *)
 let set_window_pos layout (x,y)=
-  let g = layout#current_geom in
-  layout#set_current_geom { g with x; y }
-
-let rec rec_set_show b l = l#set_show b
-
-(** return absolute (x,y) position *)
-(* TODO optimize: test if x is up_to_date, then one can use current_geom instead ? *)
-(* of course this test will fail for hidden rooms *)
-let compute_pos room =
-  let rec loop x0 y0 (r : 'a t) =
-    x0 + r#geometry.x,
-    y0 + r#geometry.y + r#geometry.voffset
-  in
-  loop 0 0 room
-
-(* return the first resident *below (or including) room* for which test w =
-    true, or None *)
-let rec find_resident test room =
-  if test room#content then Some room else None
-
-(* search through the whole component of the layout (children and parents)
-   starting from top house containing room *)
-(* FIXME replace with appropriate code *)
-(* exception Found of Widget.common
- * let search room scan =
- *   if scan room then Some room
- *   (\* =just in case it might speed-up things: room is the "initial guess" *\)
- *   else let f r = if scan r then raise (Found (r :> Widget.common)) in
- *     try
- *       iter f (top_house room);
- *       raise Not_found
- *     with
- *     | Found r -> printd debug_warning "Search OK"; Some r
- *     | Not_found -> printd debug_error "Search produced no result!"; None
- *     | e -> raise e *)
-
-(* find the "first" (and deepest) room (leaf) contained in the layout by going
-   deep and choosing always the first room of a house *)
-(* WARNING a room with empty content is considered a leaf too *)
-let rec first_room r =
-  printd debug_board "Descending to room %s" (sprint_id r);
-  r
+  let g = layout#geometry in
+  layout#set_geometry { g with x; y }
 
 (********************)
 
@@ -537,14 +465,6 @@ let remove_canvas room =
   delete_textures room;
   room#set_canvas None
 
-(* Use this to shift all current_geometries before inserting a room inside a
-   house. This can be needed because inserting will trigger fit_content which
-   uses current_geom *)
-let global_translate room dx dy =
-  room#set_current_geom { (room#current_geom : Draw.geometry) with
-                          x = (room#current_geom : Draw.geometry).x + dx;
-                          y = room#current_geom.y + dy }
-
 (* adjust layout size to the inner content in the same layer (but not to the
    larger layouts, neither to the window) *)
 (* TODO: treat margins *)
@@ -553,18 +473,15 @@ let rec fit_content ?(sep = Theme.room_margin/2) l =
   if l#adjust = Nothing || l#clip then ()
   else let w,h = l#content#size in
     let g' = match l#adjust with
-      | Fit -> { l#current_geom with w = w+sep; h = h+sep };
-      | Width -> { l#current_geom with w = w+sep };
-      | Height -> { l#current_geom with h = h+sep };
+      | Fit -> { l#geometry with w = w+sep; h = h+sep };
+      | Width -> { l#geometry with w = w+sep };
+      | Height -> { l#geometry with h = h+sep };
       | Nothing -> failwith "already treated case !" in
-    let oldg = l#current_geom in
+    let oldg = l#geometry in
     if g' <> oldg then begin
       printd debug_graphics "ADJUST %s to New SIZE %d,%d" (sprint_id l) w h;
       set_size l (g'.w, g'.h)
     end
-
-(** return the list of widgets used inside the layout *)
-let rec get_widgets layout = [layout#content]
 
 let has_keyboard_focus r =
   r#keyboard_focus = Some true
@@ -589,8 +506,7 @@ let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?canvas ?layer
     | Some false -> None
     | None -> widget#guess_unset_keyboard_focus |> (fun b -> if b then None else Some false) in
   let geometry = Draw.geometry ~x ~y ~w ~h () in
-  new t ?name ?background ?keyboard_focus ?layer ?canvas
-    geometry widget
+  new t ?name ?background ?keyboard_focus ?layer ?canvas geometry widget
 
 (* Set the given widget as the new resident of the given room. If w,h are not
    specified, the size of the room will be updated by the size of the widget. *)
@@ -612,8 +528,7 @@ let maximize l =
   sety l 0;
 
   let w,h = get_size l in
-  l#set_current_geom { l#current_geom with h; w };
-  l#set_geometry { l#current_geom with h; w };
+  l#set_geometry { l#geometry with h; w };
   resize_content l
 
 (** check if a sublayer is deeper (= below = Chain.<) than the main layer, which
@@ -650,46 +565,6 @@ let global_set_canvas ?(mustlock=true) room canvas =
     room#set_canvas @@ Some canvas;
   if mustlock then ()
 
-let check_layer_error room house =
-  if not (Chain.same_component room#layer house#layer)
-  then printd debug_error
-      "The replacement room %s belongs to a separate set of layers disjoint \
-       from the house %s. Beware that it will probably never be displayed"
-      (sprint_id room) (sprint_id house)
-
-(* Hum. the adjust should NOT be done at this point, because display didn't
-   happen yet, hence the current_geometry is not updated. Morover there is no
-   way to know the 'sep' optional argument *)
-(* TODO the example/ls example should be reviewed then ... *)
-
-(* copy the 'relocatable content' of src into dst.  Of course, this should be
-   avoided when writing in functional style, but can be handy sometimes *)
-(* Warning: size will change, and this is not transmitted to the parent house *)
-(* Warning: the old content is not freed from memory *)
-(* TODO: move everything to Sync (not only set_rooms) ? *)
-let copy ~src ~dst =
-  let dx = dst#current_geom.x - src#current_geom.x in
-  let dy = dst#current_geom.y - src#current_geom.y in
-  global_translate src dx dy;
-  dst#set_geometry { dst#geometry with w = src#geometry.w; h = src#geometry.h };
-  let w,h = get_size src in
-  dst#set_current_geom { dst#current_geom with w; h };
-  dst#set_clip src#clip;
-  dst#set_background src#background;
-  dst#set_content src#content;
-  dst#set_keyboard_focus src#keyboard_focus;
-  dst#set_draggable src#draggable
-
-let set_layer ?(debug = !debug) room layer =
-
-  room#set_layer layer;
-  ();
-  if debug then check_layers room
-
-(* TODO: do some "move layer" or translate layer instead *)
-let global_set_layer room layer =
-  set_layer ~debug:false room layer
-
 (* compute the x,y,w,h that contains all rooms in the list *)
 let bounding_geometry = function
   | [] -> printd debug_warning "Trying to find bounding_geometry of empty list";
@@ -712,51 +587,6 @@ let bounding_geometry = function
    window. Thus, it would be enough to ask this to only one widget of the layout
    (since all widgets must be in the same window) *)
 let rec ask_update room = room#content#update
-
-(** animations: *)
-
-(** some predefined animations: *)
-(** relative scrolling *)
-(* the specifications are: the scrolling must be continuous (no jump), and n
-   calls to (scroll dy) should end up in the same position as (scroll (n*dy)),
-   even if they are triggered before the previous animation is not finished. In
-   case of rapid mouse wheel events, it is not obvious to have the scrolling
-   look smooth. Thus we add the following spec: the scroll curve should be
-   epsilon-close to the h-translated starways curve that would be obtained with
-   immediate jumps, where epsilon is the jump height (50 for scroll wheel) and h
-   is a small time amout, that we choose to be 2*dt here (it should be less than
-   duration, otherwise the second part of the animation g2 is never executed) *)
-let scroll_delay = ref 0.5
-
-let last_time = ref (Time.now ());; (* TODO replace this by the time of the Avar *)
-
-(** follow mouse animation. *)
-(* Note that the window is not available before running the layout... *)
-(* TODO this doesn't work for touch, because get_mouse_state only captures when
-   the finger touches the screen, but not when it moves. One should use
-   pointer_pos instead. *)
-
-let mouse_motion_x ?dx ?modifier room =
-  let x0 = ref 0 in (* we store here the dist between mouse and room *)
-  let init () =
-    x0 := default dx (fst (Mouse.window_pos (window room)) - xpos room) in
-  let update _ _ =
-    let x = fst (Mouse.window_pos (window room)) - !x0 in
-    match modifier with
-    | None -> x
-    | Some f -> x + f x in
-  Avar.create ~duration:(-1) ~update ~init 0
-
-let mouse_motion_y ?dy ?modifier room =
-  let y0 = ref 0 in
-  let init () =
-    y0 := default dy (snd (Mouse.window_pos (window room)) - ypos room) in
-  let update _ _ =
-    let y = snd (Mouse.window_pos (window room)) - !y0 in
-    match modifier with
-    | None -> y
-    | Some f -> y + f y in
-  Avar.create ~duration:(-1) ~update ~init 0
 
 (** display section *)
 
@@ -784,7 +614,7 @@ let rec display_loop x0 y0 clip0 (r : 'a t) =
   let x = x0 + g.x in
   let y = y0 + g.y + g.voffset in
   (* update current position, independent of clip *)
-  r#set_current_geom @@ { g with x; y };
+  r#set_geometry @@ { g with x; y };
   (*print_endline ("ALPHA=" ^ (string_of_float (Avar.old room#geometry.transform.alpha)));*)
   let rect = Sdl.Rect.create ~x ~y ~w:g.w ~h:g.h in
 
@@ -877,8 +707,6 @@ let set_cursor roomo =
     | Some room -> Cursor.get room#content#cursor
   in
   Sdl.set_cursor (Some cursor)
-
-let rec has_anim _ = false
 
 (* Flip buffers. Here the layout SHOULD be the main layout (house) of the window
 *)
@@ -1006,9 +834,9 @@ let inside_geom geometry (x,y) =
 
 let inside room (x,y) =
   match room#mask with
-  | None -> inside_geom room#current_geom (x,y)
+  | None -> inside_geom room#geometry (x,y)
   | Some mask -> (* TODO vérifier aussi qu'on est dans la dimension du mask *)
-    let x0,y0 = room#current_geom.x, room#current_geom.y in
+    let x0,y0 = room#geometry.x, room#geometry.y in
     let _,_,_,a = Draw.get_pixel_color mask ~x:(x-x0) ~y:(y-y0) in
     a <> 0
 

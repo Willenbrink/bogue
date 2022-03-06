@@ -71,48 +71,13 @@ let await_unit triggers_ext handler_ext triggers handler =
       handler_ext (ev,g)
     | false,false -> assert false
 
-type 'a cc =
-  | Cc : Trigger.t list * (Sdl.event -> Draw.geometry -> 'a) -> 'a cc
-  | Init
-
-class connection ?target action ?(priority=Forget) ?join triggers =
-  object
-    method action (ev : Sdl.event) : unit =
-      if !debug
-      then
-        (printd debug_thread "Executing action";
-         let t = Unix.gettimeofday () in
-         action ev;
-         printd debug_thread "End of action with time=%f" (Unix.gettimeofday () -. t))
-      else
-        action ev;
-
-      (* TODO ajouter Trigger.will_exit ev ?? *)
-      do_option target (fun x -> x#update)
-
-    method priority = priority
-    method triggers = triggers
-
-    method id = match join with
-      | None -> fresh_int ()
-      | Some c -> c#id
-
-    initializer
-      if Option.is_some target && (List.mem Sdl.Event.user_event triggers)
-      then printd debug_warning "one should not 'connect' with 'update_target'=true if the trigger list contains 'user_event'. It may cause an infinite display loop";
-  end
-
-and virtual common ?id ?(name = "UNNAMED") size () =
+class virtual common ?id ?(name = "UNNAMED") size () =
   let id = match id with None -> fresh_int () | Some id -> id in
   object (self)
     method id : int = id
     method name : string = name
 
     method virtual canvas : Draw.canvas option
-
-    val mutable connections : connection list = []
-    method connections = connections
-    method add_connection c : unit = connections <- connections @ [c]
 
     val mutable size : int * int = size
     method size = size
@@ -183,24 +148,6 @@ class virtual ['a] w ?id size name cursor =
        background -- for instance if draw_boxes = true *)
     method virtual display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list
   end
-
-(** create new connection *)
-(* if ~join:c, on donne le même id que la connexion c, ce qui permet
-   d'effectuer l'action conjointement avec celle de c (avec en général
-   la priorité Join pour effectuer à la suite de c). Attention dans ce
-   cas, ne pas déclancher plein de ces connexions à la suite... elles
-   s'attendent ! *)
-let connect self ?target action ?priority ?join triggers =
-  let target = Option.map (fun x -> (x :> 'a w)) target in
-  let c = new connection action ?priority ?target ?join triggers in
-  self#add_connection c
-
-let connect_after self target action triggers =
-  match List.rev self#connections with
-  | [] -> connect self ?target action ~priority:Join triggers
-  | c::_ -> connect self ?target action ~priority:Join ~join:c triggers
-
-let connect_main = connect ~priority:Main
 
 type any = Any : 'a #w -> any
 let gen w = (w :> 'a w)

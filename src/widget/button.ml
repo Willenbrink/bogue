@@ -126,11 +126,4 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
                    h = g.h - 2*bm;
                    voffset = g.voffset } )
       in List.concat [box_blit; label_blit]
-
-    initializer
-      connect_main self ~target:self (fun _ -> self#press) Trigger.buttons_down;
-      connect_main self ~target:self (fun _ -> self#release) Trigger.buttons_up;
-      connect_main self ~target:self (fun _ -> self#mouse_enter) [Trigger.mouse_enter];
-      connect_main self ~target:self (fun _ -> self#mouse_leave) [Trigger.mouse_leave];
-
   end

@@ -36,15 +36,6 @@ type 'a board = {
      located at 0,0...*)
 }
 
-(* We return the mouse_focus. Sometimes it does not belong to the active tree,
-   see example 19 (tabs) *)
-let get_mouse_focus board =
-  board.mouse_focus
-
-let set_windows board windows =
-  board.windows <- windows
-(* TODO connections ? widgets ? *)
-
 (* not used *)
 let new_window (*?(adjust=false)*) ?x ?y ?(w=800) ?(h=600) () =
   let canvas = Draw.init ?x ?y ~w ~h () in
@@ -53,15 +44,6 @@ let new_window (*?(adjust=false)*) ?x ?y ?(w=800) ?(h=600) () =
 
 let close_window_layout layout =
   printd debug_board "Closing layout...";
-  (* TODO: stop all animations ? *)
-  if !Avar.alive_animations > 0
-  then begin
-    printd debug_warning "%d animation%s not stopped. We reset the counter."
-      !Avar.alive_animations (if !Avar.alive_animations = 1
-                              then " was" else "s were");
-    Avar.alive_animations := 0
-  end;
-  (* List.iter Widget.remove_active_connections (Layout.get_widgets layout); *)
   if Sdl.is_text_input_active () then Sdl.stop_text_input ();
   (* DEBUG: clipboard sometimes causes problems *)
   (* if Sdl.has_clipboard_text ()  *)
@@ -130,7 +112,7 @@ let resize window =
 let add_window board window =
   (* update board *)
   let windows = List.rev (window :: (List.rev board.windows)) in
-  set_windows board windows;
+  board.windows <- windows;
 
   (* show *)
   Sdl.show_window (Layout.window window);
@@ -138,11 +120,8 @@ let add_window board window =
 
   (* run *)
   display board;
-  do_option (get_mouse_focus board) Layout.set_focus;
+  do_option board.mouse_focus Layout.set_focus;
   flip board;
-  (* We send the startup_event to all widgets *)
-  List.iter (Widget.wake_up (Trigger.startup_event ()))
-    (List.flatten (List.map (fun x -> x#connections) (Layout.get_widgets window)));
   Trigger.renew_my_event ();
   window
 
@@ -159,7 +138,7 @@ let get_window_by_id board id =
 
 let remove_window board window =
   let windows = List.filter (fun w -> not (Widget.equal window w)) board.windows in
-  set_windows board windows;
+  board.windows <- windows;
   printd debug_board "** Remove window #%u (Layout #%u)"
     (Layout.id window) window#id;
   close_window_layout window;
@@ -178,7 +157,7 @@ let show board =
 
 (* return the widget with mouse focus *)
 let mouse_focus_widget board =
-  Option.map (fun l -> l#content) (get_mouse_focus board)
+  Option.map (fun l -> l#content) board.mouse_focus
 
 (* return the widget with keyboard_focus *)
 let keyboard_focus_widget board =
@@ -240,7 +219,7 @@ let check_mouse_motion ?target board =
   let mf = match target with
     | Some _ -> target
     | None -> check_mouse_focus board in
-  let () = match (get_mouse_focus board), mf with
+  let () = match board.mouse_focus, mf with
     (* on compare l'ancien et le nouveau. See remarks in trigger.ml *)
     | None, None -> ()
     | Some r, None ->
@@ -293,7 +272,7 @@ let hand_to_target_widget board ev =
   (*       then (printd debug_board "Target: select keyboard widget"; *)
   (*             (board.keyboard_focus)) *)
   (*       else (printd debug_board "Target: select mouse widget"; *)
-  (*             ((get_mouse_focus board))) *)
+  (*             (board.mouse_focus)) *)
   (*   else let id = E.get ev Trigger.room_id in *)
   (*     Layout.of_id_opt ~not_found:(fun () -> *)
   (*         printd debug_error "The room #%u has disappeared but was pointed by \ *)
@@ -335,7 +314,7 @@ let set_keyboard_focus (board : 'a board) (ro : 'a Layout.t option) =
 let tab board =
   let current_room = match board.keyboard_focus with
     | Some r -> r
-    | None -> match (get_mouse_focus board) with
+    | None -> match board.mouse_focus with
       | Some r -> r
       | None -> match layout_focus board with
         | Some l -> l
@@ -503,12 +482,12 @@ let one_step ?before_display ?clear (board : 'a board) =
         | `Mouse_button_down
         | `Finger_down ->
           Trigger.button_down e; (* TODO for touch too... *)
-          activate board (get_mouse_focus board)
+          activate board board.mouse_focus
         | `Mouse_button_up
         | `Finger_up ->
           Trigger.button_up e; (* TODO for touch too... *)
           if not !Trigger.too_fast
-          && (map2_option board.button_down (get_mouse_focus board) Widget.equal
+          && (map2_option board.button_down board.mouse_focus Widget.equal
               = Some true
               || map_option board.button_down Layout.has_keyboard_focus
                  = Some true)
@@ -528,7 +507,7 @@ let one_step ?before_display ?clear (board : 'a board) =
                should be "released") to store the fact that we have a full
                click *) (* TODO: use the full_click event instead *)
             (* Now we set keyboard_focus on "admissible" widgets: *)
-            do_option (get_mouse_focus board) (fun x ->
+            do_option board.mouse_focus (fun x ->
                 printd debug_board "Mouse focus: %d" x#id);
             do_option board.keyboard_focus (fun x ->
                 printd debug_board "Keyboard focus: %d" x#id);
@@ -678,7 +657,6 @@ let one_step ?before_display ?clear (board : 'a board) =
   let t = Time.now () in
   flip ?clear board; (* This is where all rendering takes place. *)
   printd debug_graphics "==> Rendering took %u ms" (Time.now () - t);
-  Avar.new_frame (); (* this is used for updating animated variables *)
   printd debug_graphics "---------- end of loop -----------"
 
 (* creates an SDL window for each top layout *)
@@ -745,7 +723,7 @@ let run ?before_display ?after_display (board : 'a board) =
   display board;
   (* board.mouse_focus <- check_mouse_focus board; *)
   printd debug_board "Has focus: %s" (if board.mouse_focus = None then "NO" else "YES");
-  do_option (get_mouse_focus board) (fun l ->
+  do_option board.mouse_focus (fun l ->
       Layout.set_focus l;
       (* we send mouse_enter event to the widget where the mouse is
          positionned at startup *)
@@ -754,15 +732,6 @@ let run ?before_display ?after_display (board : 'a board) =
       Trigger.push_mouse_enter (l#id)
     );
   flip ~clear:true board;
-
-  (* We send the startup_event to all widgets *)
-  board.windows
-  |> List.map Layout.get_widgets
-  |> List.flatten
-  |> List.map (fun x -> x#connections)
-  |> List.flatten
-  (* TODO this event can be modified by a thread ??!!! *)
-  |> List.iter (Widget.wake_up (Trigger.startup_event ())) ;
 
   Trigger.renew_my_event ();
   let rec loop () =

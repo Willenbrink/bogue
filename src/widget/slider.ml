@@ -178,13 +178,6 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200)
       printd debug_board "Slider value : %d" v;
       (* keyboard_focus <- true; *)
       state <- v
-    (* we add an animation to the original Avar. For this we need some
-       gymnastic to get the current and final value for it *)
-    (* TODO this works only for scrolling, because has_anim is detected for
-       scrolling.  Otherwise, has_anim does not detect this animation yet *)
-    (* let avar = var.Tvar.var in *)
-    (* let final = Avar.get (var.Tvar.t_to v) in *)
-    (* avar <- (Avar.fromto (Avar.get (avar)) final) *)
 
     (* This should be called on key_down. *)
     method receive_key ev =

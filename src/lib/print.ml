@@ -41,11 +41,10 @@ let rec layout_up ?(indent = "") r =
   let list = [
     sprintf "\n%s┏━ Layout %s\n" indent (L.sprint_id r);
     sprintf "%s┃ layer: %d\n" indent (Chain.depth (r#layer));
-    sprintf "%s┃ current geometry: %s\n" indent (geometry r#current_geom);
+    sprintf "%s┃ geometry: %s\n" indent (geometry r#geometry);
     sprintf "%s┃ background: %s\n" indent (option background r#background);
     sprintf "%s┃ content: %s\n" indent (content r#content);
     sprintf "%s┃ canvas: %s\n" indent (option canvas r#canvas);
-    sprintf "%s┃ has anim: %s\n" indent (bool (L.has_anim r));
     sprintf "%s┃ clip: %s\n" indent (bool (r#clip));
     sprintf "%s┃ keyboard_focus: %s\n" indent (option bool r#keyboard_focus);
     sprintf "%s┗━" indent ] in
@@ -55,10 +54,9 @@ let rec layout_down ?(indent = "") r =
   let list = [
     sprintf "\n%s┏━ Layout %s\n" indent (L.sprint_id r);
     sprintf "%s┃ layer: %d\n" indent (Chain.depth (r#layer));
-    sprintf "%s┃ current geometry: %s\n" indent (geometry r#current_geom);
+    sprintf "%s┃ geometry: %s\n" indent (geometry r#geometry);
     sprintf "%s┃ background: %s\n" indent (option background r#background);
     sprintf "%s┃ canvas: %s\n" indent (option canvas r#canvas);
-    sprintf "%s┃ anim: %s\n" indent (bool (L.has_anim r));
     sprintf "%s┃ clip: %s\n" indent (bool (r#clip));
     sprintf "%s┃ keyboard_focus: %s\n" indent (option bool r#keyboard_focus);
     sprintf "%s┃ content: %s\n" indent (full_content ~indent:(indent^"┃  ") r#content);
@@ -73,7 +71,7 @@ let dump r =
   let file, ch = Filename.open_temp_file "bogue" ".dump" in
   print_endline ("Saving dump to " ^ file);
   output_string ch (layout_down r);
-  close_out ch;;
+  close_out ch
 
 let layout_error_kf room msg =
   Printf.kfprintf (fun ch -> flush ch) stderr msg;

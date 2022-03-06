@@ -39,10 +39,8 @@ let push_all () =
 
 let execute_one e w =
   if w#id = Trigger.get_update_wid e
-  then (
-    Widget.wake_up_all e w;
+  then
     Trigger.push_redraw w#id (* OK ?? *)
-  )
 
 let execute e =
   match !table with

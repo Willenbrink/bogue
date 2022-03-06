@@ -1,6 +1,4 @@
 (* Keyboard shortcuts for the main loop *)
-
-
 module K = Sdl.K
 
 module Kmod =
@@ -79,5 +77,4 @@ let add_list alist map = List.fold_right add_map alist map
 let create alist : 'a t = add_list alist empty
 
 (** Common shortcuts *)
-
 let exit_on_escape = ([], K.escape, fun _ -> raise Exit)

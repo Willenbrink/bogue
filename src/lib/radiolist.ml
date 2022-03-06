@@ -102,7 +102,8 @@ let set_index t i =
   let (b,w) = t.widgets.data.(i) in
   (* select_action t.widgets i b w; *)
   (* This will wake up the widget b even if it doesn't have mouse focus *)
-  Update.push (b :> W.common)
+  (* Update.push (b :> W.common) *)
+  ()
 (* another possibility, if using Update sounds like a bad idea, is to directly
    wake the widget up with *)
 (* let e = Trigger.(create_event var_changed) in List.iter *)

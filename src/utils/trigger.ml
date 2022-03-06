@@ -65,8 +65,6 @@ let redraw = new_event_type "redraw";; (* TODO: select only a particular canvas 
 
 (* let refresh = new_event_type ();; *)
 
-let mouse_at_rest = new_event_type "mouse_at_rest";;
-
 let full_click = new_event_type "full_click";;
 
 let startup = new_event_type "startup";;
@@ -74,14 +72,6 @@ let startup = new_event_type "startup";;
 (* the var_changed event can be send to notify that some widget made a change to
    a global variable. This is used for instance in radiolist.ml *)
 let var_changed = new_event_type "var_changed";;
-
-(* the update event can be used to trigger some actions when a widget is
-   updated, even if it doesn't get mouse focus. It is filtered early in bogue.ml
-   and not sent to the mouse_focus. At this point it is not clear whether we
-   need both var_changed and update *)
-let update = new_event_type "update";;
-
-let sync_action = new_event_type "sync_action";;
 
 let keyboard_focus = new_event_type "keyboard_focus";;
 
@@ -108,15 +98,12 @@ type bogue_event =
   [ `Bogue_startup
   | `Bogue_stop
   | `Bogue_stopped
-  | `Bogue_mouse_at_rest
   | `Bogue_full_click
   | `Bogue_mouse_enter
   | `Bogue_mouse_leave
   | `Bogue_var_changed
   | `Bogue_keyboard_focus
   | `Bogue_mouse_focus
-  | `Bogue_update
-  | `Bogue_sync_action
   | `Bogue_redraw ]
 
 let generalize_sdl_event ev = (ev : sdl_event :> [> sdl_event | bogue_event])
@@ -133,16 +120,13 @@ let event_kind ev : [> sdl_event | bogue_event] =
       | i when i = startup -> `Bogue_startup
       | i when i = stop -> `Bogue_stop
       | i when i = stopped -> `Bogue_stopped
-      | i when i = mouse_at_rest -> `Bogue_mouse_at_rest
       | i when i = mouse_enter -> `Bogue_mouse_enter
       | i when i = mouse_leave -> `Bogue_mouse_leave
       | i when i = full_click -> `Bogue_full_click
       | i when i = var_changed -> `Bogue_var_changed
       | i when i = keyboard_focus -> `Bogue_keyboard_focus
       | i when i = mouse_focus -> `Bogue_mouse_focus
-      | i when i = update -> `Bogue_update
       | i when i = redraw -> `Bogue_redraw
-      | i when i = sync_action -> `Bogue_sync_action
       | _ -> Printf.printf "UNKNOWN EVENT=%i\n%!" x;
         `Unknown x
     end
@@ -620,25 +604,8 @@ let push_mouse_focus = push_from_id mouse_focus;;
    specific event for each of them *)
 let push_var_changed = push_from_id var_changed;;
 
-(* the widget_id is stored in the update event *)
-let push_update = push_from_id update;;
-
 (* send the `Quit event *)
 let push_quit () = push_from_id E.quit 0;;
-
-let get_update_wid e =
-  if E.(get e typ) <> update
-  then failwith "Event should be an update event"
-  else E.(get e user_code);;
-
-(* use this to inform that there is a new Sync.action to execute *)
-(* the event doesn't contain any special data, so we always use the same *)
-let push_action =
-  let action_event = create_event sync_action in
-  fun () -> push_event action_event;;
-
-
-
 
 (** tell if the current thread should exit. This should be called within a
     widget action. We communicate via the event to decide if the thread should
@@ -717,21 +684,19 @@ let check_mouse_rest =
       Unix.gettimeofday () -. t0;;
 
 (** wait for next event. Returns the SAME event structure e (modified) *)
-let rec wait_event ?(action = nop) e =
-  action ();
-  if Sdl.poll_event (Some e) then e
+let rec wait_event e =
+  if Sdl.poll_event (Some e)
+  then e
   (* TODO send an event instead, and reset mouse *)
   else begin
     let t = check_mouse_rest () in (* TODO use Timeout instead *)
     if t > 1. && not !is_mouse_at_rest
-    then (is_mouse_at_rest := true;
-          push_event (create_event mouse_at_rest))
-    (* TODO save mouse position in event *)
+    then is_mouse_at_rest := true
     else if t < 1. && !is_mouse_at_rest
     then is_mouse_at_rest := false; (* the mouse has moved *)
     Thread.delay 0.01;
-    wait_event ~action e
-  end;;
+    wait_event e
+  end
 
 
 (* let redraw = 0;; *) (* redraw all *) (* TODO: select only a particular canvas *)

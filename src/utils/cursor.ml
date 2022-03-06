@@ -1,6 +1,5 @@
 open Utils
 
-
 type t =
   | Arrow
   | Hand

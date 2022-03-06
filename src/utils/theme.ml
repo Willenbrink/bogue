@@ -1,5 +1,3 @@
-(* b_theme.ml : theme variables *)
-(* This file is part of BOGUE. San Vu Ngoc, 2019 *)
 open Utils
 
 (*
@@ -80,19 +78,19 @@ let default_vars = [
      with rendering functions, or when creating blits. It might be a good idea
      to have a different scale per window, in case of multiple monitors. SCALE=0
      will try to autodetect: *)
-  "SCALE", "0"; ];;
+  "SCALE", "0"; ]
 
 
-let id x = x;;
+let id x = x
 
 let sub_file = Filename.concat
 
 (* some global environment variables *)
-let home = Sys.getenv "HOME";;
+let home = Sys.getenv "HOME"
 
 let conf = try Sys.getenv "XDG_CONFIG_HOME" with
   | Not_found -> sub_file home ".config"
-  | e -> raise e;;
+  | e -> raise e
 
 let skip_comment buffer =
   let rec loop () =
@@ -102,7 +100,7 @@ let skip_comment buffer =
   try loop () with
   | End_of_file
   | Scanf.Scan_failure _ -> ()
-  | e -> print_endline "SCAN ERROR"; raise e;;
+  | e -> print_endline "SCAN ERROR"; raise e
 
 (* Load variables from config file. Returns an association list. Most recent
    entries are put first, and hence will be selected first by List.assoc.*)
@@ -125,7 +123,7 @@ let load_vars config_file =
     | End_of_file -> Scanf.Scanning.close_in buffer; list
     | e -> raise e
   in
-  loop [];;
+  loop []
 
 
 (* TODO move this in an "init" function (and hence theme vars must be mutable)
@@ -139,9 +137,9 @@ let user_vars =
       else "" in
   try load_vars config_file with
   | _ (* e *) -> printd debug_error "Error loading config file %s. Using defaults" config_file;
-    default_vars;; (*raise e;;*)
+    default_vars (*raise e*)
 
-let user_vars = ref user_vars;;
+let user_vars = ref user_vars
 
 (* Checks the (first) THEME entry in user's vars, and then loads & inserts the
    theme variables *)
@@ -156,7 +154,7 @@ let load_theme_vars dir vars =
         (name, value) :: (List.rev_append newv (List.append theme_vars rest))
       else loop ((name, value)::newv) rest
   in
-  loop [] vars;;
+  loop [] vars
 
 let get_var s =
   try let v = List.assoc s !user_vars in
@@ -172,7 +170,7 @@ let get_var s =
         ""
       | e -> raise e;
     end
-  | e -> raise e;;
+  | e -> raise e
 
 let get_int ?(default = 0) s =
   let v = get_var s in
@@ -180,7 +178,7 @@ let get_int ?(default = 0) s =
   | Failure _ -> (* "int_of_string" *)
     printd debug_error "Expected an integer for '%s', got '%s' instead. Using default=%d." s v default;
     default
-  | e -> raise e;;
+  | e -> raise e
 
 let get_float ?(default = 0.) s =
   let v = get_var s in
@@ -188,19 +186,19 @@ let get_float ?(default = 0.) s =
   | Failure _ -> (* "float_of_string" *)
     printd debug_error "Expected a float for '%s', got '%s' instead. Using default=%f." s v default;
     default
-  | e -> raise e;;
+  | e -> raise e
 
 let get_bool s =
   let b = get_var s in
-  String.lowercase_ascii b = "true" || b = "1";;
+  String.lowercase_ascii b = "true" || b = "1"
 
-debug := get_bool "DEBUG";;
-if get_bool "LOG_TO_FILE"
-then begin
-  let log_file = Filename.temp_file "bogue" ".log" in
-  Printf.printf "Bogue - Logging to file %s\n" log_file;
-  log_channel := open_out log_file
-end
+let () = debug := get_bool "DEBUG"
+let () = if get_bool "LOG_TO_FILE"
+  then begin
+    let log_file = Filename.temp_file "bogue" ".log" in
+    Printf.printf "Bogue - Logging to file %s\n" log_file;
+    log_channel := open_out log_file
+  end
 
 (* we try to locate the theme dir *)
 (* by default it is in .config/bogue/themes. For a first run, it probably
@@ -242,18 +240,19 @@ let dir =
       | End_of_file ->
         printd debug_error "(FATAL) Bogue configuration directory %s does not exist, and system-wide config cannot be found." dir;
         raise Not_found
-      | e -> raise e;;
+      | e -> raise e
 
 (* Add variables from theme config file (if specified in the user config file)
 *)
-user_vars := load_theme_vars dir !user_vars;;
-let current = sub_file dir (get_var "THEME");;
-print_endline (Printf.sprintf
-                 "Loading Bogue %s with config dir %s " this_version current);;
-let common = sub_file dir "common";;
-let fonts_dir = sub_file common "fonts";;
+let () = user_vars := load_theme_vars dir !user_vars
+let current = sub_file dir (get_var "THEME")
+let () =
+  print_endline (Printf.sprintf
+                   "Loading Bogue %s with config dir %s " this_version current)
+let common = sub_file dir "common"
+let fonts_dir = sub_file common "fonts"
 
-let default_dpi = 110;;
+let default_dpi = 110
 
 (* try to obtain the monitor's DPI on linux systems. Does not work with multiple
    monitors *)
@@ -274,17 +273,17 @@ let get_dpi () =
   with
   | _ -> printd debug_warning
            "Cannot get monitor's DPI from xdpyinfo. Using 110.";
-    None;;
+    None
 
 (* A file starting with "/" is considered a global path, otherwise it will be
    searched in the current theme directory. *)
 let get_path file =
   if file = "" then failwith "Filename empty";
   if file.[0] = '/' then file
-  else sub_file current file;;
+  else sub_file current file
 
 let get_fa_or_path s =
-  if startswith s "fa:" then s else get_path s;;
+  if startswith s "fa:" then s else get_path s
 
 (* Font names not starting with "/" are searched first in the theme directory,
    then in bogue's common fonts_dir, then in the system's fonts. *)
@@ -306,54 +305,54 @@ let get_font_path name =
           )
       )
 
-let background = get_var "BACKGROUND";;
-let bg_color = get_var "BG_COLOR";;
-let button_color_off = get_var "BUTTON_COLOR_OFF";;
-let button_color_on = get_var "BUTTON_COLOR_ON";;
-let check_on = get_fa_or_path (get_var "CHECK_ON");;
-let check_off = get_fa_or_path (get_var "CHECK_OFF");;
-let cursor_color = get_var "CURSOR_COLOR";;
-let faint_color = get_var "FAINT_COLOR";;
-let text_color = get_var "TEXT_COLOR";;
-let sel_bg_color = get_var "SEL_BG_COLOR";;
-let sel_fg_color = get_var "SEL_FG_COLOR";;
-let label_color = get_var "LABEL_COLOR";;
-let menu_hl_color = get_var "MENU_HL_COLOR";;
-let menu_bg_color = get_var "MENU_BG_COLOR";;
-let label_font_size = get_int ~default:14 "LABEL_FONT_SIZE";;
-let label_font = get_font_path (get_var "LABEL_FONT");;
-let text_font = get_font_path (get_var "TEXT_FONT");;
-let text_font_size = get_int ~default:14 "TEXT_FONT_SIZE";;
-let small_font_size = get_int ~default:10 "SMALL_FONT_SIZE";;
-let mono_font = get_font_path (get_var "MONO_FONT");;
-let room_margin = get_int ~default:10 "ROOM_MARGIN";;
-let fa_dir = sub_file common (get_var "FA_DIR");;
-let fa_font = sub_file fa_dir "fonts/fontawesome-webfont.ttf";;
+let background = get_var "BACKGROUND"
+let bg_color = get_var "BG_COLOR"
+let button_color_off = get_var "BUTTON_COLOR_OFF"
+let button_color_on = get_var "BUTTON_COLOR_ON"
+let check_on = get_fa_or_path (get_var "CHECK_ON")
+let check_off = get_fa_or_path (get_var "CHECK_OFF")
+let cursor_color = get_var "CURSOR_COLOR"
+let faint_color = get_var "FAINT_COLOR"
+let text_color = get_var "TEXT_COLOR"
+let sel_bg_color = get_var "SEL_BG_COLOR"
+let sel_fg_color = get_var "SEL_FG_COLOR"
+let label_color = get_var "LABEL_COLOR"
+let menu_hl_color = get_var "MENU_HL_COLOR"
+let menu_bg_color = get_var "MENU_BG_COLOR"
+let label_font_size = get_int ~default:14 "LABEL_FONT_SIZE"
+let label_font = get_font_path (get_var "LABEL_FONT")
+let text_font = get_font_path (get_var "TEXT_FONT")
+let text_font_size = get_int ~default:14 "TEXT_FONT_SIZE"
+let small_font_size = get_int ~default:10 "SMALL_FONT_SIZE"
+let mono_font = get_font_path (get_var "MONO_FONT")
+let room_margin = get_int ~default:10 "ROOM_MARGIN"
+let fa_dir = sub_file common (get_var "FA_DIR")
+let fa_font = sub_file fa_dir "fonts/fontawesome-webfont.ttf"
 let scale = let s = get_float ~default:0. "SCALE" in
   if s > 0. then s
   else (* choose a reasonable scale. Probably not OK in case of multiple monitors. *)
     let dpi = default (get_dpi ()) default_dpi in
     let s = if dpi <= 110 then 1. else (float dpi /. 110.) in
     printd debug_warning "Using SCALE=%f" s;
-    s;;
+    s
 
 
-let fa_font_size = 18;;
+let fa_font_size = 18
 
 (** some standard (?) UTF8 symbols *)
 let symbols = [
   "check_empty", "\239\130\150";
   "check", "\239\129\134";
-];;
+]
 
 let scale_int i =
-  round (scale *. float i);;
+  round (scale *. float i)
 
 let unscale_int i =
-  round (float i /. scale);;
+  round (float i /. scale)
 
 let unscale_f x =
-  x /. scale;;
+  x /. scale
 
 let scale_from_float x =
   round (scale *. x)
@@ -381,9 +380,9 @@ let load_fa_variables () =
       loop list
     | e -> raise e
   in
-  loop [];;
+  loop []
 
-let fa_symbols = load_fa_variables ();;
+let fa_symbols = load_fa_variables ()
 (* http://fortawesome.github.io/Font-Awesome/cheatsheet/ *)
 (* http://bluejamesbond.github.io/CharacterMap/ *)
 let fa_symbol name =
@@ -391,8 +390,9 @@ let fa_symbol name =
     List.assoc name fa_symbols
   with Not_found ->
     printd debug_error "FA symbol '%s' was not found. Using 'question' instead" name;
-    List.assoc "question" fa_symbols;;
+    List.assoc "question" fa_symbols
 
+(* http://www.rapidtables.com/web/color/html-color-codes.htm *)
 let load_colors () =
   let file = sub_file common "colors/liste.txt" in
   let buffer = Scanf.Scanning.from_file file in
@@ -411,18 +411,6 @@ let load_colors () =
       loop list
     | e -> raise e
   in
-  loop [];;
+  loop []
 
-let color_names = load_colors ();;
-(* http://www.rapidtables.com/web/color/html-color-codes.htm *)
-
-
-
-
-(* some unused functions, just for me... *)
-let print_bin c =
-  let rec loop code list =
-    if code = 0 then list
-    else loop (code lsr 1) ((string_of_int (code land 1)) :: list)
-  in
-  if c = 0 then "0" else String.concat "" (loop c []);;
+let color_names = load_colors ()

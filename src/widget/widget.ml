@@ -6,11 +6,6 @@ include Base
 
 class type virtual ['a] t = ['a] w
 
-let draw_boxes = ref false;;
-(* for debugging: draws a red rect rectangle around each widget layout, (fill
-   when it has mouse focus (might need a redraw: CTRL-l) and a blue rect around
-   container layouts *)
-
 let test () = [
   `Empty (new Empty.t (0,0));
   `Box (new Box.t ());

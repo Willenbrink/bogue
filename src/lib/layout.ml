@@ -36,9 +36,6 @@ let color_bg color =
 
 let bg_color = color_bg Draw.(opaque bg_color)
 
-let box_bg b =
-  Box b
-
 type adjust =
   | Fit
   | Width
@@ -62,7 +59,7 @@ let window t = match t#canvas with
 class ['a] t ?id ?name ?(adjust = Fit)
     ?(layer = Draw.get_current_layer ())
     ?mask ?background ?shadow ?keyboard_focus ?(mouse_focus=false)
-    ?(clip = false) ?canvas
+    ?canvas
     ?(is_fresh = false) ?(bogue = false)
     _geometry (content' : 'a W.t) =
   object (self)
@@ -80,16 +77,6 @@ class ['a] t ?id ?name ?(adjust = Fit)
     method bogue = bogue
     method set_bogue b = bogue <- b
 
-    (* This field is only useful when t#show = true. Then t#hidden = true if the
-       layout is currently not displayed onscreen. (Upon creation, all layouts are
-       hidden.)  Only used to correctly detect if animations are running. This
-       field is only set by the Layout.display function, it should not be modified
-       by user.  Note that t#show has precedence for being hidden: it t#show =
-       false, then t is hidden no matter what t#hidden says. *)
-    val mutable hidden = true
-    method hidden = hidden
-    method set_hidden x = hidden <- x
-
     (* relative geometry wrt the house. All components are dynamic variables,
        that need to be recomputed at each iteration. Note: rooms inside a house
        must be physically inside the geometry of the house. If not, they will
@@ -97,15 +84,6 @@ class ['a] t ?id ?name ?(adjust = Fit)
     val mutable geometry = _geometry
     method geometry = geometry
     method set_geometry x = geometry <- x
-
-    (* if clip=true, the room (and its children) will be clipped inside its
-       geometry. This should be set whenever one want to scroll the content of
-       the layout inside the layout. This is also used (and set) by hide/show
-       animations. TODO replace this by a more flexible 'overflow'
-       specification *)
-    val mutable clip = clip
-    method clip = clip
-    method set_clip x = clip <- x
 
     val mutable background : background option = background
     (* Some (Solid Draw.(opaque blue))) DEBUG *)
@@ -253,14 +231,6 @@ let x = (None : bool t option)
 
 exception Fatal_error of (Widget.common * string)
 
-let no_clip = ref false
-(* The normal behaviour when a non-zero voffset is specified is to clip the
-   layout to the original rectangle. This permits the show/hide
-   animation. no_clip = true can be a good idea for debugging graphics. *)
-
-let draw_boxes = Widget.draw_boxes
-(* this is only used for debugging. This can slow down rendering quite a bit *)
-
 (*let rooms_table : (int, room) Hashtbl.t = Hashtbl.create 50;;*)
 (* this is where we store the reverse lookup: room#id ==> room *)
 (* of course the problem is to free this when rooms are not used anymore... to
@@ -279,13 +249,6 @@ let draw_boxes = Widget.draw_boxes
    modified only by the main loop. Another option could be to store the room_id
    in an event. (?) *)
 let keyboard_focus_before_tab : Widget.common option ref = ref None
-
-(* return the first resident widget with show=true inside the layout, or
-   Not_found *)
-let rec first_show_widget layout =
-  if layout#show
-  then layout#content
-  else raise Not_found
 
 (* get the renderer of the layout *)
 let renderer t = match t#canvas with
@@ -465,24 +428,6 @@ let remove_canvas room =
   delete_textures room;
   room#set_canvas None
 
-(* adjust layout size to the inner content in the same layer (but not to the
-   larger layouts, neither to the window) *)
-(* TODO: treat margins *)
-(* not used yet... *)
-let rec fit_content ?(sep = Theme.room_margin/2) l =
-  if l#adjust = Nothing || l#clip then ()
-  else let w,h = l#content#size in
-    let g' = match l#adjust with
-      | Fit -> { l#geometry with w = w+sep; h = h+sep };
-      | Width -> { l#geometry with w = w+sep };
-      | Height -> { l#geometry with h = h+sep };
-      | Nothing -> failwith "already treated case !" in
-    let oldg = l#geometry in
-    if g' <> oldg then begin
-      printd debug_graphics "ADJUST %s to New SIZE %d,%d" (sprint_id l) w h;
-      set_size l (g'.w, g'.h)
-    end
-
 let has_keyboard_focus r =
   r#keyboard_focus = Some true
 
@@ -531,40 +476,6 @@ let maximize l =
   l#set_geometry { l#geometry with h; w };
   resize_content l
 
-(** check if a sublayer is deeper (= below = Chain.<) than the main layer, which
-    (in principle) should not happen *)
-let check_layers room =
-  let rec loop house r =
-    if Chain.(house#layer > r#layer)
-    then printd debug_error "The house #%d contains a room #%d with deeper layer! (%d>%d)"
-        house#id r#id (Chain.depth (house#layer)) (Chain.depth (r#layer));
-  in
-  loop room room
-
-(** Set the canvas of the layout. Warning! we assume that if a room has a
-    canvas, all smaller rooms already have the same canvas... *)
-(* warning: this is also used when we change the layer, but the window stays the
-   same *)
-(* let rec set_canvas canvas room = *)
-(*   if Draw.canvas_equal room#canvas canvas *)
-(*   then () *)
-(*   else begin *)
-(*     printd debug_warning "Changing room canvas"; *)
-(*     room#set_canvas canvas; *)
-(*     match room#content with *)
-(*       | List list -> List.iter (set_canvas canvas) list *)
-(*       | Leaf _ -> () *)
-(*   end;; *)
-let set_canvas canvas room =
-  room#set_canvas (Some canvas);
-  if !debug then check_layers room
-
-(** Set the canvas for layout and all children *)
-let global_set_canvas ?(mustlock=true) room canvas =
-  if mustlock then
-    room#set_canvas @@ Some canvas;
-  if mustlock then ()
-
 (* compute the x,y,w,h that contains all rooms in the list *)
 let bounding_geometry = function
   | [] -> printd debug_warning "Trying to find bounding_geometry of empty list";
@@ -581,12 +492,6 @@ let bounding_geometry = function
           (imax ymax (height room + y))
           rest in
     loop max_int max_int 0 0 rooms
-
-(** ask all the subwidgets to update themselves. *)
-(* in fact, this just send the redraw_event, which ask for redrawing the whole
-   window. Thus, it would be enough to ask this to only one widget of the layout
-   (since all widgets must be in the same window) *)
-let rec ask_update room = room#content#update
 
 (** display section *)
 
@@ -607,88 +512,45 @@ let scale_clip clip =
                   ~w:(Theme.scale_int (w c))))
 
 (** Display a room: *)
-let rec display_loop x0 y0 clip0 (r : 'a t) =
-  (* clip contains the rect that should contain the current room r. But of
-     course, clip can be much bigger than r. *)
-  let g = r#geometry in
-  let x = x0 + g.x in
-  let y = y0 + g.y + g.voffset in
-  (* update current position, independent of clip *)
-  r#set_geometry @@ { g with x; y };
-  (*print_endline ("ALPHA=" ^ (string_of_float (Avar.old room#geometry.transform.alpha)));*)
-  let rect = Sdl.Rect.create ~x ~y ~w:g.w ~h:g.h in
-
-  (* if there is a nonzero offset, we perform a new clip : this is used for
-     "show/hide" animation *)
-  (* TODO clip should be enlarged in case of shadow *)
-  let clip =
-    if (*g.voffset = 0*) not r#clip || !no_clip then clip0
-    else Draw.intersect_rect clip0 (Some rect)
-  in
-  let sclip = scale_clip clip in
-  match clip with
-  | Some clip_rect when not (Sdl.has_intersection clip_rect rect) ->
-    (r#set_hidden @@ true;
-     printd debug_warning "Room #%u is hidden (y=%d)" r#id y)
-  (* because of clip, the rendered size can be smaller than what the geom
-     says *)
-  (* If the clip is empty, there is nothing to display. Warning: this means
-     that all children will be hidden, even if they happen to pop out of
-     this rect. *)
-  | _ -> begin
-      r#set_hidden @@ false;
-      (* background (cf compute_background)*)
-      let bg = map_option r#background (fun bg ->
-          let box = match bg with
-            | Solid c ->
-              (* let c = Draw.random_color () in *)  (* DEBUG *)
-              let b = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) ?shadow:r#shadow () in
-
-              r#set_background @@ (Some (Box b));
-              ();
-              b
-            | Box b -> b in
-          let blits = box#display (get_canvas r) (r#layer)
-              Draw.(scale_geom {x; y; w = g.w; h = g.h;
-                                voffset = - g.voffset}) in
-          blits) in
-      (* !!! in case of shadow, the blits contains several elements!! *)
-
-      begin
-        let w = r#content in
-        let blits = w#display (get_canvas r) r#layer Draw.{g with x; y} in
-        let blits = match bg with
-          | None -> blits
-          | Some b -> List.rev_append b blits in
-
-        (* debug boxes *)
-        let blits = if !draw_boxes
-          then
-            let color = (255,0,0,200) in
-            let rect = debug_box ~color r x y in
-            rect :: blits
-          else blits in
-
-        List.iter
-          (fun blit ->
-             let open Draw in
-             let clip = sclip in
-             blit_to_layer { blit with clip }) blits
-      end;
-      if !draw_boxes  (* we print the room number at the end to make sure it's visible *)
-      then let label = new Label.t ~font_size:7 ~fg:(Draw.(transp blue))
-             (sprint_id r) in
-        let geom = Draw.scale_geom {Draw.x; y; w=g.w+1; h=g.h+1; voffset = g.voffset} in
-        List.iter
-          Draw.blit_to_layer
-          (label#display (get_canvas r) (r#layer) geom)
-    end
 
 (* this function sends all the blits to be displayed to the layers *)
 (* it does not directly interact with the renderer *)
 (* pos0 is the position of the house containing the room *)
-let display (room : 'a t) =
-  display_loop 0 0 None room
+let display (r : 'a t) =
+  (* clip contains the rect that should contain the current room r. But of
+     course, clip can be much bigger than r. *)
+  let g = r#geometry in
+  let x = g.x in
+  let y = g.y + g.voffset in
+  (* update current position, independent of clip *)
+  r#set_geometry @@ { g with x; y };
+  (*print_endline ("ALPHA=" ^ (string_of_float (Avar.old room#geometry.transform.alpha)));*)
+
+  (* background (cf compute_background)*)
+  let bg = match r#background with
+    | None -> []
+    | Some bg ->
+      let box = match bg with
+        | Solid c ->
+          (* let c = Draw.random_color () in *)  (* DEBUG *)
+          let b = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) ?shadow:r#shadow () in
+          r#set_background (Some (Box b));
+          b
+        | Box b -> b
+      in
+      let blits =
+        box#display (get_canvas r) (r#layer)
+          Draw.(scale_geom {x; y; w = g.w; h = g.h; voffset = - g.voffset})
+      in
+      blits
+  in
+  (* !!! in case of shadow, the blits contains several elements!! *)
+
+  let blits = r#content#display (get_canvas r) r#layer Draw.{g with x; y} in
+  let blits = List.rev_append bg blits in
+
+  (* TODO presumably blit has clip = None as default *)
+  List.iter (fun blit -> Draw.blit_to_layer { blit with clip = None }) blits
 
 let get_focus room =
   room#mouse_focus
@@ -778,7 +640,7 @@ let make_window ?window layout =
   let w = min w wmax in
   let h = min h hmax in
   let canvas = Draw.init ?window ~name:layout#name ~w ~h () in
-  global_set_canvas layout canvas;
+  layout#set_canvas (Some canvas);
   layout#set_bogue true
 
 (* adjust the window size to the top layout *)
@@ -839,14 +701,6 @@ let inside room (x,y) =
     let x0,y0 = room#geometry.x, room#geometry.y in
     let _,_,_,a = Draw.get_pixel_color mask ~x:(x-x0) ~y:(y-y0) in
     a <> 0
-
-(* instead of the first one, get the complete list *)
-(* in each layer, the first element of the list has priority (TODO this is not
-   consistent with the fact that it is the last displayed) *)
-(* cf remarks above *)
-let rec focus_list x y t =
-  if t#show && (inside t (x,y)) then [t#content]
-  else []
 
 (* get the focus element in the top layer *)
 let top_focus x y (t : 'a t) =

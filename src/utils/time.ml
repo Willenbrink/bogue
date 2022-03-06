@@ -1,39 +1,26 @@
 open Utils
 
-type t = int (* 1/1000 sec *)
-
-let (+) t1 t2 = t1 + t2;;
-
-let (-) t1 t2 = t1 - t2;;
-
-let add t1 t2 = t1 + t2;;
-
-let length t1 t2 = t2 - t1;;
-
-let compare (t1 : t) (t2 : t) =
-  Stdlib.compare t1 t2;;
-
-let (>>) (t1 : t) (t2 : t) =
-  t1 > t2;;
-
-let float t = float t;;
-
 (* we use this instead *)
-let delay x = Thread.delay (float x /. 1000.);;
+let delay x = Thread.delay (float x /. 1000.)
 
-let now () : t = Int32.to_int (Sdl.get_ticks ());;
+let now () = Int32.to_int (Sdl.get_ticks ())
 
 let make_fps () =
   let start = ref 0 in
   fun fps ->
-    if !start = 0 then (delay 5; start := now ())
+    if !start = 0
+    then begin
+      delay 5;
+      start := now ();
+    end
     else
-      let round_trip = now () - !start in begin
+      let round_trip = now () - !start in
+      begin
         let wait = max 5 ((1000 / fps) - round_trip) in
         printd debug_graphics "FPS:%u (round_trip=%u)\n" (1000 / (round_trip + wait)) round_trip;
         delay wait;
         start := now ();
-      end;;
+      end
 
 let adaptive_fps fps =
   let start = ref 0 in

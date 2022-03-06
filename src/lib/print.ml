@@ -3,9 +3,7 @@ open Printf
 module L = Layout
 module W = Widget
 
-let widget w =
-  let open W in
-  sprintf "wid: #%u, name: %s" w#id (w#name)
+let widget w = sprintf "wid: #%u, name: %s" w#id (w#name)
 
 let color (r,g,b,a) =
   sprintf "(r=%u, g=%u, b=%u, a=%u)" r g b a
@@ -27,17 +25,13 @@ let option f o =
   | Some x -> "Some " ^ (f x)
   | None -> "None"
 
-let bool b =
-  sprintf "%b" b
-
-let anim _ =
-  "Anim" (* TODO*)
+let bool b = sprintf "%b" b
 
 let background = function
   | L.Solid c -> color c
   | L.Box _ -> "Box"
 
-let rec layout_up ?(indent = "") r =
+let layout_up ?(indent = "") r =
   let list = [
     sprintf "\n%s┏━ Layout %s\n" indent (L.sprint_id r);
     sprintf "%s┃ layer: %d\n" indent (Chain.depth (r#layer));
@@ -45,27 +39,21 @@ let rec layout_up ?(indent = "") r =
     sprintf "%s┃ background: %s\n" indent (option background r#background);
     sprintf "%s┃ content: %s\n" indent (content r#content);
     sprintf "%s┃ canvas: %s\n" indent (option canvas r#canvas);
-    sprintf "%s┃ clip: %s\n" indent (bool (r#clip));
     sprintf "%s┃ keyboard_focus: %s\n" indent (option bool r#keyboard_focus);
     sprintf "%s┗━" indent ] in
   String.concat "" list
 
-let rec layout_down ?(indent = "") r =
+let layout_down ?(indent = "") r =
   let list = [
     sprintf "\n%s┏━ Layout %s\n" indent (L.sprint_id r);
     sprintf "%s┃ layer: %d\n" indent (Chain.depth (r#layer));
     sprintf "%s┃ geometry: %s\n" indent (geometry r#geometry);
     sprintf "%s┃ background: %s\n" indent (option background r#background);
     sprintf "%s┃ canvas: %s\n" indent (option canvas r#canvas);
-    sprintf "%s┃ clip: %s\n" indent (bool (r#clip));
     sprintf "%s┃ keyboard_focus: %s\n" indent (option bool r#keyboard_focus);
-    sprintf "%s┃ content: %s\n" indent (full_content ~indent:(indent^"┃  ") r#content);
+    sprintf "%s┃ content: %s\n" indent (widget r#content);
     sprintf "%s┗━" indent ] in
   String.concat "" list
-
-and full_content ?(indent = "") c = widget c
-
-(* Print error messages *)
 
 let dump r =
   let file, ch = Filename.open_temp_file "bogue" ".dump" in

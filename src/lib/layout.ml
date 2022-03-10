@@ -14,7 +14,8 @@
    associated to a geometry in a layout. Instead one should use two differents
    widgets with a connection between them to synchronize the data *)
 
-open Utils
+open Interop
+open Interop.Utils
 type geometry = Draw.geometry = {
   x : int;
   y : int;
@@ -49,12 +50,8 @@ let sprint_id r =
 
 (* get the window of the layout *)
 let window t = match t#canvas with
+  | None -> failwith "Invalid"
   | Some c -> c.Draw.window
-  | _ -> begin
-      printd debug_error "Cannot get window for layout %s \
-                          because no canvas was defined" (sprint_id t);
-      raise Not_found
-    end
 
 class ['a] t ?id ?name ?(adjust = Fit)
     ?(layer = Draw.get_current_layer ())
@@ -160,38 +157,88 @@ class ['a] t ?id ?name ?(adjust = Fit)
     val mutable cc = None
 
     (* return the resident widget, or Not_found *)
-    method handle_widget ev =
-      let widget = self#content in
+    method handle_widget (ev : (Event.t_rich,Event.t_win) Either.t) =
+      match ev with
+      | Either.Right `Resize (w,h) ->
+        Printf.printf "Resize to %i,%i\n%!" w h;
+        self#set_geometry {self#geometry with w; h};
+        (* Sdl.set_window_size (window self) ~w ~h; *)
+        self#display
+      | Either.Right `Exit -> raise Exit
+      | Either.Left ev ->
+        let widget = self#content in
 
-      (* let w,h = Sdl.get_window_size @@ window (self :> 'a t) in *)
-      (* Printf.printf "geom: %iw,%ih\n" w h; *)
-      match cc with
-      | None ->
+        (* let w,h = Sdl.get_window_size @@ window (self :> 'a t) in *)
+        (* Printf.printf "geom: %iw,%ih\n" w h; *)
+        let f = match cc with
+          | None -> fun () ->
+            print_endline "Start execution of root widget";
+            let _ = widget#execute in
+            failwith "Root widget terminated"
+          | Some (triggers, cont) -> fun () ->
+            if List.mem (Event.strip ev) triggers
+            then begin
+              Printf.printf "Event %s is handled\n" (Event.show_t_rich ev);
+              cont ev self#geometry;
+              (* TODO why does this terminate?
+                 And why is it no problem if we don't overwrite the continuation? *)
+              (* failwith "Root continuation terminated" *)
+              (* cc <- None *)
+            end
+        in
         begin
-          match widget#execute with
-          | _ ->
-            print_endline "Root widget terminated";
-            (* TODO consider this case *)
-            cc <- None;
-            widget#update
+          match f () with
+          | () -> ()
+          (* We attempted the continuation and it rejected the event.
+              The continuation has not been used so we do nothing here.
+              In case the continuation is used but does terminate it raises
+              an exception. *)
           | [%effect? (W.Await triggers), k] ->
+            (* print_endline "#EOH#\n"; *)
             cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))
         end;
-      | Some (triggers, cont) ->
-        let widget = self#content in
-        if List.mem (Trigger.of_event ev) triggers
-        then begin
-          print_endline "";
-          begin
-            match cont ev self#geometry with
-            | _ ->
-              cc <- None;
-              widget#update
-            | [%effect? (W.Await triggers), k] ->
-              cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))
-          end
-        end
-        (* print_endline "handle_w return" *)
+        self#display
+
+    (* this function sends all the blits to be displayed to the layers *)
+    (* it does not directly interact with the renderer *)
+    (* pos0 is the position of the house containing the room *)
+    method display =
+      is_fresh <- false;
+      match canvas with
+      | None -> failwith "No canvas"
+      | Some canvas ->
+        (* clip contains the rect that should contain the current room r. But of
+           course, clip can be much bigger than r. *)
+        let g = self#geometry in
+        let x = g.x in
+        let y = g.y + g.voffset in
+        (*print_endline ("ALPHA=" ^ (string_of_float (Avar.old room#geometry.transform.alpha)));*)
+
+        (* background (cf compute_background)*)
+        let bg = match self#background with
+          | None -> []
+          | Some bg ->
+            let box = match bg with
+              | Solid c ->
+                (* let c = Draw.random_color () in *)  (* DEBUG *)
+                let b = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) ?shadow:self#shadow () in
+                self#set_background (Some (Box b));
+                b
+              | Box b -> b
+            in
+            let blits =
+              box#display canvas (self#layer)
+                Draw.(scale_geom {x; y; w = g.w; h = g.h; voffset = - g.voffset})
+            in
+            blits
+        in
+        (* !!! in case of shadow, the blits contains several elements!! *)
+
+        let blits = self#content#display canvas self#layer Draw.{g with x; y} in
+        let blits = List.rev_append bg blits in
+
+        (* TODO presumably blit has clip = None as default *)
+        List.iter (fun blit -> Draw.blit_to_layer { blit with clip = None }) blits
   end
 
 (* The whole connected component of a layout is a tree, whose vertices (nodes)
@@ -500,45 +547,6 @@ let scale_clip clip =
 
 (** Display a room: *)
 
-(* this function sends all the blits to be displayed to the layers *)
-(* it does not directly interact with the renderer *)
-(* pos0 is the position of the house containing the room *)
-let display (r : 'a t) =
-  (* clip contains the rect that should contain the current room r. But of
-     course, clip can be much bigger than r. *)
-  let g = r#geometry in
-  let x = g.x in
-  let y = g.y + g.voffset in
-  (* update current position, independent of clip *)
-  r#set_geometry @@ { g with x; y };
-  (*print_endline ("ALPHA=" ^ (string_of_float (Avar.old room#geometry.transform.alpha)));*)
-
-  (* background (cf compute_background)*)
-  let bg = match r#background with
-    | None -> []
-    | Some bg ->
-      let box = match bg with
-        | Solid c ->
-          (* let c = Draw.random_color () in *)  (* DEBUG *)
-          let b = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) ?shadow:r#shadow () in
-          r#set_background (Some (Box b));
-          b
-        | Box b -> b
-      in
-      let blits =
-        box#display (get_canvas r) (r#layer)
-          Draw.(scale_geom {x; y; w = g.w; h = g.h; voffset = - g.voffset})
-      in
-      blits
-  in
-  (* !!! in case of shadow, the blits contains several elements!! *)
-
-  let blits = r#content#display (get_canvas r) r#layer Draw.{g with x; y} in
-  let blits = List.rev_append bg blits in
-
-  (* TODO presumably blit has clip = None as default *)
-  List.iter (fun blit -> Draw.blit_to_layer { blit with clip = None }) blits
-
 let get_focus room =
   room#mouse_focus
 
@@ -582,7 +590,7 @@ let render (layout : 'a t) =
   (* Draw.clear_canvas (get_canvas layout); *)
   (* We should not clear the canvas here, since all rendering is done at the end
      of the main loop, with flip *)
-  if Draw.window_is_shown (window layout) then display layout
+  if Draw.window_is_shown (window layout) then layout#display
   else printd debug_board "Window (layout #%u) is hidden" layout#id
 
 (* the function to call when the window has been resized *)

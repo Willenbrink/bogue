@@ -8,9 +8,8 @@
 (* These various background types are a bit confusing. Maybe one should unify
    them. *)
 
-open Utils
-
 open Base
+open Utils
 
 let default_size = (256,64)
 let default_bg = Style.Solid Draw.(opaque pale_grey)
@@ -41,7 +40,7 @@ class ['a] t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
       | _ -> ()
 
     method execute =
-      await [] Fun.(const ());
+      await [] (fun _ -> ());
       self#execute
 
     (* As all widget display functions, the geometry g must be already scaled. *)

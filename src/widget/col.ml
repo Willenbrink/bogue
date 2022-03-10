@@ -1,3 +1,5 @@
+open Base
+
 class ['a] t ?(sep = Theme.room_margin)
     ?(align) ?name (children : 'a Base.w list) =
   object

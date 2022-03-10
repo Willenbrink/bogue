@@ -8,7 +8,7 @@ class ['a] t ?id size =
     method unload = ()
 
     method execute =
-      await [] Fun.(const ());
+      await [] (fun _ -> ());
       self#execute
 
     method display _ _ _ = []

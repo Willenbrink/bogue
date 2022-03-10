@@ -1,3 +1,5 @@
+open Base
+
 class ['a] t ?font_size ?fg name =
   object
     (* see https://lab.artlung.com/font-awesome-sample/*)

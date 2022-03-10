@@ -5,7 +5,7 @@ module L = Layout
 module T = Trigger
 
 let example () =
-  let sl = new Slider.t ~kind:Slider.Vertical () in
+  (* let sl = new Slider.t ~kind:Slider.Vertical () in *)
   let b = new Check.t () in
   let b' = new Check.t () in
   let b'' = new Check.t () in
@@ -35,7 +35,7 @@ let example () =
   let row_ti = new Row.t [
     Single.loop ti;
     l |> W.gen;
-    Single.printer sl (Printf.printf "%i\n");
+    (* Single.printer sl (Printf.printf "%i\n"); *)
     Single.loop b
   ]
   in
@@ -43,7 +43,7 @@ let example () =
   (* let layout = L.resident col in *)
   (* let layout = L.resident (comb b l) in *)
   (* let layout = L.resident row_b in *)
-  let layout = L.resident row_ti in
+  let layout = L.resident (Single.loop row_ti) in
   let board = make layout in
   run board
 let _ =
@@ -55,7 +55,7 @@ let _ =
   (* ); *)
   (try
      example ();
-     Draw.quit ()
+     Interop.Draw.quit ()
    with
    | Layout.Fatal_error (_,str) -> Printexc.print_backtrace stdout; print_endline str
    | e -> Printexc.print_backtrace stdout; Printexc.to_string e |> print_endline);

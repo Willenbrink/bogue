@@ -1,5 +1,6 @@
 (library
- (name utils)
+ (name interop)
  (libraries str sdl)
-   (wrapped false)
+ (preprocess
+  (pps ppx_deriving.enum ppx_deriving.show))
 )

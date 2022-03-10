@@ -1,7 +1,7 @@
 (library
  (name bogue)
  ; (public_name bogue)
- (libraries str widget utils lib))
+ (libraries str widget interop lib))
 
 (install
  (section share)

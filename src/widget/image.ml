@@ -46,7 +46,7 @@ class ['a] t ?w ?h ?(noscale = false)
         end
 
     method execute =
-      await [] Fun.(const ());
+      await [] (fun _ -> ());
       self#execute
 
     (* FIXME somehow, this is flipped*)

@@ -3,8 +3,8 @@
 (* f : parameterize the boundary *)
 (* h : distance from boundary (<0 inside) *)
 
-
-open Utils
+open Interop
+open Interop.Utils
 
 type physicalpoint = Sdl.point
 type logicalpoint = { x:float; y:float } (* points or vectors *)
@@ -103,7 +103,7 @@ let rectangle x0 y0 w h =
 
 let ellipse center a b =
   let pp = 2. *. pi in
- { boundary = (fun t ->
+  { boundary = (fun t ->
         let t = pp *. t in
         let x = center.x +. a *. (cos t) in
         let y = center.y +. b *. (sin t) in
@@ -134,5 +134,5 @@ let essai renderer =
    * let tex = Draw.create_target renderer (getx s) (gety s) in
    * let save = Draw.push_target renderer tex in *)
   draw_random renderer ~border_width:bw shape colorfn npoints
-  (* Draw.pop_target renderer save;
-   * tex *)
+(* Draw.pop_target renderer save;
+ * tex *)

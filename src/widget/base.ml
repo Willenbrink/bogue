@@ -1,3 +1,4 @@
+include Interop
 open Utils
 
 (** what to do when the same action (= same connection id) is already running ? *)
@@ -31,19 +32,25 @@ let of_id_opt id =
   try Some (of_id id) with
   | Not_found -> None
 
-exception%effect Await : Trigger.t list -> (Sdl.event * Draw.geometry)
+exception%effect Await : Event.t list -> (Event.t_rich * Draw.geometry)
 exception Repeat
 exception Reset
 let rec await triggers handler =
-  try handler @@ EffectHandlers.perform (Await triggers) with
+  try handler @@
+    (fun (ev,g) -> print_endline (Event.show_t_rich ev); (ev,g)) @@
+    EffectHandlers.perform (Await triggers) with
   | Repeat -> await triggers handler
+  | Match_failure _ -> await triggers handler
 
-let await_loop triggers_ext handler_ext (type a) triggers (handler : _ -> a) : a =
+(* Note that the type system is not smart enough
+    to know that this function is correct.
+   If the handler worked for await, it will also work for await_loop. *)
+let await_loop (type a) await triggers_ext handler_ext triggers (handler : _ -> a) : a =
   await (triggers_ext @ triggers) @@ function
   | ev,g ->
     match
-      List.mem (Trigger.of_event ev) triggers_ext,
-      List.mem (Trigger.of_event ev) triggers
+      List.mem (Event.strip ev) triggers_ext,
+      List.mem (Event.strip ev) triggers
     with
     | true,true ->
       handler_ext (ev,g);
@@ -59,8 +66,8 @@ let await_unit triggers_ext handler_ext triggers handler =
   await (triggers_ext @ triggers) @@ function
   | ev,g ->
     match
-      List.mem (Trigger.of_event ev) triggers_ext,
-      List.mem (Trigger.of_event ev) triggers
+      List.mem (Event.strip ev) triggers_ext,
+      List.mem (Event.strip ev) triggers
     with
     | true,true ->
       handler_ext (ev,g);
@@ -126,7 +133,7 @@ class virtual ['a] stateful init =
   end
 
 class virtual ['a] w ?id size name cursor =
-  object (self)
+  object
     inherit common ?id ~name size ()
 
     method canvas = None
@@ -137,15 +144,6 @@ class virtual ['a] w ?id size name cursor =
 
     method virtual execute : 'a
 
-    method update =
-      Printf.printf "%s updates\n" self#name;
-      Trigger.push_redraw self#id
-    (* refresh is not used anymore. We redraw everyhting at each frame ... *)
-    (* before, it was not very subtle either: if !draw_boxes is false, we ask for
-       clearing the background before painting. Maybe some widgets can update
-       without clearing the whole background. But those with some transparency
-       probably need it. This should not be necessary in case we draw a solid
-       background -- for instance if draw_boxes = true *)
     method virtual display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list
   end
 

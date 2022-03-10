@@ -4,14 +4,14 @@
    Widget.check_box_with_label *)
 (* TODO: keyboard focus *)
 
-open Utils
 open Base
+open Utils
 
 type style =
   | Square
   | Circle (* circle is used for radio buttons *)
 
-let default_circle_size = (12,14);; (* TODO compute at run-time *)
+let default_circle_size = (12,14) (* TODO compute at run-time *)
 let default_square_size = (17,18)
 
 class t ?(init = false) ?(style = Square) () =
@@ -29,15 +29,14 @@ class t ?(init = false) ?(style = Square) () =
     method unload = ()
 
     method execute =
-      await Trigger.buttons_down (fun _ -> ());
+      await [`Mouse_press] (fun _ -> ());
       state <- not state;
-      self#update;
       self#state
 
     method style = style
 
     method display canvas layer g =
-      printd debug_graphics "Display button";
+      (* print "Display button with state %b" state; *)
       let open Draw in
       let texture_on = match style with
         | Square -> canvas.textures.check_on

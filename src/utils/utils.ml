@@ -176,7 +176,7 @@ let list_remove_first f l =
       else loop (x::acc) rest in
   loop [] l
 
-(* splits a list atfer the xth element *)
+(* splits a list after the xth element *)
 let split_list_rev list x =
   let rec loop head tail i =
     if i >= x then (head, tail)

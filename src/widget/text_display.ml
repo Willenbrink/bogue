@@ -1,7 +1,7 @@
 open Str
+open Base
 open Utils
 open Ttf
-open Base
 
 (* TODO: use TTF_RenderUTF8_Blended_Wrapped *)
 (* cf SDL_ttf.h *)
@@ -167,7 +167,7 @@ class ['a] t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font =
         end
 
     method execute =
-      await [] Fun.(const ());
+      await [] (fun _ -> ());
       self#execute
 
     method get_font = Draw.get_font font (Theme.scale_int font_size)

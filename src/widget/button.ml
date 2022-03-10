@@ -4,9 +4,8 @@
 (* TODO in case of Switch, dim the label when not selected *)
 (* ==> label_on, label_off ? *)
 
-open Utils
-
 open Base
+open Utils
 
 let color_on = Draw.find_color Theme.button_color_on
 let color_off = Draw.find_color Theme.button_color_off
@@ -62,16 +61,12 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
       do_option box_over (fun o -> o#unload)
 
     method execute =
-      await Trigger.(buttons_down @ buttons_up @ [mouse_enter; mouse_leave]) (fun (ev,_) ->
-          if Trigger.(match Trigger.of_event ev with
-              | x when List.mem x buttons_down -> self#press; false
-              | x when List.mem x buttons_up -> self#release; true
-              | x when x = mouse_enter -> self#mouse_enter; false
-              | x when x = mouse_leave -> self#mouse_leave; false
-              | _ -> failwith "Invalid event")
-          then self#state
-          (* TODO check that this is actually a tail call *)
-          else self#execute)
+      (* TODO check that this is actually a tail call *)
+      await [`Mouse_press; `Mouse_release; `Mouse_enter; `Mouse_leave] @@ function
+      | `Mouse_press (_, Event.LMB), _ -> self#press; self#execute
+      | `Mouse_release (_, Event.LMB), _ -> self#release; self#state
+      | `Mouse_enter _, _ -> self#mouse_enter; self#execute
+      | `Mouse_leave _, _ -> self#mouse_leave; self#execute
 
     method text =
       if self#state

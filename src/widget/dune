@@ -1,7 +1,7 @@
 (library
  (name widget)
-  (libraries utils)
+  (libraries interop)
    (wrapped false)
  (preprocess
-  (pps ppx_effects ppx_deriving.show))
+  (pps ppx_effects))
 )

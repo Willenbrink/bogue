@@ -53,10 +53,6 @@ let pointer_motion = E.[mouse_motion; finger_motion]
 let user_type = new_event_type "user"
 let () = assert (user_type = E.user_event)  (* 32768 *)
 
-let stop = new_event_type "stop"
-
-let stopped = new_event_type "stopped"
-
 let mouse_enter = new_event_type "mouse_enter"
 
 let mouse_leave = new_event_type "mouse_leave"
@@ -66,8 +62,6 @@ let redraw = new_event_type "redraw" (* TODO: select only a particular canvas *)
 (* let refresh = new_event_type () *)
 
 let full_click = new_event_type "full_click"
-
-let startup = new_event_type "startup"
 
 (* the var_changed event can be send to notify that some widget made a change to
    a global variable. This is used for instance in radiolist.ml *)
@@ -94,17 +88,15 @@ let of_event ev =
 (* See tsdl.mli *)
 type sdl_event = Sdl.Event.enum
 
-type bogue_event =
-  [ `Bogue_startup
-  | `Bogue_stop
-  | `Bogue_stopped
+type bogue_event = [
   | `Bogue_full_click
   | `Bogue_mouse_enter
   | `Bogue_mouse_leave
   | `Bogue_var_changed
   | `Bogue_keyboard_focus
   | `Bogue_mouse_focus
-  | `Bogue_redraw ]
+  | `Bogue_redraw
+]
 
 let generalize_sdl_event ev = (ev : sdl_event :> [> sdl_event | bogue_event])
 let generalize_bogue_event ev = (ev : bogue_event :> [> sdl_event | bogue_event])
@@ -117,9 +109,6 @@ let event_kind ev : [> sdl_event | bogue_event] =
     begin
       (* Printf.printf "Event: %i\n%!" x; *)
       match x with (* TODO association list or Imap like tsdl.ml *)
-      | i when i = startup -> `Bogue_startup
-      | i when i = stop -> `Bogue_stop
-      | i when i = stopped -> `Bogue_stopped
       | i when i = mouse_enter -> `Bogue_mouse_enter
       | i when i = mouse_leave -> `Bogue_mouse_leave
       | i when i = full_click -> `Bogue_full_click
@@ -127,31 +116,14 @@ let event_kind ev : [> sdl_event | bogue_event] =
       | i when i = keyboard_focus -> `Bogue_keyboard_focus
       | i when i = mouse_focus -> `Bogue_mouse_focus
       | i when i = redraw -> `Bogue_redraw
-      | _ -> Printf.printf "UNKNOWN EVENT=%i\n%!" x;
+      | i when i = not_used -> failwith "not used event"
+      | _ ->
+        Printf.printf "UNKNOWN EVENT=%i\n%!" x;
         `Unknown x
     end
   | e -> generalize_sdl_event e
 
 (* Query replace regexp (default `\([a-z_]+\)\1): `\([a-z]+\)`\1 -> "\1" *)
-
-let window_event_name = function
-  | `Close -> "Close"
-  | `Enter -> "Enter"
-  | `Exposed -> "Exposed"
-  | `Focus_gained -> "focus_gained"
-  | `Focus_lost -> "Focus_lost"
-  | `Hidden -> "Hidden"
-  | `Hit_test -> "Hit_test"
-  | `Leave -> "Leave"
-  | `Maximized -> "Maximized"
-  | `Minimized -> "Minimized"
-  | `Moved -> "Moved"
-  | `Resized -> "Resized"
-  | `Restored -> "Restored"
-  | `Shown -> "Shown"
-  | `Size_changed -> "Size_changed"
-  | `Take_focus -> "Take_focus"
-  | `Unknown _ -> "Unknown"
 
 (* Some dumb code to duplicate an event. Probably much easier directly in
    C... *)
@@ -459,9 +431,6 @@ let rec has_n_events n =
   if n <= 0 then true
   else (Sdl.poll_event None) && has_n_events (n-1)
 
-let has_no_event () =
-  not (Sdl.poll_event None)
-
 (** get the list of all events, and remove them from the queue *)
 (* the first of the list is the oldest, ie the one to be popped at the next
    wait_event *)
@@ -607,48 +576,6 @@ let push_var_changed = push_from_id var_changed
 (* send the `Quit event *)
 let push_quit () = push_from_id E.quit 0
 
-(** tell if the current thread should exit. This should be called within a
-    widget action. We communicate via the event to decide if the thread should
-    exit *)
-let should_exit ev =
-  (* printd debug_thread "should exit ? event type = %d" (E.(get ev typ)); *)
-  E.(get ev typ) = stop
-
-let will_exit ev =
-  E.(set ev typ) stopped
-
-(** a delay that can be stopped via the event *)
-let nice_delay ev sec =
-  let t = sec +. Unix.gettimeofday () in
-  let rec loop () =
-    if (Unix.gettimeofday () >= t) || (should_exit ev) then ()
-    else (Thread.delay 0.003; loop ()) in
-  loop ()
-
-(** wait until the value is observed, or timeout is elapsed. Return true is the
-    value was observed *)
-let wait_value ?timeout ev var value =
-  let t0 =  Unix.gettimeofday () in
-  while not (!var = value) &&
-        (default (map_option timeout (fun t -> Unix.gettimeofday () < t +. t0)) true)
-        && not (should_exit ev)
-  do
-    Thread.delay 0.003;
-  done;
-  !var = value
-
-(** wait until condition returns true *)
-let wait_for ?timeout ?ev cond =
-  let ev = default ev !my_event in
-  let t0 =  Unix.gettimeofday () in
-  while not (cond ())
-        && (default (map_option timeout (fun t -> Unix.gettimeofday () < t +. t0)) true)
-        && not (should_exit ev)
-  do
-    Thread.delay 0.01;
-  done
-
-
 (* WARNING: in the current implementation of widget.ml, all events that can be
    sent to a widget are likely to be *mutated* by a connection/thread to the
    widget. Hence it is not safe to use global event variables. We create a new
@@ -658,7 +585,6 @@ let wait_for ?timeout ?ev cond =
    should be safer, see widget.ml/add_action *)
 
 let full_click_event () = create_event full_click
-let startup_event () = create_event startup
 
 let is_mouse_at_rest = ref false
 
@@ -684,9 +610,9 @@ let check_mouse_rest =
       Unix.gettimeofday () -. t0
 
 (** wait for next event. Returns the SAME event structure e (modified) *)
-let rec wait_event e =
-  if Sdl.poll_event (Some e)
-  then e
+let rec wait_event () =
+  if Sdl.poll_event (Some !my_event)
+  then !my_event
   (* TODO send an event instead, and reset mouse *)
   else begin
     let t = check_mouse_rest () in (* TODO use Timeout instead *)
@@ -695,7 +621,7 @@ let rec wait_event e =
     else if t < 1. && !is_mouse_at_rest
     then is_mouse_at_rest := false; (* the mouse has moved *)
     Thread.delay 0.01;
-    wait_event e
+    wait_event ()
   end
 
 
@@ -852,22 +778,16 @@ let was_single_click () = (!single_click <> None) && (!double_click = None)
 (* test if the shift mod (and only it) is pressed *)
 let shift_pressed () =
   let m = Sdl.get_mod_state () in
-  m = Sdl.Kmod.lshift
-  || m = Sdl.Kmod.rshift
+  m land Sdl.Kmod.shift <> 0
 
 (* only ctrl *)
 let ctrl_pressed () =
   let m = Sdl.get_mod_state () in
-  m = Sdl.Kmod.ctrl
-  || m = Sdl.Kmod.lctrl
-  || m = Sdl.Kmod.rctrl
+  m land Sdl.Kmod.ctrl <> 0
 
 let ctrl_shift_pressed () =
   let m = Sdl.get_mod_state () in
-  m = Sdl.Kmod.lctrl lor Sdl.Kmod.lshift
-  || m = Sdl.Kmod.lctrl lor Sdl.Kmod.rshift
-  || m = Sdl.Kmod.rctrl lor Sdl.Kmod.rshift
-  || m = Sdl.Kmod.rctrl lor Sdl.Kmod.lshift
+  m land (Sdl.Kmod.ctrl lor Sdl.Kmod.shift) <> 0
 
 let mouse_left_button_pressed () =
   let m, _ = Sdl.get_mouse_state () in

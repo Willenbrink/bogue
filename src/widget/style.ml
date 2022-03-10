@@ -1,3 +1,4 @@
+open Base
 open Utils
 
 type line_style =

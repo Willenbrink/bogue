@@ -1,6 +1,6 @@
 (** a simple text display in one line *)
-open Utils
 open Base
+open Utils
 
 type style = Ttf.Style.t
 
@@ -34,7 +34,7 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
       do_option tex Draw.forget_texture
 
     method execute =
-      await [] Fun.(const ());
+      await [] (fun _ -> ());
       self#execute
 
     val mutable fg = fg

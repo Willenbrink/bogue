@@ -1,18 +1,11 @@
 (* each widget contains its personal data, and the list of connections from
    it *)
 
+open Interop
 open Utils
 include Base
 
 class type virtual ['a] t = ['a] w
-
-let test () = [
-  `Empty (new Empty.t (0,0));
-  `Box (new Box.t ());
-  `Slider (new Slider.t ());
-  `Button (new Button.t "Press Me");
-  `Image (new Image.t "/non_existing.png")
-]
 
 (* let canvas w = match w.canvas with *)
 (*   | Some c -> c *)

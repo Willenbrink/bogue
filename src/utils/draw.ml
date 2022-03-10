@@ -1865,14 +1865,14 @@ let copy_tex ?(overlay = TopRight) renderer tex area x y =
   let rect = Sdl.Rect.create ~x ~y ~w ~h in
   let dst = Sdl.intersect_rect rect area in
   do_option dst (fun dst ->
-      let src = (let open Sdl in match overlay with
-        | Shrink -> Rect.create ~x:0 ~y:0 ~w ~h
-        | Clip -> Rect.create ~x:(Rect.x dst - x) ~y:(Rect.y dst - y)
-                    ~w:(Rect.w dst) ~h:(Rect.h dst)
-        | TopRight -> Rect.create ~x:(w - Rect.w dst)
-                        ~y:0 ~w:(Rect.w dst) ~h:(Rect.h dst)
-        | Xoffset x0 -> Rect.create ~x:(min x0 (w - Rect.w dst))
-                          ~y:0 ~w:(Rect.w dst) ~h:(Rect.h dst)
+      let src = (match overlay with
+          | Shrink -> Sdl.Rect.create ~x:0 ~y:0 ~w ~h
+          | Clip -> Sdl.Rect.create ~x:(Sdl.Rect.x dst - x) ~y:(Sdl.Rect.y dst - y)
+                      ~w:(Sdl.Rect.w dst) ~h:(Sdl.Rect.h dst)
+          | TopRight -> Sdl.Rect.create ~x:(w - Sdl.Rect.w dst)
+                          ~y:0 ~w:(Sdl.Rect.w dst) ~h:(Sdl.Rect.h dst)
+          | Xoffset x0 -> Sdl.Rect.create ~x:(min x0 (w - Sdl.Rect.w dst))
+                            ~y:0 ~w:(Sdl.Rect.w dst) ~h:(Sdl.Rect.h dst)
         ) in
       go (Sdl.render_copy ~src ~dst renderer tex));;
 
@@ -1884,14 +1884,14 @@ let copy_tex_to_layer ?(overlay = TopRight) ?voffset ?transform
   let dst = Sdl.intersect_rect rect area in
   let src = match dst with
     | None -> None
-    | Some dst -> Some (let open Sdl in match overlay with
-      | Shrink -> Rect.create ~x:0 ~y:0 ~w ~h
-      | Clip -> Rect.create ~x:(Rect.x dst - x) ~y:(Rect.y dst - y)
-                  ~w:(Rect.w dst) ~h:(Rect.h dst)
-      | TopRight -> Rect.create ~x:(w - Rect.w dst)
-                      ~y:0 ~w:(Rect.w dst) ~h:(Rect.h dst)
-      | Xoffset x0 -> Rect.create ~x:(min x0 (w - Rect.w dst))
-                        ~y:0 ~w:(Rect.w dst) ~h:(Rect.h dst)
+    | Some dst -> Some (match overlay with
+        | Shrink -> Sdl.Rect.create ~x:0 ~y:0 ~w ~h
+        | Clip -> Sdl.Rect.create ~x:(Sdl.Rect.x dst - x) ~y:(Sdl.Rect.y dst - y)
+                    ~w:(Sdl.Rect.w dst) ~h:(Sdl.Rect.h dst)
+        | TopRight -> Sdl.Rect.create ~x:(w - Sdl.Rect.w dst)
+                        ~y:0 ~w:(Sdl.Rect.w dst) ~h:(Sdl.Rect.h dst)
+        | Xoffset x0 -> Sdl.Rect.create ~x:(min x0 (w - Sdl.Rect.w dst))
+                          ~y:0 ~w:(Sdl.Rect.w dst) ~h:(Sdl.Rect.h dst)
       ) in
   make_blit ?src ?dst ?voffset ?transform canvas layer tex;;
 
@@ -1930,314 +1930,17 @@ let tex_to_layer canvas layer tex g =
 (* some graphics algorithms *)
 
 let normsq (x,y) =
-  x*x + y*y;;
+  x*x + y*y
 
 (** euclidian norm *)
 let norm (x,y) =
-  sqrt(float (x*x + y*y));;
+  sqrt(float (x*x + y*y))
 
 (** euclidian distance *)
 let dist (x,y) (x0,y0) =
-  norm (x-x0, y-y0);;
-
-(** intersection of rectangles; None means no clipping = the whole texture *)
-(* if the intersection is empty, we return a rect with zero area. This can be
-   tested with Sdl.rect_empty *)
-let intersect_rect r1o r2o =
-  match r1o, r2o with
-  | None, None -> None
-  | Some r1, None -> Some r1
-  | None, Some r2 -> Some r2
-  | Some r1, Some r2 -> let r = Sdl.intersect_rect r1 r2 in
-    if r = None then (printd debug_graphics "Empty intersect"; (* DEBUG *)
-                      Some (Sdl.Rect.create ~x:0 ~y:0 ~w:0 ~h:0))
-    else r;;
-
-(* see alpha_mult_tex below *)
-let alpha_mult_surface surf =
-  let blend_mode =  go (Sdl.get_surface_blend_mode surf) in
-  let r,g,b = go (Sdl.get_surface_color_mod surf) in
-  let w,h = Sdl.get_surface_size surf in
-  let dst = create_surface_like surf ~w ~h in
-  go (Sdl.set_surface_color_mod surf 0 0 0);
-  go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_none);
-  go (Sdl.blit_surface ~src:surf None ~dst None);
-  go (Sdl.set_surface_color_mod surf r g b);
-  go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_add);
-  go (Sdl.blit_surface ~src:surf None ~dst None);
-  go (Sdl.set_surface_blend_mode surf blend_mode);
-  dst;;
+  norm (x-x0, y-y0)
 
 (* Texture manipulations *)
-
-(* multiply the color components by the alpha component *)
-(* not used *)
-(* see also
-   https://developer.nvidia.com/content/alpha-blending-pre-or-not-pre
-*)
-let alpha_mult_tex renderer tex =
-  (* 1. we make a copy of the texture and keep only the alpha channel, setting
-     colors to zero *)
-  let w,h = tex_size tex in
-  let target = create_target renderer w h in
-  go (Sdl.set_texture_color_mod tex 0 0 0);
-  go (Sdl.set_texture_blend_mode target Sdl.Blend.mode_none);
-  let p = push_target ~clear:false renderer target in
-  go (Sdl.render_copy renderer tex);
-  go (Sdl.set_texture_color_mod tex 255 255 255);
-
-  (* 2. we 'add' the tex on the previously extracted alpha channel. Indeed
-     'adding' on a texture with only zeros as colors (black) will simply
-     multiply the color by its alpha value. *)
-  go (Sdl.set_texture_blend_mode target Sdl.Blend.mode_add);
-  go (Sdl.render_copy renderer tex);
-  pop_target renderer p;
-  target;;
-
-(* f is a function with values in [0,1] *)
-let convolution renderer ?(emboss=false) ?(bg = opaque grey) f radius texture =
-  let pf, _, (w,h) = go (Sdl.query_texture texture) in
-  (*  let buffer =  go(Sdl.create_texture renderer pf Sdl.Texture.access_target ~w ~h) in *)
-  let target =  create_texture renderer pf Sdl.Texture.access_target ~w ~h in
-  let push = push_target renderer target in
-  (* the issue is that the additive blend mode does not add the alphas...*)
-  (* go (Sdl.set_texture_blend_mode buffer Sdl.Blend.mode_add); *)
-
-  set_color renderer bg; (* TODO only works with a solid black background... *)
-  go (Sdl.render_clear renderer);
-
-  if emboss then begin
-    (* copy the center image multiplied by f(0,0) onto the target, so we get the
-       alpha information *)
-    go (Sdl.set_texture_blend_mode texture Sdl.Blend.mode_blend);
-    let a = round (255. *. (f 0 0)) in
-    go (Sdl.set_texture_color_mod texture a a a);
-    let dst = Sdl.Rect.create ~x:0 ~y:0 ~w ~h in
-    go (Sdl.render_copy ~dst renderer texture);
-  end;
-
-  (* clear the buffer *)
-  (* go (Sdl.set_render_target renderer (Some buffer)); *)
-  (* go (Sdl.set_render_draw_color renderer 0 0 0 0); *)
-  (* go (Sdl.render_clear renderer); *)
-
-  (* now we 'add' the neighbouring images *)
-  go (Sdl.set_texture_blend_mode texture Sdl.Blend.mode_add);
-  (* go (Sdl.set_texture_blend_mode target Sdl.Blend.mode_blend); *)
-  let dx, dy = if emboss then radius, radius else 0,0 in
-  for x = -radius to radius do
-    for y = -radius to radius do
-      (*      if x <> 0 || y <> 0 (* the center image is already copied *)
-              then *) begin
-      let dst = Sdl.Rect.create ~x:(x+dx) ~y:(y+dy) ~w ~h in
-      let a = round (255. *. (f (x) (y))) in
-      (*        go (Sdl.set_render_target renderer (Some buffer));*)
-      (* go (Sdl.set_render_draw_color renderer 255 255 255 a); *)
-      (* go (Sdl.render_clear renderer); *)
-      go (Sdl.set_texture_color_mod texture a a a);
-      (* go (Sdl.set_texture_alpha_mod texture a); *)
-      go (Sdl.render_copy ~dst renderer texture);
-      (* go (Sdl.set_texture_blend_mode buffer Sdl.Blend.mode_mod); *)
-      (* go (Sdl.set_render_target renderer (Some target)); *)
-      (* go (Sdl.set_texture_blend_mode buffer Sdl.Blend.mode_none); *)
-      (* go (Sdl.render_copy ~dst renderer buffer); *)
-    end
-    done
-  done;
-  pop_target renderer push;
-  go (Sdl.set_texture_blend_mode target Sdl.Blend.mode_blend);
-  target;;
-
-(* f is a function with values in [0,1] *)
-let convolution_emboss renderer ?(bg = opaque grey) f radius texture =
-  let pf, _, (w,h) = go (Sdl.query_texture texture) in
-  let target =  create_texture renderer pf Sdl.Texture.access_target ~w:(w+2*radius) ~h:(h+2*radius) in
-  let push = push_target renderer target in
-  set_color renderer bg;
-  go (Sdl.render_clear renderer);
-
-  (* copy the center image multiplied by f(0,0) onto the target, so we get the
-      alpha information *)
-  go (Sdl.set_texture_blend_mode texture Sdl.Blend.mode_blend); (* or blend *)
-  let a = round (255. *. (f 0 0)) in
-  go (Sdl.set_texture_color_mod texture a a a);
-  let dst = Sdl.Rect.create ~x:radius ~y:radius ~w ~h in
-  go (Sdl.render_copy ~dst renderer texture);
-
-  (* now we 'add' the neighbouring images *)
-  go (Sdl.set_texture_blend_mode texture Sdl.Blend.mode_add);
-  for x = 0 to 2*radius do
-    for y = 0 to 2*radius do
-      if x <> radius || y <> radius (* the center image is already copied *)
-      then begin
-        let dst = Sdl.Rect.create ~x ~y ~w ~h in
-        let a = round (255. *. (f (x-radius) (y-radius))) in
-        go (Sdl.set_texture_color_mod texture a a a);
-        go (Sdl.render_copy ~dst renderer texture);
-
-      end
-    done
-  done;
-  pop_target renderer push;
-  go (Sdl.set_texture_blend_mode target Sdl.Blend.mode_blend);
-  target;;
-
-(* use with radius = 1 *)
-let one_pixel_blur _ _ = 0.111111;;
-
-
-(* gaussian *)
-let gaussian ~variance t =
-  1. /. (variance *. sqrt(2. *. pi)) *. exp (-. t *. t /. 2. /. (variance *. variance));;
-
-let gaussian_blur ~radius x y =
-  let variance = (float radius) /. 2. in
-  let gx =  gaussian ~variance (float x) in
-  let gy =  gaussian ~variance (float y) in
-  gx *. gy;;
-
-
-(* logical AND blending for surfaces. *)
-(* not used yet *)
-let mask_surface ~mask surface =
-  let sm = Sdl.get_surface_size mask in
-  let s = Sdl.get_surface_size surface in
-
-  (* first some tests *)
-  let mask, surface, to_free =
-    if s <> sm then begin
-      printd debug_error "The surface and the mask should have same size. We crop";
-      let wm,hm = sm and w,h = s in
-      let w' = min wm w and h' = min hm h in
-      let mask' = create_surface_like surface ~w:w' ~h:h' in
-      let surface' = create_surface_like surface ~w:w' ~h:h' in
-      let rect = Sdl.get_clip_rect surface' in
-      go(Sdl.blit_surface ~src:mask (Some rect) ~dst:mask' None);
-      go(Sdl.blit_surface ~src:surface (Some rect) ~dst:surface' None);
-      mask', surface', [mask'; surface']
-    end
-    else let formatm = Sdl.get_surface_format_enum mask in
-      let format = Sdl.get_surface_format_enum surface in
-      if formatm <> formatm then begin
-        printd debug_warning "The surface and the mask should have same pixel format. We convert";
-        let mask' = go(Sdl.convert_surface_format mask format) in
-        mask', surface, [mask']
-      end
-      else mask, surface, [] in
-
-  (* then the blending *)
-  (* let mlm = Sdl.must_lock mask in *)
-  (* if mlm then  *)
-  go(Sdl.lock_surface mask);
-  (* let ml = Sdl.must_lock surface in *)
-  (* if ml then  *)
-  go(Sdl.lock_surface surface);
-  let pixels = Sdl.get_surface_pixels surface Bigarray.int8_unsigned in
-  let pixelsm = Sdl.get_surface_pixels mask Bigarray.int8_unsigned in
-  let open Bigarray.Array1 in
-  let n = dim pixels in
-  let result = create Bigarray.int Bigarray.c_layout n in
-  for i = 0 to n - 1 do
-    let p = unsafe_get pixels i in
-    let pm = unsafe_get pixelsm i in
-    unsafe_set result i (p land pm);
-  done;
-  (* if mlm then  *)
-  Sdl.unlock_surface mask;
-  (* if ml then  *)
-  Sdl.unlock_surface surface;
-  let res = create_surface_from ~like:surface result in
-  List.iter free_surface to_free;
-  res;;
-(* recall in the end the bigarray is part of the surface structure, it is
-   not copied *)
-
-(* Warning: this is supposed to be a slow operation *)
-(* for faster access, keep the pixels/surface *)
-(* not used*)
-let get_texture_pixels renderer texture =
-  let format,_,(w,h) = go(Sdl.query_texture texture) in
-  let bpp,_,_,_,_ = go(Sdl.pixel_format_enum_to_masks format) in
-  let tex_bytes_per_pixel = if bpp = 32 then 4 else if bpp <= 8 then 1 else 2 in
-  let open Bigarray in
-  printd debug_graphics "Texture BBP=%u" tex_bytes_per_pixel;
-  (* faster with int16 or 32 ? *)
-  let pixels = Array1.create int8_unsigned c_layout
-      (w * h * tex_bytes_per_pixel) in
-  let pitch = w * tex_bytes_per_pixel in
-  let target = create_target ~format renderer w h in
-  let push = push_target renderer target in
-  go(Sdl.render_copy_ex renderer texture 0. None Sdl.Flip.vertical);
-  (* = there is a bug in SDL; the RenderRead pixels are upside-down... *)
-  go(Sdl.render_read_pixels renderer None (Some format) pixels pitch);
-  pop_target renderer push;
-  pixels, pitch, go(Sdl.pixel_format_enum_to_masks format);;
-
-(* logical AND blending for textures. *)
-(* TODO: faster: let the mask be a surface *)
-(* TODO: use get_texture_pixels *)
-(* TODO check the new blend modes at
-   https://hg.libsdl.org/SDL/rev/180e8906dc3c *)
-let land_texture renderer mask texture =
-  let format,_,(w,h) = go(Sdl.query_texture texture) in
-  let formatm,_,(wm,hm) = go(Sdl.query_texture mask) in
-  if formatm <> format
-  then printd debug_error "Mask and texture must have same format. \
-                           Expect garbage.";
-  let bpp,_,_,_,_ = go(Sdl.pixel_format_enum_to_masks format) in
-  let tex_bytes_per_pixel = if bpp = 32 then 4 else if bpp <= 8 then 1 else 2 in
-  let w' = min wm w and h' = min hm h in
-  let rect = Sdl.Rect.create ~x:0 ~y:0 ~w:w' ~h:h' in
-  let open Bigarray in
-  printd debug_graphics "Texture BPP=%u" tex_bytes_per_pixel;
-  let pixels = Array1.create int8_unsigned c_layout
-      (w' * h' * tex_bytes_per_pixel) in
-  let pixelsm = Array1.create int8_unsigned c_layout
-      (w' * h' * tex_bytes_per_pixel) in
-  (*Array1.fill pixelsm 0;*) (* DEBUG *)
-  (*Array1.fill pixels 0;*) (* DEBUG *)
-  let pitch = w' * tex_bytes_per_pixel in
-  let target = create_target ~format renderer w' h' in
-  let push = push_target renderer target in
-  go(Sdl.render_copy_ex ~src:rect renderer texture 0. None Sdl.Flip.vertical); (* There is a bug in SDL; the RenderRead pixels are upside-down... *)
-  go(Sdl.render_read_pixels renderer (Some rect) (Some format) pixels pitch);
-  go (Sdl.render_clear renderer);
-  go(Sdl.render_copy_ex ~src:rect renderer mask 0. None Sdl.Flip.vertical); (* IDEM *)
-  go(Sdl.render_read_pixels renderer (Some rect) (Some format) pixelsm pitch);
-  pop_target renderer push;
-  let t = Unix.gettimeofday () in
-  let n = Array1.dim pixels in
-  for i = 0 to n - 1 do
-    let p = Array1.unsafe_get pixels i in
-    let pm = Array1.unsafe_get pixelsm i in
-    Array1.unsafe_set pixels i (p land pm);
-  done;
-  printd debug_graphics "Loop time: %f" (Unix.gettimeofday () -. t);
-  go(Sdl.update_texture target (Some rect) pixels pitch);
-  target;;
-
-
-(* alpha=0 ==> transparent, 1 ==> opaque *)
-(* https://wiki.libsdl.org/SDL_BlendMode *)
-(* SDL_BLENDMODE_NONE no blending dstRGBA = srcRGBA *)
-(* SDL_BLENDMODE_BLEND alpha blending dstRGB = (srcRGB * srcA) + (dstRGB * (1-srcA)); dstA = srcA + (dstA * (1-srcA)) *)
-(* SDL_BLENDMODE_ADD additive blending dstRGB = (srcRGB * srcA) + dstRGB; dstA = dstA *)
-(* SDL_BLENDMODE_MOD color modulate dstRGB = srcRGB * dstRGB; dstA = dstA *)
-
-(* WANRNIG: the RGB encoding is NOT linear wrt light intensity. See
-   https://en.wikipedia.org/wiki/SRGB
-   https://photosounder.com/michel_rouzic/#srgb
-
-   When blending, we should not just ADD values. Not sure what SDL does for this.
-
-*)
-
-
-(* Remark: blending half transparent blue (srcA=0.5) onto full transparent red
-   (dstA=0) gives 0.5blue+0.5red, alpha=0.5: the hidden red reappears!
-   https://stackoverflow.com/questions/45781683/how-to-get-correct-sourceover-alpha-compositing-in-sdl-with-opengl
-*)
-
 (* multiply the alpha of the texture by the alpha of the mask *)
 (* and set color to white when alpha = 0 (because of Remark above) *)
 (* SDL RenderRead pixels WARNING: "This is a very slow operation, and should not
@@ -2283,24 +1986,3 @@ let mask_texture ~mask renderer texture =
   printd debug_graphics "Loop time: %f" (Unix.gettimeofday () -. t);
   go(Sdl.update_texture target (Some rect) pixels pitch);
   target;;
-
-(* cheap blur by zooming *) (* not used yet *)
-let blur_texture renderer tex scale =
-  let w,h = tex_size tex in
-  let w',h' = imax 1 (w/scale), imax 1 (h/scale) in
-  ignore (Sdl.(set_hint Hint.render_scale_quality "1"));
-  let small = create_target renderer w' h' in
-  let p = push_target ~clear:false renderer small in
-  go (Sdl.set_texture_blend_mode tex Sdl.Blend.mode_none);
-  go (Sdl.render_copy renderer tex);
-  let final = create_target renderer w h in
-  let _ = push_target ~clear:false renderer final in
-  go (Sdl.set_texture_blend_mode small Sdl.Blend.mode_none);
-  go (Sdl.render_copy renderer small);
-  pop_target renderer p;
-  forget_texture small;
-  final;;
-
-(* More ideas:
-   https://software.intel.com/en-us/blogs/2014/07/15/an-investigation-of-fast-real-time-gpu-based-image-blur-algorithms
-*)

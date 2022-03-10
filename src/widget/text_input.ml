@@ -8,22 +8,14 @@
    https://wiki.libsdl.org/Tutorials/TextInput#CandidateList
 *)
 
-open Utils
 open Base
+open Utils
 
 type selection =
-  | Empty
-  | Start of int (* ne sert pas à grand chose *)
-  | Active of (int * int) (* n1 should be <= n2 *)
-
-type filter = string -> bool
-let no_filter _ = true
-let uint_filter s = List.mem s ["0"; "1"; "2"; "3"; "4"; "5"; "6"; "7"; "8"; "9"]
-let seps = [" "; ";"; "."; ","; "/"; ":"; "\\n"; "\\t"; "\\j"; "?"; "!"]
-
-
-let and_filter f1 f2 = function
-    s -> (f1 s) && (f2 s)
+  | Point of int
+  (* Area (x,y) is the selection starting at pos x and ending at pos y
+     x is therefore the first value temporally, but not necessarily smaller than y*)
+  | Area of (int * int)
 
 (* we cannot use Sdl.color type here if we want to memoize, since colors are
        typically recreated by Sdl.Color.create... *)
@@ -68,9 +60,10 @@ let ctrl_pressed () =
   || m = Sdl.Kmod.lctrl
   || m = Sdl.Kmod.rctrl
 
+(* TODO max_size is not respected *)
 class t ?(max_size = 2048) ?(prompt = "Enter text")
     ?(font_size = Theme.text_font_size)
-    ?(filter = no_filter) ?(font = Theme.text_font) text =
+    ?(font = Theme.text_font) text =
   let size = (0,font_size) (* TODO missing calculation *) in
   object (self)
     inherit [string] w size "TextInput" Cursor.Ibeam
@@ -79,147 +72,88 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
 
     initializer Draw.ttf_init ()
     val mutable cursor = None
-    val mutable cursor_pos = 0
     val cursor_char = Theme.fa_symbol "tint"
     val mutable render = None
     val mutable offset = 0
     method font = Draw.get_font font (Theme.scale_int font_size)
 
+    val mutable selection = Point 0
     val mutable active = false
-    method clear =
-      Option.iter Draw.forget_texture render;
-      render <- None
 
     method stop =
       printd debug_event "Stopping text input";
       if Sdl.is_text_input_active ()
       then Sdl.stop_text_input ();
-      self#clear;
       active <- false
 
     val mutable room_x = 0
-    val mutable selection = Empty
-    val max_size = max_size
-    val prompt = prompt
-    val filter = filter
 
     method unload =
-      Option.iter Draw.forget_texture render;
-      render <- None;
-      Option.iter Draw.forget_texture cursor;
-      cursor <- None
+      (* Option.iter Draw.forget_texture render; *)
+      (* render <- None; *)
+      ()
 
-    method private activate =
-      (* if not check *)
-      (* || Sdl.Event.(get ev mouse_button_state) = Sdl.pressed *)
-      (*    (\* = DIRTY trick, see bogue.ml *\) *)
-      (* then begin *)
-      printd debug_event "Activating text_input";
+    method select x =
+      let x = self#px_to_ind x in
+      let sel = match selection with
+        | Point a -> Area (a,x)
+        | Area (a,_) -> Area (a,x)
+      in
+      selection <- sel
+
+    method start_input =
       Sdl.start_text_input ();
-      active <- true;
-      self#clear
+      active <- true
+
+    method stop_input =
+      Sdl.stop_text_input ();
+      active <- false
 
     method execute =
-      let rec await ts handler =
-        Base.await (Sdl.Event.mouse_motion :: ts) @@ function
-        | ev,g when Trigger.of_event ev = Sdl.Event.mouse_motion ->
-          if Trigger.mm_pressed ev
-          then begin
-            self#mouse_select ev;
-            self#update;
-          end;
-          if List.mem Sdl.Event.mouse_motion ts
-          then handler (ev,g)
-          else await ts handler
-        | x -> handler x
-      in
-      let rec await_with_tab ts handler =
-        await (Sdl.Event.key_down :: ts) @@ function
-        | ev,g when Trigger.of_event ev = Sdl.Event.key_down ->
-          if Sdl.Event.(get ev keyboard_keycode) = Sdl.K.tab then begin
-            self#activate;
-            self#select_all
-          end;
-          if List.mem Sdl.Event.key_down ts
-          then handler (ev,g)
-          else await_with_tab ts handler
-        | x -> handler x
+      let pressed (x,_) =
+        selection <- Point (self#px_to_ind x);
+        await [`Mouse_release; `Mouse_motion] @@ function
+        | `Mouse_release (_, Event.LMB), _ ->
+          ()
+        | `Mouse_motion (x,_), _ ->
+          self#select x;
+          raise Repeat
+        | _ -> raise Repeat
       in
 
-      let active =
-        await_with_tab Trigger.buttons_down @@ function
-        | _ ->
-          await_with_tab (Trigger.buttons_up @ [Trigger.mouse_leave]) @@ function
-          | ev,_ when Trigger.of_event ev = Trigger.mouse_leave ->
-            false
-          | ev,_ ->
-            self#click ev;
-            true
-      in
-      if active then self#activate;
-      while active do
-        await_with_tab (Sdl.Event.[key_down; text_editing; text_input; key_up] @ Trigger.buttons_down)
-        @@ function
-        | ev,_ when List.mem (Trigger.of_event ev) Trigger.buttons_down ->
-          self#click_cursor ev;
-          self#start_selection
-        | ev,_ ->
-          print_endline "Received key";
-          self#receive_key ev
-      done;
-      if active
-      then self#execute
-      else self#state
+      (* Unfocused *)
+      begin
+        await [`Mouse_press; `Key_press] @@ function
+        | `Mouse_press (pos, Event.LMB), _ -> pressed pos
+        | `Key_press (keycode, []), _ when keycode = Sdl.K.tab ->
+          selection <- Area (0, List.length keys)
+        | _ -> raise Repeat
+      end;
+
+      (* Focused *)
+      self#start_input;
+      begin
+        await [`Codepoint; `Key_press; `Mouse_press] @@ function
+        | `Mouse_press (pos, Event.LMB), _ ->
+          pressed pos;
+          raise Repeat
+        | `Key_press (keycode, []), _ when keycode = Sdl.K.tab || keycode = Sdl.K.return ->
+          ()
+        | `Codepoint c, _ ->
+          self#insert c;
+          raise Repeat
+        | `Key_press k, _ ->
+          self#handle_key k;
+          raise Repeat
+        | _ -> raise Repeat
+      end;
+      self#stop_input;
+      self#state
 
     method state = String.concat "" keys
-    (* because there is a length test, it should be placed ad the end of
-       all modifications of ti *)
-
-    method private set_text_raw _keys =
-      if _keys <> keys
-      then begin
-        let _keys =
-          if List.length _keys > max_size
-          then (printd debug_memory
-                  "Warning: text_input was truncated because it\
-                   should not exceed %u symbols" max_size;
-                cursor_pos <- (min cursor_pos max_size);
-                self#stop;
-                let head, _ = split_list _keys max_size in head)
-          else _keys in
-        keys <- _keys;
-        self#clear
-      end
 
     method set_text x =
-      Utf8.split x
-      |> self#set_text_raw
-
-    method start_selection =
-      let n = cursor_pos in
-      printd debug_board "Starting text selection at %d" n;
-      selection <- Start n
-
-    (** validate selection from starting point to current cursor_pos *)
-    method make_selection =
-      match selection with
-      | Empty -> ()
-      | Start n0 ->
-        let n = cursor_pos in
-        if n <> n0 then (printd debug_board "Make selection [%d,%d]" n0 n;
-                         selection <- (Active (min n0 n, max n0 n)))
-        else (selection <- Empty)
-      | Active _ -> selection <- Empty
-
-    (*** clipboard ***)
-
-    (* retrieve the string corresponding to the selection *)
-    method selection_text =
-      match selection with
-      | Active (n1,n2) -> let _, tail = split_list (keys) n1 in
-        let head, _ = split_list tail (n2-n1) in
-        String.concat "" head
-      | _ -> ""
+      keys <- Utf8.split x
 
     (************* display ***********)
 
@@ -308,15 +242,21 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
     (* The bottom margin is also added at the top, in order to keep the text
        vertically centered. *)
 
-    (** return the cursor position with respect to the total text surface *)
-    (* warning: this is already scaled... (physical pixels) *)
-    method cursor_xpos ?(n = cursor_pos) () =
-      let head, _ = split_list keys n in
+    method cursor_pos =
+      match selection with
+      | Point x -> x
+      | Area (_,x) -> x
+
+    method cursor_pos_px ?n () =
+      let x = match n with
+        | Some x -> x
+        | None -> self#cursor_pos
+      in
+      let head, _ = split_list keys x in
       List.fold_left (fun s key -> s + text_width (self#font) key) 0 head
 
     (** Return cursor_pos corresponding to the x position *)
-    method x_to_cursor x0 =
-      let room_x = room_x in
+    method px_to_ind x0 =
       let char_offset = font_size/3 in
       (* TODO, this should be roughly the half size of a char *)
       let x0 = x0 - room_x - (Theme.scale_int (left_margin + char_offset))
@@ -335,94 +275,59 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
        video functions directly. *)
 
     (** treat the click event to position the cursor, once the widget is active *)
-    method click_cursor ev =
-      printd debug_event "Click cursor";
-      let x0u, _ = Mouse.pointer_pos ev in
-      let x0 = Theme.scale_int x0u in (* on pourrait éviter de faire unscale-scale *)
-      cursor_pos <- self#x_to_cursor x0;
-      self#clear
-
-    method select_word =
-      let sel = self#find_word
-      in selection <- sel;
-      self#clear
-
-    (* This should be called on mouse_button_up *)
-    method click ev =
-      if active then
-        (
-          if Trigger.was_double_click () then self#select_word
-          else begin
-            if Sdl.Event.(get ev mouse_button_state) = Sdl.pressed
-            (* = DIRTY trick, see bogue.ml *) then self#click_cursor ev;
-            ignore (self#make_selection)
-          end
-        )
-      else self#activate
+    (* method click_cursor ev = *)
+    (*   printd debug_event "Click cursor"; *)
+    (*   let x0u, _ = Mouse.pointer_pos ev in *)
+    (*   let x0 = Theme.scale_int x0u in (\* on pourrait éviter de faire unscale-scale *\) *)
+    (*   cursor_pos <- self#x_to_cursor x0; *)
+    (*   self#clear *)
 
     method kill_selection =
       match selection with
-      | Active (n1,n2) -> let head1, tail1 = split_list (keys) n1 in
+      | Area (n1,n2) ->
+        let n1, n2 = min n1 n2, max n1 n2 in
+        let head1, tail1 = split_list keys n1 in
         let _, tail2 = split_list tail1 (n2-n1) in
-        cursor_pos <- n1;
-        selection <- Empty;
-        self#set_text_raw (List.flatten [head1; tail2]);
-      | _ -> ()
-
-    (* better to inline ? *)
-    method unselect =
-      printd debug_board "Removing selection";
-      selection <- Empty
+        keys <- (List.flatten [head1; tail2]);
+        selection <- Point n1
+      | Point _ -> ()
 
     method select_all =
-      printd debug_board "Select all text";
       let l = List.length (keys) in
-      selection <- (Active (0,l));
-      self#clear
+      selection <- Area (0,l)
 
     (* insert a list of letters *)
     method insert_list list =
       self#kill_selection;
-      let x = cursor_pos in
+      let x = self#cursor_pos in
       let head, tail = split_list (keys) x in
-      cursor_pos <- (x + (List.length list));
-      self#set_text_raw (List.flatten [head; list; tail])
+      selection <- Point (x + (List.length list));
+      keys <- List.flatten [head; list; tail];
 
-    (** insert a letter *)
-    method insert s =
-      self#insert_list [s]
-
-    (** insert a whole string *)
-    method insert_text text =
-      let list = Utf8.split text in
-      self#insert_list list
+      (** insert a letter *)
+    method insert c = self#insert_list [c]
 
     (* find a word containg the cursor position *)
-    method find_word =
-      let n = cursor_pos in
-      let daeh, tail = split_list_rev (keys) n in
-      let rec find_sep ~complement list pos =
-        match list with
-        | [] -> pos
-        | key::rest -> if (not complement && List.mem key seps) || (complement && not (List.mem key seps))
-          then pos
-          else find_sep ~complement rest (pos + 1) in
-      if tail = [] then (printd debug_board "No word found: we are at the end";
-                         Empty)
-      else let cursor_key = List.hd tail in
-        let complement = List.mem cursor_key seps in
-        (* if 'complement' is true, then we are on a separator, so we must
-           find a "word of separators" *)
-        let left = find_sep ~complement daeh 0 in
-        let right = find_sep ~complement tail 0 in
-        printd debug_board "Word found (%d,%d)" left right;
-        Active (n-left, n+right)
-
-    (* we ask for redraw when mouse moves when button is pressed *)
-    method mouse_select ev=
-      printd debug_event "Mouse selection";
-      self#click_cursor ev;
-      self#clear
+    (* method find_word = *)
+    (*   let n = cursor_pos in *)
+    (*   let daeh, tail = split_list_rev (keys) n in *)
+    (*   let rec find_sep ~complement list pos = *)
+    (*     match list with *)
+    (*     | [] -> pos *)
+    (*     | key::rest -> if (not complement && List.mem key seps) || (complement && not (List.mem key seps)) *)
+    (*       then pos *)
+    (*       else find_sep ~complement rest (pos + 1) in *)
+    (*   if tail = [] then ( *)
+    (*     printd debug_board "No word found: we are at the end"; *)
+    (*     Empty) *)
+    (*   else let cursor_key = List.hd tail in *)
+    (*     let complement = List.mem cursor_key seps in *)
+    (*     (\* if 'complement' is true, then we are on a separator, so we must *)
+    (*        find a "word of separators" *\) *)
+    (*     let left = find_sep ~complement daeh 0 in *)
+    (*     let right = find_sep ~complement tail 0 in *)
+    (*     printd debug_board "Word found (%d,%d)" left right; *)
+    (*     Active (n-left, n+right) *)
 
     method! remove_keyboard_focus = self#stop
 
@@ -459,6 +364,8 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
     (* REMARK: instead of blitting surfaces, one could also use textures and SDL
        RenderTarget ? *)
     method display canvas layer g = (* TODO mettre un lock global ? *)
+      Option.iter Draw.forget_texture render;
+      render <- None;
       let cursor = match cursor with
         | Some s -> s
         | None ->
@@ -479,7 +386,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
           let keys = keys in
           let fg = if keys <> [] then Draw.(opaque text_color) else
               (* if active then Draw.(opaque pale_grey) else *) Draw.(opaque faint_color) in
-          let keys = if keys = [] && not (active) then [prompt] else keys in
+          let keys = if keys = [] && not active then [prompt] else keys in
           let surf = self#draw_keys (self#font) keys ~fg in
           (* TODO: draw only the relevent text, not everything. *)
           let tw,th = Sdl.get_surface_size surf in
@@ -497,9 +404,10 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
           (* draw selection background: this will erase the corresponding text... *)
           (match selection with
-           | Active (n1,n2) ->
-             let x1 = self#cursor_xpos ~n:n1 () in
-             let x2 = self#cursor_xpos ~n:n2 () in
+           | Area (n1,n2) ->
+             let n1, n2 = min n1 n2, max n1 n2 in
+             let x1 = self#cursor_pos_px ~n:n1 () in
+             let x2 = self#cursor_pos_px ~n:n2 () in
              let sel_rect = Sdl.Rect.create ~x:x1 ~y:0 ~w:(x2-x1) ~h:th in
              let sel_rect_cw = Draw.rect_translate sel_rect (cw/2, 0) in
              Draw.fill_rect box (Some sel_rect_cw) Draw.(opaque sel_bg_color);
@@ -509,19 +417,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
              (* TODO: draw only the relevent text, not everything. *)
              go (Sdl.set_surface_blend_mode sel Sdl.Blend.mode_blend);
              go (Sdl.blit_surface ~src:sel (Some sel_rect) ~dst:box (Some sel_rect_cw))
-           | Start n1 ->
-             let x1 = self#cursor_xpos ~n:n1 () in
-             let n2 = cursor_pos in
-             let x2 = self#cursor_xpos ~n:n2 () in
-             let sel_rect = Sdl.Rect.create ~x:(min x1 x2) ~y:0
-                 ~w:(abs (x2-x1)) ~h:th in
-             let sel_rect_cw =  Draw.rect_translate sel_rect (cw/2, 0) in
-             (* TODO regrouper avec ci-dessus ? *)
-             Draw.fill_rect box (Some sel_rect_cw) Draw.(opaque grey);
-             (* now we blend the text on the selection rectangle *)
-             go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_blend);
-             go (Sdl.blit_surface ~src:surf (Some sel_rect) ~dst:box (Some sel_rect_cw))
-           | _ -> ());
+           | Point _ -> ());
 
           Draw.free_surface surf;
           if active then begin
@@ -534,7 +430,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
             Draw.fill_rect box (Some hline) Draw.(transp grey);
 
             (* move the offset to have the cursor in the visible area *)
-            let cx = self#cursor_xpos () in
+            let cx = self#cursor_pos_px () in
             let _offset = offset in
             let _offset = if cx <= _offset+cw then max 0 (cx-cw)
               else if cx - _offset >= g.Draw.w - cw - cw/2
@@ -581,62 +477,48 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
         let _,bh = tex_size tex in
         let voff = Theme.scale_int 4 in
         let cursor_g = { g with x = g.x + Theme.scale_int left_margin +
-                                    self#cursor_xpos () - offset;
+                                    self#cursor_pos_px () - offset;
                                 y = g.y + bh - voff } in
         [text_blit; tex_to_layer canvas layer cursor cursor_g]
       else [text_blit]
 
+    method shift_check_sel ~shift ~one ~right =
+      let new_sel x =
+        selection <-
+          if shift
+          then match selection with
+            | Point a | Area (a,_) -> Area (a,x)
+          else Point x
+      in
+      match one, right with
+      | false, false -> new_sel 0
+      | true, false -> new_sel @@ max 0 (self#cursor_pos - 1)
+      | false, true -> new_sel (List.length keys) (* TODO off by one error? *)
+      | true, true -> new_sel @@ min (List.length keys) (self#cursor_pos + 1)
 
-    (* start selection on pressing SHIFT *)
-    method shift_check_sel =
-      if Trigger.shift_pressed () then
-        (if selection = Empty then self#start_selection)
-      else self#unselect
+    method left = self#shift_check_sel ~one:true ~right:false
+    method right = self#shift_check_sel ~one:true ~right:true
+    method home = self#shift_check_sel ~one:false ~right:false
+    method last = self#shift_check_sel ~one:false ~right:true
 
-    method backspace =
-      if selection <> Empty then self#kill_selection
-      else let x = cursor_pos in
-        if x > 0 then
-          let head, tail = split_list (keys) (x-1) in
-          let tail' = match tail with
-            | [] -> printd debug_error "This should not happen in backspace"; []
-            | _::rest -> rest in
-          cursor_pos <- (x-1);
-          self#set_text_raw (List.flatten [head; tail'])
-
-    (* move cursor to the left *)
-    method left =
-      self#shift_check_sel;
-      let x = cursor_pos in
-      self#clear;
-      cursor_pos <- (max 0 (x-1))
-
-    (* move cursor to the right *)
-    method right =
-      self#shift_check_sel;
-      let x = cursor_pos in
-      self#clear;
-      cursor_pos <- (min (List.length (keys)) (x+1))
-
-    (* move to beginning of line *)
-    method home =
-      self#shift_check_sel;
-      self#clear;
-      cursor_pos <- 0
-
-    (* move to end of line *)
-    method last =
-      self#shift_check_sel;
-      self#clear;
-      cursor_pos <- (List.length (keys))
+    method delete ~right =
+      match selection with
+      | Area _ ->
+        self#kill_selection
+      | Point _ ->
+        (* extend selection by one, then delete *)
+        self#shift_check_sel ~shift:true ~one:true ~right;
+        self#kill_selection
 
     (* copy to clipboard *)
     method copy =
-      let text = self#selection_text in
-      if text <> "" then begin
-        printd debug_memory "Copy to clipboard: [%s]" text;
-        go (Sdl.set_clipboard_text text)
-      end
+      match selection with
+      | Area (n1,n2) ->
+        let n1,n2 = min n1 n2, max n1 n2 in
+        let _, tail = split_list (keys) n1 in
+        let head, _ = split_list tail (n2-n1) in
+        go (Sdl.set_clipboard_text (String.concat "" head))
+      | _ -> ()
 
     (* copy and kill *)
     method kill =
@@ -647,7 +529,8 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
     method paste =
       if Sdl.has_clipboard_text () then
         let text = go (Sdl.get_clipboard_text ()) in
-        self#insert_text text
+        let list = Utf8.split text in
+        self#insert_list list
 
 
     (* treat the text events *)
@@ -656,48 +539,28 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
        key on the keyboard. *)
     (* SDL_Keycode values are mapped to the current layout of the keyboard and
        correlate to an SDL_Scancode *)
-    method receive_key ev =
-      (* in principe, if not active, text-input events are already disabled, but
-         one could still receive keyboard input events. This is why we have to
-         double check here *)
-      let open Sdl.Event in
-      match Trigger.event_kind ev with
-      | `Text_input -> (* a letter is recognized *)
-        print_endline "A letter is recognized";
-        let s = get ev text_input_text in
-        if filter s then self#insert s
-      | `Text_editing ->
-        print_endline "Text composing mode"
-      (* TODO:
-         Update the composition text.
-         Update the cursor position.
-         Update the selection length (if any). *)
-      | `Key_down ->
-        print_endline "Key_down";
-        (match get ev keyboard_keycode with
-         | c when c = Sdl.K.backspace -> self#backspace
-         | c when c = Sdl.K.left -> self#left
-         | c when c = Sdl.K.right -> self#right
-         | c when c = Sdl.K.up -> self#home
-         | c when c = Sdl.K.home -> self#home
-         | c when c = Sdl.K.down -> self#last
-         | c when c = Sdl.K.kend -> self#last
-         | c when c = Sdl.K.return -> self#stop
-         | c when c = Sdl.K.a && ctrl_pressed () -> self#select_all
-         | c when c = Sdl.K.c && ctrl_pressed () -> self#copy (* : desactivate this for debugging the emacs problem *)
-         | c when c = Sdl.K.x && ctrl_pressed () -> self#kill
-         | c when c = Sdl.K.v && ctrl_pressed () -> self#paste
-         | c -> (printd debug_event "==> Key down event discarded.";
-                 printd debug_event "Key=[%s], mod=%u, Keycode:%u" (Sdl.get_key_name c) (Sdl.get_mod_state ()) c)
-        )
-      | `Key_up ->
-        print_endline "Key_up";
-        (match get ev keyboard_keycode with
-         | c when c = Sdl.K.lshift -> self#make_selection
-         | c when c = Sdl.K.rshift -> self#make_selection
-         | c -> (printd debug_event "==> Key up event discarded.";
-                 printd debug_event "Key=[%s], mod=%u, Keycode:%u" (Sdl.get_key_name c) (Sdl.get_mod_state ()) c)
-        )
-      | _ ->
-        print_endline "Warning: Event should not happen here"
+    method handle_key k =
+      match k with
+      | c, Event.[Ctrl] -> begin match c with
+          | c when c = Sdl.K.a -> self#select_all
+          | c when c = Sdl.K.c -> self#copy (* : desactivate this for debugging the emacs problem *)
+          | c when c = Sdl.K.x -> self#kill
+          | c when c = Sdl.K.v -> self#paste
+          | _ -> ()
+        end
+      | _, [] | _, [Event.Shift] -> begin
+          let shift = snd k = [Event.Shift] in
+          match k with
+          | c,[] when c = Sdl.K.backspace -> self#delete ~right:false
+          | c,[] when c = Sdl.K.delete -> self#delete ~right:true
+          | c,_ when c = Sdl.K.left -> self#left ~shift
+          | c,_ when c = Sdl.K.right -> self#right ~shift
+          | c,_ when c = Sdl.K.up -> self#home ~shift
+          | c,_ when c = Sdl.K.home -> self#home ~shift
+          | c,_ when c = Sdl.K.down -> self#last ~shift
+          | c,_ when c = Sdl.K.kend -> self#last ~shift
+          | c,_ when c = Sdl.K.return -> self#stop
+          | _ -> ()
+        end
+      | _ -> ()
   end

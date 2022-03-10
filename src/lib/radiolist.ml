@@ -8,7 +8,8 @@
    not what we do here. *)
 
 
-open Utils
+open Interop
+open Interop.Utils
 module W = Widget
 
 type 'a widgets = {

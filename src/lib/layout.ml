@@ -57,7 +57,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
     ?(layer = Draw.get_current_layer ())
     ?mask ?background ?shadow ?keyboard_focus ?(mouse_focus=false)
     ?canvas
-    ?(is_fresh = false) ?(bogue = false)
+    ?(is_fresh = false)
     _geometry (content' : 'a W.t) =
   object (self)
     (* FIXME what is the size of a room? We have a resize but no base size *)
@@ -69,10 +69,6 @@ class ['a] t ?id ?name ?(adjust = Fit)
     val mutable is_fresh = is_fresh
     method is_fresh = is_fresh
     method set_fresh b = is_fresh <- b
-
-    val mutable bogue = bogue
-    method bogue = bogue
-    method set_bogue b = bogue <- b
 
     (* relative geometry wrt the house. All components are dynamic variables,
        that need to be recomputed at each iteration. Note: rooms inside a house
@@ -451,23 +447,13 @@ let unloads room =
   room#unload;
   room#content#unload
 
-let delete_backgrounds room =
-  delete_background room
-
 let delete_textures room =
   unloads room;
-  delete_backgrounds room
+  delete_background room
 
 let remove_canvas room =
   delete_textures room;
   room#set_canvas None
-
-let has_keyboard_focus r =
-  r#keyboard_focus = Some true
-
-let claim_focus r = Trigger.push_mouse_focus r#id
-
-let claim_keyboard_focus r = Trigger.push_keyboard_focus r#id
 
 (** create a room (=layout) with a unique resident (=widget), no margin possible *)
 (* x and y should be 0 if the room is the main layout *)
@@ -486,84 +472,6 @@ let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?canvas ?layer
     | None -> widget#guess_unset_keyboard_focus |> (fun b -> if b then None else Some false) in
   let geometry = Draw.geometry ~x ~y ~w ~h () in
   new t ?name ?background ?keyboard_focus ?layer ?canvas geometry widget
-
-(* Set the given widget as the new resident of the given room. If w,h are not
-   specified, the size of the room will be updated by the size of the widget. *)
-let change_resident ?w ?h room widget =
-  printd debug_board "Replacing room %s's widget by widget #%d"
-    (sprint_id room) widget#id;
-  let (w',h') = widget#size in
-  let w = default w w' in
-  let h = default h h' in
-  room#set_content widget;
-  room#set_keyboard_focus (widget#guess_unset_keyboard_focus |> (fun b -> if b then None else Some false));
-  set_size room (w,h)
-
-(* sets l with the size of the top_house. In principle the (x,y) of the
-   top_house should be (0,0), we don't check this here. The (x,y) of l is set to
-   (0,0). Should be called dynamically after main loop starts. *)
-let maximize l =
-  setx l 0;
-  sety l 0;
-
-  let w,h = get_size l in
-  l#set_geometry { l#geometry with h; w };
-  resize_content l
-
-(* compute the x,y,w,h that contains all rooms in the list *)
-let bounding_geometry = function
-  | [] -> printd debug_warning "Trying to find bounding_geometry of empty list";
-    0,0,0,0
-  | rooms ->
-    let rec loop xmin ymin xmax ymax = function
-      | [] -> (xmin, ymin, xmax-xmin, ymax-ymin)
-      | room :: rest ->
-        let x,y = room#layout.x, room#layout.y in
-        loop
-          (imin xmin x)
-          (imin ymin y)
-          (imax xmax (width room + x))
-          (imax ymax (height room + y))
-          rest in
-    loop max_int max_int 0 0 rooms
-
-(** display section *)
-
-let debug_box ~color room x y =
-  let w,h = Draw.scale_size (get_size room) in
-  let x,y = Draw.scale_pos (x,y) in
-  let bg = if room#mouse_focus then Some (Draw.lighter color) else None in
-  let rect = Draw.rect_to_layer ?bg ~color (get_canvas room) (room#layer) (x,y) w h in
-  Draw.forget_texture rect.Draw.texture;
-  rect
-
-let scale_clip clip =
-  map_option clip (fun c ->
-      Sdl.Rect.(create
-                  ~x:(Theme.scale_int (x c))
-                  ~y:(Theme.scale_int (y c))
-                  ~h:(Theme.scale_int (h c))
-                  ~w:(Theme.scale_int (w c))))
-
-(** Display a room: *)
-
-let get_focus room =
-  room#mouse_focus
-
-(* we don't lock because it will be modified only by the main loop *)
-let set_focus room =
-  room#set_mouse_focus true
-
-(* we don't lock because it will be modified only by the main loop *)
-let unset_focus room =
-  room#set_mouse_focus false
-
-let set_cursor roomo =
-  let cursor = match roomo with
-    | None -> go (Draw.create_system_cursor Sdl.System_cursor.arrow)
-    | Some room -> Cursor.get room#content#cursor
-  in
-  Sdl.set_cursor (Some cursor)
 
 (* Flip buffers. Here the layout SHOULD be the main layout (house) of the window
 *)
@@ -593,33 +501,13 @@ let render (layout : 'a t) =
   if Draw.window_is_shown (window layout) then layout#display
   else printd debug_board "Window (layout #%u) is hidden" layout#id
 
-(* the function to call when the window has been resized *)
-let resize_from_window ?(flip=true) layout =
-  let w,h = Sdl.get_window_size (window layout)
-            |> Draw.unscale_pos in
-  let w', h' = get_size layout in
-  if (w',h') <> (w,h)
-  then begin
-    (* TODO in rare occasions, it might happen that this test is different
-       from get_physical_size top <> Sdl.get_window_size win*)
-    printd debug_graphics "Resize (%d,%d) --> (%d,%d)" w' h' w h;
-    set_size ~check_window:false layout (w,h);
-    Draw.update_background (get_canvas layout);
-    if flip then Draw.sdl_flip (renderer layout)
-  end
-(* : somehow we need this intermediate flip so that the renderer takes into
-    account the new size. Otherwise texture are still clipped to the old
-    size... On the other hand it might flicker if triggered to quickly *)
-(* fit_content layout;;*) (* not useful *)
-
 let flip ?clear w =
   if not w#is_fresh
   then begin
     render w;
-    let clear = default clear w#bogue in
+    let clear = default clear true in
     printd debug_graphics "clear=%b" clear;
-    let present = w#bogue in
-    flip ~clear ~present w;
+    flip ~clear ~present:true w;
     w#set_fresh true
   end
   else Draw.clear_layers w#layer
@@ -635,74 +523,4 @@ let make_window ?window layout =
   let w = min w wmax in
   let h = min h hmax in
   let canvas = Draw.init ?window ~name:layout#name ~w ~h () in
-  layout#set_canvas (Some canvas);
-  layout#set_bogue true
-
-(* adjust the window size to the top layout *)
-(* This should enforced all the time *)
-(* this is not execute
-   Je vous conseille de regarder ce cours en jouant bien le jeu, càd en
-   prenant des notes. L'avantage est que vous pouvez mettre sur pause si
-   vous êtes en retard, ou si vous n'avez pas compris un passage... et
-   vous pouvez accélerer si je n'arrive pas à faire une preuve ;)
-
-   d immediately, but sent to Sync *)
-(* TODO move this directly to the render loop, since it has to be done anyway,
-   and show not be done more than once per step. *)
-(*
-let adjust_window ?(display=false) layout =
-  Sync.push (fun () ->
-      let top = top_house layout in
-      if not (Widget.equal layout top)
-      then printd debug_error "The layout for resizing window should be the top layout";
-      let w,h = get_physical_size top in
-      let win = window top in
-      printd debug_graphics "SDL set window size %d x %d" w h;
-      Sdl.set_window_size win ~w ~h;
-
-
-      (* resize ~flip:display top; *)
-      (* : of course, top didn't really change size, but somehow the texture was
-         clipped to the old window size, and if we don't update it, the previous
-         clipped texture is stretched to the new window size. *)
-      (* render top; *)
-      (* flip top; *)
-      (* Draw.(flip top.canvas.renderer); *)
-
-      (* Now we render and flip. This is not strictly necessary, as it will surely
-         be done by the main loop anyway. But it doesn't hurt to do it twice... *)
-      (* it should not be done if the window is hidden, because render targets
-         don't work well *)
-      if display && Draw.window_is_shown (window top) then begin
-        render top;
-        flip top
-      end)
-  *)
-(*Draw.destroy_textures ();; *)
-
-(* the display function we export *)
-(* NO we need pos for snapshot.ml *)
-(*let display r : unit =
-  display r;;*)
-
-let inside_geom geometry (x,y) =
-  x <= geometry.x + geometry.w && x >= geometry.x &&
-  y <= geometry.y + geometry.h && y >= geometry.y
-
-let inside room (x,y) =
-  match room#mask with
-  | None -> inside_geom room#geometry (x,y)
-  | Some mask -> (* TODO vérifier aussi qu'on est dans la dimension du mask *)
-    let x0,y0 = room#geometry.x, room#geometry.y in
-    let _,_,_,a = Draw.get_pixel_color mask ~x:(x-x0) ~y:(y-y0) in
-    a <> 0
-
-(* get the focus element in the top layer *)
-let top_focus x y (t : 'a t) =
-  if inside t (x,y)
-  then Some t#content
-  else None
-
-(** get SDL windows id, in case the canvas was created *)
-let id w =
-  Sdl.get_window_id (window w)
+  layout#set_canvas (Some canvas)

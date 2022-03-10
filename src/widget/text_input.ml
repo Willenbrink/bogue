@@ -54,12 +54,6 @@ let text_dims = memo2 text_dims
 let text_width font s =
   let w,_ = text_dims font s in w
 
-let ctrl_pressed () =
-  let m = Sdl.get_mod_state () in
-  m = Sdl.Kmod.ctrl
-  || m = Sdl.Kmod.lctrl
-  || m = Sdl.Kmod.rctrl
-
 (* TODO max_size is not respected *)
 class t ?(max_size = 2048) ?(prompt = "Enter text")
     ?(font_size = Theme.text_font_size)
@@ -118,7 +112,9 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
         | `Mouse_motion (x,_), _ ->
           self#select x;
           raise Repeat
-        | _ -> raise Repeat
+        | _ ->
+          (* Released *)
+          raise Repeat
       in
 
       (* Unfocused *)
@@ -152,8 +148,7 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
 
     method state = String.concat "" keys
 
-    method set_text x =
-      keys <- Utf8.split x
+    method set_text x = keys <- Utf8.split x
 
     (************* display ***********)
 

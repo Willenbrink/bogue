@@ -8,16 +8,22 @@ Once an event occurs it traverses this tree down to the relevant widget which ha
 
 Currently this project is in a pretty barebones state. Some basic widgets have been implemented (found in src/widgets/) and the basic functionality is demonstrated in examples/effects.ml.
 
+## Project structure
+* examples/effects.ml: Currently the only example
+* src/widgets/: Several simple widgets
+* src/widgets/base.ml: Sets up some basic concepts for the other widgets
+* src/lib/layout.ml: The object representing a window
+
+The remaining files are mostly irrelevant for this and quite similar to Bogue. Note that even the files mentioned above contain obsolete code and/or are more complicated than they need to be. This is simply a consequence of the rather aggressive refactoring/removal of features from Bogue.
+
 ## Remaining major issues
-* Handle resizing of the window correctly. How can we elegantly specify the size of widgets? This becomes especially difficult once some widgets want to have a fixed size and some want to be as large as possible.
+* Handle resizing of the window correctly. How can we elegantly specify the size of widgets? This becomes especially problematic once not enough space is available.
 * Separate event listeners into global and local. Right now only one widget can listen to keyboard inputs and mouse events can only be listened to if they occur above the corresponding widget
 * Explore popups and windows. Perhaps even transparency. Popups in Bogue could be shown in the same window but this seems to be additional unnecessary complexity. Should two widgets be allowed to overlap? How should they behave and displayed?
 * Simplify composition. Right now every logic element must be wrapped into a Single.t or inherit from some other widget. This seems overly complicated. In addition lists are unsuitable as argument for Rows as their type must be identical and casting the objects is always explicit. Perhaps all of these issues can be solved with an infix operator? A ppx is also an option, although they seem to be overkill for this.
-* Transition to GLFW. SDL is quite a large library and I would like to integrate this GUI into a game written with raylib. Interop between SDL and GLFW seems to be impossible. After this transition rendering can be optimised quite significantly.
+* Transition to GLFW as it is more lightweight and I would like to integrate this GUI into a game written with raylib. Interop between SDL and GLFW seems to be impossible. After this transition rendering can likely be optimised quite significantly.
 
 ## Installing
 
 This package uses `ppx_effects` which is only available for 4.12.0+domains. You need to create a new opam switch and install (at least) the following packages:
 `tsdl` `tsdl-image` `tsdl-ttf` `ppx_deriving` `ppx_effects`
-
-The only working example right now is in examples/effects.ml

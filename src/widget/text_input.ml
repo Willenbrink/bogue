@@ -113,7 +113,6 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
           self#select x;
           raise Repeat
         | _ ->
-          (* Released *)
           raise Repeat
       in
 
@@ -144,6 +143,7 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
         | _ -> raise Repeat
       end;
       self#stop_input;
+      selection <- Point self#cursor_pos;
       self#state
 
     method state = String.concat "" keys

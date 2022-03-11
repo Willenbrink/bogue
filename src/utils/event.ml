@@ -11,6 +11,11 @@ type t = [
   | `Scroll
 ]
 
+(* TODO we need some form of global listening. Press slider -> Move mouse off -> Release *)
+(* These events can normally only be listened to by one widget *)
+let keyboard_events : t list =
+  [`Key_press; `Key_repeat; `Key_release; `Codepoint]
+
 type button =
   (* Left/Right/Middle Mouse Button *)
   | LMB
@@ -44,7 +49,7 @@ type t_rich = [
 ]
 [@@deriving show]
 
-let strip : t_rich -> t = function
+let strip ev : t = match ev with
   | `Key_press _ -> `Key_press
   | `Key_repeat _ -> `Key_repeat
   | `Key_release _ -> `Key_release

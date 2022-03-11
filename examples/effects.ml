@@ -5,45 +5,50 @@ module L = Layout
 module T = Trigger
 
 let example () =
-  let sl = new Slider.t ~kind:Slider.Vertical () in
-  let b = new Check.t () in
-  let b' = new Check.t () in
-  let b'' = new Check.t () in
-  let l = new Label.t "Init" in
-  let l' = new Label.t "Init2" in
-  let l'' = new Label.t "Init3" in
-  let ti = new Text_input.t "Text field" in
+  let sl = new Slider.t ~kind:Slider.Vertical in
+  let c = new Check.t in
+  let l = new Label.t in
+  let ti = new Text_input.t  in
   let comb b l = object (self)
     inherit ['a] Row.t [b |> W.gen; l |> W.gen] as super
     method! execute =
       let res = super#execute in
       if res
-      then l#set_text "Checked"
-      else l#set_text "Unchecked";
+      then l#set_text "Pressed"
+      else l#set_text "Released";
       self#execute
   end
   in
-  let comb' b l = object (self)
-    inherit ['a] Row.t [b |> W.gen; l |> W.gen] as super
-    method! execute =
-      let res = super#execute in
-      l#set_text res;
-      self#execute
-  end
+  let row_ti =
+    let label =
+      l "Enter some text on the right and press enter/tab."
+    in
+    new Single.t (fun self child ->
+        let text = child#execute in
+        label#set_text text;
+        self#execute
+      ) @@
+    new Row.t [
+      label |> W.gen;
+      ti "Text input" |> W.gen;
+
+      (* TODO for some reason not working right now. The click never reaches the slider *)
+      (* (Single.loop *)
+      (*    (sl () |> W.gen) *)
+      (*  |> W.gen) *)
+      (* |> W.gen; *)
+    ]
   in
-  let row_b = new Row.t [b |> W.gen; l |> W.gen] in
-  let row_ti = new Row.t [
-    Single.loop ti;
-    l |> W.gen;
-    Single.printer sl (Printf.printf "%i\n");
-    Single.loop b
-  ]
-  in
-  let col = new Col.t [comb b l; comb b' l'; comb b'' l''] in
+  (* let col = new Col.t [comb b' l'; comb b'' l''] in *)
   (* let layout = L.resident col in *)
   (* let layout = L.resident (comb b l) in *)
   (* let layout = L.resident row_b in *)
-  let layout = L.resident (Single.loop row_ti) in
+  let layout = L.resident (Single.loop @@ new Col.t [
+      Single.loop (row_ti |> W.gen) |> W.gen;
+      Single.loop (comb (new Button.t ~switch:true "Switch") (l "Init") |> W.gen) |> W.gen;
+      Single.loop (comb (new Button.t "Hold") (l "Init") |> W.gen) |> W.gen
+    ])
+  in
   run layout
 let _ =
   Printexc.record_backtrace true;

@@ -50,7 +50,6 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
     val box_off = new Box.t ~bg:bg_off ?border:border_off ()
     val box_over = map_option bg_over (fun bg -> new Box.t ~bg ())
 
-    method press = if switch then state <- (not state) else state <- true
     method release = if not switch then state <- false
 
     method unload =
@@ -60,13 +59,30 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
       box_off#unload;
       do_option box_over (fun o -> o#unload)
 
+    (* TODO button and switch should be two different classes.
+       A button has essentially no state and sending a false directly after every true
+       is meaningless and confusing. Instead it should have type unit (there is only
+       one acceptable value after all!) *)
     method execute =
-      (* TODO check that this is actually a tail call *)
-      await [`Mouse_press; `Mouse_release; `Mouse_enter; `Mouse_leave] @@ function
-      | `Mouse_press (_, Event.LMB), _ -> self#press; self#execute
-      | `Mouse_release (_, Event.LMB), _ -> self#release; self#state
-      | `Mouse_enter _, _ -> self#mouse_enter; self#execute
-      | `Mouse_leave _, _ -> self#mouse_leave; self#execute
+      let await ts h = await (`Mouse_enter :: `Mouse_leave :: ts) @@ function
+        | `Mouse_enter _,_ -> mouse_over <- true; raise Repeat
+        | `Mouse_leave _,_ -> mouse_over <- false; raise Repeat
+        | evg -> h evg
+      in
+      if switch
+      then begin
+        await [`Mouse_press] @@ function
+        | `Mouse_press (_, Event.LMB), _ ->
+          state <- not state;
+          state
+      end
+      else begin
+        (* TODO this may be a bit too much codegolf *)
+        await (if state then [`Mouse_release] else [`Mouse_press]) @@ function
+        | `Mouse_release (_, Event.LMB), _
+        | `Mouse_press (_, Event.LMB), _ ->
+          state <- not state; state
+      end
 
     method text =
       if self#state

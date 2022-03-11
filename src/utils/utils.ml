@@ -90,6 +90,7 @@ let xterm_blue = "\027[0;94m"
 let xterm_light_grey = "\027[1;30m"
 let xterm_nc = "\027[0m"
 
+(* TODO for some reason flushing does not work correctly although print_endline should do so? *)
 let print s = Printf.ksprintf print_endline s
 
 let iksprintf _f = Printf.ikfprintf (fun () -> ()) ()

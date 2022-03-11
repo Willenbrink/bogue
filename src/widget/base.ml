@@ -6,7 +6,7 @@ exception Repeat
 exception Reset
 let rec await triggers handler =
   try handler @@
-    (fun (ev,g) -> print_endline (Event.show_t_rich ev); (ev,g)) @@
+    (* (fun (ev,g) -> print_endline (Event.show_t_rich ev); (ev,g)) @@ *)
     EffectHandlers.perform (Await triggers) with
   | Repeat -> await triggers handler
   | Match_failure _ -> await triggers handler

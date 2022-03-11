@@ -79,6 +79,7 @@
 (*    container. Its works at startup but as soon as we scroll it stops working *\) *)
 
 
+(* open Interop *)
 (* open Utils *)
 (* module W = Widget *)
 
@@ -105,7 +106,7 @@
 (*   mutable computed_height :  int; *)
 (*   (\* = total height in pixels of computed entries, ie entries present in the *)
 (*        current room *\) *)
-(*   offset : int Avar.t; *)
+(*   offset : int; *)
 (*   (\* = the starting vertical position we want to see onscreen *\) *)
 (*   mutable computed : int; *)
 (*   (\* = number of already generated entries (even if they have been freed *)
@@ -209,7 +210,6 @@
 (*           ll.cleanup l; *)
 (*           (\* not necessary in principle. This is done by the Gc.finalise (NOT *)
 (*              anymore)*\) *)
-(*           Layout.send_to_cemetery l; (\* for debugging *\) *)
 (*           ll.array.(j) <- Freed; *)
 (*           if j >= ll.last_mem then update_last_mem ll j *)
 (*           else if j <= ll.first_mem then update_first_mem ll j; *)

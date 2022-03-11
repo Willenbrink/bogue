@@ -1,0 +1,27 @@
+Sorry about the late reply, I was busy actually verifying that my concept works out :smile: 
+The UI framework is inspired by [concur](https://ajnsit.github.io/concur-documentation/title-page.html) which means that every widget is either nonterminating (e.g. a text label) or terminates upon receiving one/multiple user inputs (e.g. a button terminates after being clicked). Complex UIs are then built by composing widgets (e.g. label + check box. Once the check box is clicked, the label updates its text and restarts the checkbox).
+
+I've implemented this using an await function that takes a list of triggers and a handler for each possible event:
+```ocaml
+effect Await : Event.t list -> Event.t
+let rec await triggers handler =
+  handler @@ EffectHandlers.perform (Await triggers)
+
+let rec check_box checked  =
+  (* display check box *)
+  ...;
+  await [Mouse_press; Key_press] @@ function
+  | Mouse_press -> print_endline "I've been (un-)checked!"; check_box (not checked)
+  | Key_press -> (* Terminated if any key is pressed *) checked
+```
+
+Every widget can then be implemented as a function which displays the widget, performs an `Await triggers` which is resumed by passing an event from `triggers`.
+
+The most complex widget I've implemented so far is a single line text input. It can be clicked or selected with tab. Moving the mouse while holding the button down changes the selection. As a state machine:
+![image|353x211](upload://cskQ7OA22ZsShpcYGcw9xXLOdkK.png)
+
+Obviously, this is not a directed acyclic graph and therefore not a perfect fit for the implicit state stored in the continuation. We can extract the `Pressed` state into its own function and therefore avoid this issue partially.
+![image|456x241](upload://g4rlBOrtlLSjsuud5gsvv629LAo.png)
+
+Some cycles remain and we can't remove them because they are essential to the functionality. Instead we throw an `exception Repeat` that returns us to a parent node.
+Some cycles will remain (and we want them to remain!).

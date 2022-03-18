@@ -63,25 +63,26 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
        A button has essentially no state and sending a false directly after every true
        is meaningless and confusing. Instead it should have type unit (there is only
        one acceptable value after all!) *)
-    method execute =
-      let await ts h = await (`Mouse_enter :: `Mouse_leave :: ts) @@ function
+    method execute await' =
+      let await ts res h = await'#f (`Mouse_enter :: `Mouse_leave :: ts) res @@ function
         | `Mouse_enter _,_ -> mouse_over <- true; raise Repeat
         | `Mouse_leave _,_ -> mouse_over <- false; raise Repeat
         | evg -> h evg
       in
       if switch
       then begin
-        await [`Mouse_press] @@ function
+        await [`Mouse_press] (Some state) @@ function
         | `Mouse_press (_, Event.LMB), _ ->
           state <- not state;
-          state
+          self#execute await'
       end
       else begin
         (* TODO this may be a bit too much codegolf *)
-        await (if state then [`Mouse_release] else [`Mouse_press]) @@ function
+        await (if state then [`Mouse_release] else [`Mouse_press]) (Some state) @@ function
         | `Mouse_release (_, Event.LMB), _
         | `Mouse_press (_, Event.LMB), _ ->
-          state <- not state; state
+          state <- not state;
+          self#execute await'
       end
 
     method text =

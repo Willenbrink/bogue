@@ -7,6 +7,10 @@ include Base
 
 class type virtual ['a] t = ['a] w
 
+let (|||) left right =
+  let pair = new Row.pair left right in
+  pair#execute
+
 (* let canvas w = match w.canvas with *)
 (*   | Some c -> c *)
 (*   | None -> failwith "Canvas not defined";; *)
@@ -18,11 +22,11 @@ class type virtual ['a] t = ['a] w
 (*   w.canvas <- Some canvas;; *)
 
 (** creation of simple widgets *)
-let check_box ?init ?style () =
-  (* let b = create_empty  (Check (Check.create ?state ?style ())) in *)
-  new Check.t ?init ?style ()
+(* let check_box ?init ?style () = *)
+(*   (\* let b = create_empty  (Check (Check.create ?state ?style ())) in *\) *)
+(*   new Check.t ?init ?style () *)
 
-let rich_text ?font_size ?size paragraphs = new Text_display.t ?font_size ?size paragraphs
+(* let rich_text ?font_size ?size paragraphs = new Text_display.t ?font_size ?size paragraphs *)
 
 (*
 let text_display ?w ?h text =

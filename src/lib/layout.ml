@@ -154,6 +154,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
 
     (* return the resident widget, or Not_found *)
     method handle_widget (ev : (Event.t_rich,Event.t_win) Either.t) =
+      let module A = W.Await (struct type t = W.bottom end) in
       match ev with
       | Either.Right `Resize (w,h) ->
         Printf.printf "Resize to %i,%i\n%!" w h;
@@ -169,7 +170,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
         let f = match cc with
           | None -> fun () ->
             print_endline "Start execution of root widget";
-            let _ = widget#execute in
+            let _ = widget#execute A.await in
             failwith "Root widget terminated"
           | Some (triggers, cont) -> fun () ->
             if List.mem (Event.strip ev) triggers
@@ -189,9 +190,12 @@ class ['a] t ?id ?name ?(adjust = Fit)
               The continuation has not been used so we do nothing here.
               In case the continuation is used but does terminate it raises
               an exception. *)
-          | [%effect? (W.Await triggers), k] ->
-            (* print_endline "#EOH#\n"; *)
-            cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))
+          | [%effect? (A.Await (triggers, res)), k] ->
+            match res with
+            | Some _ -> .
+            | None ->
+              (* print_endline "#EOH#\n"; *)
+              cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))
         end;
         self#display
 

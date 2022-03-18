@@ -8,7 +8,7 @@ let physical_size_text font text =
   (* Attention, SDL_ttf n'est peut-être pas encore initialisé... *)
   go (Ttf.size_utf8 font text)
 
-class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
+class t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
     ?(style = Ttf.Style.normal) ?(fg = Draw.(opaque label_color)) text =
   let typ = "Label [" ^ Utils.xterm_red ^ text ^ Utils.xterm_nc ^ "]" in
   (* Previous implementation:
@@ -18,7 +18,7 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
   let () = Draw.ttf_init () in
   let size = physical_size_text (Draw.get_font font font_size) text (* TODO missing calculation *) in
   object (self)
-    inherit ['a] w size typ Cursor.Arrow
+    inherit [bottom] w size typ Cursor.Arrow
     initializer Draw.ttf_init ()
 
     val mutable text = text
@@ -33,9 +33,9 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
       render <- None;
       do_option tex Draw.forget_texture
 
-    method execute =
-      await [] (fun _ -> ());
-      self#execute
+    method execute await =
+      await#f [] None (fun _ -> ());
+      self#execute await
 
     val mutable fg = fg
     method set_fg_color x = fg <- x

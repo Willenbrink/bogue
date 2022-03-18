@@ -1,15 +1,54 @@
 include Interop
 open Utils
 
-exception%effect Await : Event.t list -> (Event.t_rich * Draw.geometry)
 exception Repeat
 exception Reset
-let rec await triggers handler =
-  try handler @@
-    (* (fun (ev,g) -> print_endline (Event.show_t_rich ev); (ev,g)) @@ *)
-    EffectHandlers.perform (Await triggers) with
-  | Repeat -> await triggers handler
-  | Match_failure _ -> await triggers handler
+
+module type R = sig type t end
+
+module type A = functor (Result : R) -> sig
+  type res = Result.t
+  type _ EffectHandlers.eff +=
+      Await : Event.t list * res option -> (Event.t_rich * Draw.geometry) EffectHandlers.eff
+  val await : Event.t list -> res option -> (Event.t_rich * Draw.geometry -> 'a)
+    -> 'a
+end
+
+type 'a t = { f: Event.t_rich * Draw.geometry -> 'a }
+
+type ('a,'b) await =
+  Event.t list -> 'a option ->
+  (Event.t_rich * Draw.geometry -> 'b) -> 'b
+
+(* module type Await_sig = sig *)
+(*   type res *)
+(*   type _ EffectHandlers.eff += *)
+(*       Await : Event.t list * res option -> (Event.t_rich * Draw.geometry) EffectHandlers.eff *)
+(*   val await : < f : 'b. (res, 'b) await > *)
+(* end *)
+
+module Await
+  (* : R -> Await_sig *)
+  = functor (Result: R) -> struct
+    exception%effect Await : Event.t list * Result.t option -> (Event.t_rich * Draw.geometry)
+    (* module M = struct *)
+    (*   type t *)
+    (*   exception%effect Await : Event.t list * t -> (Event.t_rich * Draw.geometry) *)
+
+    let await = object (self)
+      method f : 'b. (Result.t, 'b) await =
+        fun triggers result handler ->
+        try handler @@
+          (* (fun (ev,g) -> print_endline (Event.show_t_rich ev); (ev,g)) @@ *)
+          EffectHandlers.perform (Await (triggers, result)) with
+        | Repeat
+        (* TODO This might catch other failures.
+           Also the match statements are (obviously) shown as incomplete
+           Solvable by either always including a _ -> raise Repeat case or
+           by writing a ppx *)
+        | Match_failure _ -> self#f triggers None handler
+    end
+  end
 
 (* Note that the type system is not smart enough
     to know that this function is correct.
@@ -60,6 +99,8 @@ class virtual ['a] stateful init =
     method state = state
   end
 
+type bottom = |
+
 class virtual ['a] w ?id size name cursor =
   object
     inherit common ?id ~name size ()
@@ -70,7 +111,10 @@ class virtual ['a] w ?id size name cursor =
     method cursor = _cursor
     method set_cursor x = _cursor <- x
 
-    method virtual execute : 'a
+    (* TODO think about initialization and nontermination.
+       Empty should never get the opportunity to return something.
+       Right now we rely on it returning None on its first execution *)
+    method virtual execute : <f:'b. ('a,'b) await> -> bottom
 
     method virtual display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list
   end

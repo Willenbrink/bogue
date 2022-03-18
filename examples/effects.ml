@@ -10,9 +10,9 @@ let example () =
   let l = new Label.t in
   let ti = new Text_input.t  in
   let comb b l = object (self)
-    inherit ['a] Row.t [b |> W.gen; l |> W.gen] as super
-    method! execute =
-      let res = super#execute in
+    inherit ['a] Row.pair b l as super
+    method! execute await =
+      let res = super#execute await in
       if res
       then l#set_text "Pressed"
       else l#set_text "Released";
@@ -50,6 +50,16 @@ let example () =
     ])
   in
   run layout
+
+let _ =
+  run @@ fun () ->
+  let* checked = check ||| label in
+  if checked
+  then label#set_text "Checked"
+  else label#set_text "Unchecked";
+  raise Repeat
+
+
 let _ =
   Printexc.record_backtrace true;
   (* Sys.( *)

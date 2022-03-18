@@ -45,9 +45,9 @@ class ['a] t ?w ?h ?(noscale = false)
           render <- None
         end
 
-    method execute =
-      await [] (fun _ -> ());
-      self#execute
+    method execute await =
+      await#f [] None (fun _ -> ());
+      self#execute await
 
     (* FIXME somehow, this is flipped*)
     method display canvas layer g =
@@ -98,5 +98,4 @@ let create_from_svg ?w ?h ?(bg = Draw.(opaque black)) file =
   new t ~w ~h ~bg svg
 
 
-(************* display ***********)
 

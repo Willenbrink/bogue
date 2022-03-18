@@ -57,7 +57,7 @@ let make_box_blit ~dst ?(shadow=true) ~focus voffset canvas layer box =
 (*     (1. -. x0 *. m) *. (Float.pow t (float_of_int k)) +. t +. x0 *. m *)
 (*   else x *. m *)
 
-class t ?(kind = Horizontal) ?(init = 0) ?(length = 200)
+class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
     ?(thickness = 20) ?w ?h ?tick_size ?(max = 100) ?(step = Stdlib.max 1 (max / 100)) () =
   let tick_size = default tick_size (match kind with
       | HBar -> 4
@@ -178,13 +178,13 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200)
       | c when c = Sdl.K.right || c = Sdl.K.up -> increase ()
       | _ -> ()
 
-    method execute =
-      await [`Mouse_press] @@ function
+    method execute await =
+      await#f [`Mouse_press] (Some state) @@ function
       | `Mouse_press (pos,Event.LMB), _ ->
         keyboard_focus <- true;
         let offset = self#click pos in
         begin
-          await [`Mouse_release; `Mouse_motion; `Key_press] @@ function
+          await#f [`Mouse_release; `Mouse_motion; `Key_press] (if live then Some state else None) @@ function
           | `Mouse_release (_,_),_ -> ()
           | `Mouse_motion pos,_ ->
             let v = self#compute_value pos offset in
@@ -194,7 +194,7 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200)
           | `Key_press (k,[]),_ -> self#receive_key k
         end;
         keyboard_focus <- false;
-        self#state
+        self#execute await
 
     method! resize (w,h) =
       super#resize (w,h);

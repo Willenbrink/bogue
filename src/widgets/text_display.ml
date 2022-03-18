@@ -135,14 +135,14 @@ let render_word ?fg font word =
   go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_none);
   surf
 
-class ['a] t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font = default_font) paragraphs =
+class t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font = default_font) paragraphs =
   (* FIXME this is ugly. Like real ugly. Maybe revert to ?w ?h ?*)
   let size =
     let w,h = size in
     (if w = 0 then fst default_size else w),(if h = 0 then snd default_size else h)
   in
   object (self)
-    inherit ['a] w size "TextDisplay" Cursor.Arrow
+    inherit [bottom] w size "TextDisplay" Cursor.Arrow
     initializer Draw.ttf_init ()
 
     val mutable _paragraphs = List.rev ([Style Ttf.Style.normal] :: (List.rev paragraphs)) (* we add normal style at the end *)
@@ -166,9 +166,9 @@ class ['a] t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font =
           render <- None
         end
 
-    method execute =
-      await [] (fun _ -> ());
-      self#execute
+    method execute await =
+      await#f [] None (fun _ -> ());
+      self#execute await
 
     method get_font = Draw.get_font font (Theme.scale_int font_size)
 
@@ -338,7 +338,4 @@ let update_verbatim t text =
   let dummy = create_verbatim ~size ~font text in
   print_endline (Printf.sprintf "New SIZE %d,%d" (default dummy.w 0) (default dummy.h 0));
   replace ~by:dummy t
-
-(************* display ***********)
-
- * *)
+*)

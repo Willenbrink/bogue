@@ -26,12 +26,13 @@ class t ?(init = false) ?(style = Square) () =
 
     method set_state x = state <- x
 
-    method unload = ()
+    method execute await =
+      await#f [`Mouse_press] (Some self#state) @@ function
+      | `Mouse_press _, _ ->
+        self#set_state @@ not self#state;
+        self#execute await
 
-    method execute =
-      await [`Mouse_press] (fun _ -> ());
-      state <- not state;
-      self#state
+    method unload = ()
 
     method style = style
 
@@ -63,6 +64,3 @@ class t ?(init = false) ?(style = Square) () =
       (* we could center horizontally, but then first one should change textures so
          that check_off and check_on have same width. *)
   end
-
-(************* display ***********)
-

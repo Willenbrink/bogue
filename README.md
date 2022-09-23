@@ -25,5 +25,7 @@ The remaining files are mostly irrelevant for this and quite similar to Bogue. N
 
 ## Installing
 
-This package uses `ppx_effects` which is only available for 4.12.0+domains. You need to create a new opam switch and install (at least) the following packages:
+This package uses `ppx_effects` which is only available for 4.12.0+domains. You need to create a new opam switch and pin its repository, i.e.:
+`opam pin add --yes https://github.com/CraigFe/ppx_effects.git`
+In addition, install (at least) the following packages:
 `tsdl` `tsdl-image` `tsdl-ttf` `ppx_deriving` `ppx_effects`

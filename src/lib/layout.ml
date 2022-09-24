@@ -170,7 +170,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
         let f = match cc with
           | None -> fun () ->
             print_endline "Start execution of root widget";
-            let _ = widget#execute A.await in
+            let _ = widget#execute A.await A.yield in
             failwith "Root widget terminated"
           | Some (triggers, cont) -> fun () ->
             if List.mem (Event.strip ev) triggers
@@ -190,12 +190,9 @@ class ['a] t ?id ?name ?(adjust = Fit)
               The continuation has not been used so we do nothing here.
               In case the continuation is used but does terminate it raises
               an exception. *)
-          | [%effect? (A.Await (triggers, res)), k] ->
-            match res with
-            | Some _ -> .
-            | None ->
-              (* print_endline "#EOH#\n"; *)
-              cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))
+          | [%effect? (A.Await triggers), k] ->
+            (* print_endline "#EOH#\n"; *)
+            cc <- Some (triggers, fun ev geom -> EffectHandlers.Deep.continue k (ev,geom))
         end;
         self#display
 

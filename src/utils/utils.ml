@@ -2,6 +2,7 @@
 (* Function names should be unambiguous enough to make it safe to open this
    module anywhere. *)
 
+type bottom = |
 
 exception Sdl2_error of string
 

@@ -178,23 +178,25 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
       | c when c = Sdl.K.right || c = Sdl.K.up -> increase ()
       | _ -> ()
 
-    method execute await =
-      await#f [`Mouse_press] (Some state) @@ function
       | `Mouse_press (pos,Event.LMB), _ ->
+    method execute await yield =
+      await#f [`Mouse_press] @@ function
         keyboard_focus <- true;
         let offset = self#click pos in
         begin
-          await#f [`Mouse_release; `Mouse_motion; `Key_press] (if live then Some state else None) @@ function
           | `Mouse_release (_,_),_ -> ()
           | `Mouse_motion pos,_ ->
+          await#f [`Mouse_release; `Mouse_motion; `Key_press] @@ function
             let v = self#compute_value pos offset in
             let v = (Stdlib.max 0 (min v max)) in
             state <- v;
+            if live then yield state;
             raise Repeat
           | `Key_press (k,[]),_ -> self#receive_key k
         end;
         keyboard_focus <- false;
-        self#execute await
+        yield state;
+        self#execute await yield
 
     method! resize (w,h) =
       super#resize (w,h);

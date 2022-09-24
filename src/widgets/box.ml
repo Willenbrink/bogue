@@ -39,9 +39,8 @@ class ['a] t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
       | Style.Image img -> img#unload
       | _ -> ()
 
-    method execute await =
-      await#f [] None (fun _ -> ());
-      self#execute await
+    method execute await _ =
+      await#forever
 
     (* As all widget display functions, the geometry g must be already scaled. *)
     method display canvas layer geom=

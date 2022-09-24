@@ -3,5 +3,5 @@
   (libraries interop)
    (wrapped false)
  (preprocess
-  (pps ppx_effects))
+  (pps ppx_effects ppx_deriving.show))
 )

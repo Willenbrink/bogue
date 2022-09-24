@@ -9,55 +9,43 @@ let example () =
   let c = new Check.t in
   let l = new Label.t in
   let ti = new Text_input.t  in
-  let comb b l = object (self)
-    inherit ['a] Row.pair b l as super
-    method! execute await =
-      let res = super#execute await in
-      if res
-      then l#set_text "Pressed"
-      else l#set_text "Released";
-      self#execute
-  end
+  let comb b l =
+    new Row.pair_id ~logic:(fun self await yield res ->
+        l#set_text (if res then "Pressed" else "Released")
+      ) b l
   in
   let row_ti =
-    let label =
-      l "Enter some text on the right and press enter/tab."
-    in
-    new Single.t (fun self child ->
-        let text = child#execute in
-        label#set_text text;
-        self#execute
-      ) @@
-    new Row.t [
-      label |> W.gen;
-      ti "Text input" |> W.gen;
-
-      (* TODO for some reason not working right now. The click never reaches the slider *)
-      (* (Single.loop *)
-      (*    (sl () |> W.gen) *)
-      (*  |> W.gen) *)
-      (* |> W.gen; *)
-    ]
+    let label = l "Enter some text on the right and press enter/tab." in
+    let ti = ti "Text Input" in
+    new Row.pair_id ~logic:(fun self await yield res ->
+        label#set_text res
+      ) label ti
   in
   (* let col = new Col.t [comb b' l'; comb b'' l''] in *)
   (* let layout = L.resident col in *)
   (* let layout = L.resident (comb b l) in *)
   (* let layout = L.resident row_b in *)
-  let layout = L.resident (Single.loop @@ new Col.t [
-      Single.loop (row_ti |> W.gen) |> W.gen;
-      Single.loop (comb (new Button.t ~switch:true "Switch") (l "Init") |> W.gen) |> W.gen;
-      Single.loop (comb (new Button.t "Hold") (l "Init") |> W.gen) |> W.gen
-    ])
+  let layout =
+    L.resident
+      begin
+        new Row.pair ~flip:true
+          row_ti
+          begin
+            new Row.pair ~flip:true
+              (comb (new Button.t ~switch:true "Switch") (l "Init"))
+              (comb (new Button.t "Hold") (l "Init"))
+          end
+      end
   in
   run layout
 
-let _ =
-  run @@ fun () ->
-  let* checked = check ||| label in
-  if checked
-  then label#set_text "Checked"
-  else label#set_text "Unchecked";
-  raise Repeat
+(* let _ = *)
+(*   run @@ fun () -> *)
+(*   let* checked = check ||| label in *)
+(*   if checked *)
+(*   then label#set_text "Checked" *)
+(*   else label#set_text "Unchecked"; *)
+(*   raise Repeat *)
 
 
 let _ =

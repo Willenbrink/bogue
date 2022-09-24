@@ -7,9 +7,8 @@ class ['a] t ?id size =
 
     method unload = ()
 
-    method execute await =
-      await#f [] None (fun _ -> ());
-      self#execute await
+    method execute await _ =
+      await#forever
 
     method display _ _ _ = []
   end

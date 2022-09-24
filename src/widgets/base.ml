@@ -1,6 +1,8 @@
 include Interop
 open Utils
 
+type bottom = Utils.bottom = |
+
 exception Repeat
 exception Reset
 
@@ -9,16 +11,18 @@ module type R = sig type t end
 module type A = functor (Result : R) -> sig
   type res = Result.t
   type _ EffectHandlers.eff +=
-      Await : Event.t list * res option -> (Event.t_rich * Draw.geometry) EffectHandlers.eff
-  val await : Event.t list -> res option -> (Event.t_rich * Draw.geometry -> 'a)
-    -> 'a
+      Await : Event.t list -> (Event.t_rich * Draw.geometry) EffectHandlers.eff
+  type _ EffectHandlers.eff +=
+      Yield : res -> unit EffectHandlers.eff
+  val await : Event.t list -> (Event.t_rich * Draw.geometry -> 'a) -> 'a
+  val yield : res -> unit
 end
 
 type 'a t = { f: Event.t_rich * Draw.geometry -> 'a }
 
-type ('a,'b) await =
-  Event.t list -> 'a option ->
-  (Event.t_rich * Draw.geometry -> 'b) -> 'b
+type 'a await =
+  Event.t list ->
+  (Event.t_rich * Draw.geometry -> 'a) -> 'a
 
 (* module type Await_sig = sig *)
 (*   type res *)
@@ -30,24 +34,31 @@ type ('a,'b) await =
 module Await
   (* : R -> Await_sig *)
   = functor (Result: R) -> struct
-    exception%effect Await : Event.t list * Result.t option -> (Event.t_rich * Draw.geometry)
+    exception%effect Await : Event.t list -> (Event.t_rich * Draw.geometry)
+    exception%effect Yield : Result.t -> unit
     (* module M = struct *)
     (*   type t *)
     (*   exception%effect Await : Event.t list * t -> (Event.t_rich * Draw.geometry) *)
 
     let await = object (self)
-      method f : 'b. (Result.t, 'b) await =
-        fun triggers result handler ->
+      method f : 'a. 'a await =
+        fun triggers handler ->
         try handler @@
           (* (fun (ev,g) -> print_endline (Event.show_t_rich ev); (ev,g)) @@ *)
-          EffectHandlers.perform (Await (triggers, result)) with
+          EffectHandlers.perform (Await triggers) with
         | Repeat
         (* TODO This might catch other failures.
            Also the match statements are (obviously) shown as incomplete
            Solvable by either always including a _ -> raise Repeat case or
            by writing a ppx *)
-        | Match_failure _ -> self#f triggers None handler
+        | Match_failure _ -> self#f triggers handler
+
+      method forever : bottom =
+        match EffectHandlers.perform (Await []) with
+        | _ -> failwith "Empty trigger list was resumed"
     end
+
+    let yield result = EffectHandlers.perform (Yield result)
   end
 
 (* Note that the type system is not smart enough
@@ -99,8 +110,6 @@ class virtual ['a] stateful init =
     method state = state
   end
 
-type bottom = |
-
 class virtual ['a] w ?id size name cursor =
   object
     inherit common ?id ~name size ()
@@ -111,10 +120,7 @@ class virtual ['a] w ?id size name cursor =
     method cursor = _cursor
     method set_cursor x = _cursor <- x
 
-    (* TODO think about initialization and nontermination.
-       Empty should never get the opportunity to return something.
-       Right now we rely on it returning None on its first execution *)
-    method virtual execute : <f:'b. ('a,'b) await> -> bottom
+    method virtual execute : <f:'b. 'b await; forever: bottom> -> ('a -> unit) -> bottom
 
     method virtual display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list
   end

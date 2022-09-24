@@ -10,6 +10,7 @@ type t = [
   | `Mouse_release
   | `Scroll
 ]
+[@@deriving show]
 
 (* TODO we need some form of global listening. Press slider -> Move mouse off -> Release *)
 (* These events can normally only be listened to by one widget *)
@@ -70,7 +71,7 @@ let queue : t list ref = ref []
 
 module E = Sdl.Event
 
-let rec poll_event () : (t_rich,t_win) Either.t =
+let rec poll_event () : (t_rich, t_win) Either.t =
   let ev = Trigger.wait_event () in
   Trigger.flush (E.finger_motion);
   Trigger.flush (E.mouse_motion);

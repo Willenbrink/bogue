@@ -18,6 +18,11 @@ class ['a] continuation k =
       (* method discontinue exn = EffectHandlers.Deep.discontinue k exn *)
   end
 
+class ['a] discontinuation k =
+  object
+    method discontinue exn : 'a = EffectHandlers.Deep.discontinue k exn
+  end
+
 class t ?(flip = false) ?(sep = Theme.room_margin)
     ?(align) ?(name = if flip then "Col" else "Row") (children : bottom w list)
   =
@@ -42,21 +47,19 @@ class t ?(flip = false) ?(sep = Theme.room_margin)
   object
     inherit [bottom] w size name Cursor.Arrow
 
-    method execute await =
+    method execute await yield =
       let module Await = Await (struct type t = bottom end) in
       let exec_child (o, (c : _ w)) =
-        match c#execute Await.await with
+        match c#execute Await.await Await.yield with
         | _ -> .
-        | [%effect? Await.Await (triggers, res), k]  ->
-          match triggers, res with
-          | _, Some _ -> .
-          | [], None -> (), new continuation k
-          | _ :: _, _ -> failwith "bottom widget listens for events"
+        | [%effect? Await.Await triggers, k]  ->
+          match triggers with
+          | [] -> new discontinuation k
+            (* TODO with separate wait and yield a bottom widget might listen, just not yield. *)
+          | _ :: _ -> failwith "bottom widget listens for events"
       in
       let _ = List.map exec_child children in
-      (* TODO find a way to encode nontermination here *)
-      await#f [] None @@ function
-      | _ -> raise Repeat
+      await#forever
 
     method unload = List.iter (fun (_,c) -> c#unload) children
 
@@ -72,9 +75,12 @@ class t ?(flip = false) ?(sep = Theme.room_margin)
       blits
   end
 
-class ['a] pair ?(flip = false) ?(sep = Theme.room_margin)
-    ?(align) ?(name = if flip then "VPair" else "HPair") (left : 'a w) (right : 'a w)
+class ['l,'r,'res] pair ?(flip = false) ?(sep = Theme.room_margin)
+    ?(align) ?(name = if flip then "VPair" else "HPair")
+    ?(logic = fun self await yield -> fun res -> ()) (left : 'left #w) (right : 'right #w)
   =
+  let left = (left :> 'left w) in
+  let right = (right :> 'right w) in
   let offset = (if flip then snd else fst) left#size in
   let size =
     let lx,ly = left#size in
@@ -84,82 +90,90 @@ class ['a] pair ?(flip = false) ?(sep = Theme.room_margin)
     else (lx + rx, max ly ry)
   in
   object (self)
-    inherit ['a] w size name Cursor.Arrow
+    inherit ['res] w size name Cursor.Arrow
 
     val mutable keyboard_focus = None
 
-    method ev_targets_lr (ts_l, ts_r) ((ev : Event.t_rich), (g : Draw.geometry)) =
+    method private ev_targets_lr (ts_l, ts_r) ((ev : Event.t_rich), (g : Draw.geometry)) =
       match ev with
-      | `Key_press _ | `Key_repeat _
-      | `Key_release _ | `Codepoint _ ->
+      | Scroll -> failwith "Scroll not implemented" (* TODO *)
+      (* Events that can affect both childs *)
+      | Key_press _ | Key_repeat _
+      | Key_release _ | Codepoint _ ->
         List.mem (Event.strip ev) ts_l,
         List.mem (Event.strip ev) ts_r
-      | `Scroll -> assert false (* TODO *)
-      | `Mouse_motion pos | `Mouse_enter pos
-      | `Mouse_leave pos | `Mouse_press (pos,_)
-      | `Mouse_release (pos,_) ->
+      (* Events than can affect only the child the mouse is above *)
+      | Mouse_motion pos | Mouse_enter pos
+      | Mouse_leave pos | Mouse_press (pos,_)
+      | Mouse_release (pos,_) ->
         let x_m,y_m = pos in
-        let base = if flip then g.y else g.x in
-        (* Printf.printf "%s, geom: %ix,%iy %iw,%ih\n" name g.x g.y g.w g.h; *)
-        (* Printf.printf "%s, mouse: %i,%i\n" name x_m y_m; *)
-        assert (g.x <= x_m && x_m <= g.x + g.w);
-        assert (g.y <= y_m && y_m <= g.y + g.h);
+        (* Disabled because of Mouse_leave TODO document! *)
+        (* assert (g.x <= x_m && x_m <= g.x + g.w); *)
+        (* assert (g.y <= y_m && y_m <= g.y + g.h); *)
         let x_m, y_m = x_m - g.x, y_m - g.y in
+        (* Printf.printf "%s, geom: %ix,%iy %iw,%ih %io\n" name g.x g.y g.w g.h offset; *)
+        (* Printf.printf "%s, mouse: %i,%i\n" name x_m y_m; *)
 
-        let ev_l =
-          let offset' = base in
-          (if flip then y_m else x_m) >= offset'
-          && (true || (if flip then x_m else y_m) < offset)
-          && List.mem (Event.strip ev) ts_l
-        in
-        let ev_r =
-          let offset' = base + offset in
-          (if flip then y_m else x_m) >= offset'
-          && (true || (if flip then x_m else y_m) < offset)
-          && List.mem (Event.strip ev) ts_r
-        in
-        assert (not (ev_l && ev_r));
-        ev_l, ev_r
+        match (if flip then y_m else x_m) < offset with
+        | true ->
+          List.mem (Event.strip ev) ts_l, false
+        | false ->
+          false, List.mem (Event.strip ev) ts_r
 
-    method execute await = (fun (type a) (await : <f: 'b. (a,'b) await>) (left : a w) (right : a w) ->
-        let module Await = Await (struct type t = a end) in
-        let extract opt1 opt2 = match opt1, opt2 with
-          | None, None -> None
-          | Some res, None | None, Some res -> Some res
-          | _, _ -> failwith "Badly defined row. Both childs returned Some _ values"
-        in
-
+    method execute await yield =
+      (fun (type a b)
+        (logic : (a,b) Either.t -> unit)
+        (left : a w) (right : b w) ->
         (* TODO use await directly *)
-        let (res_l, ts_l), cc_l =
-          match left#execute Await.await with
+        let ts_l, cc_l =
+          let module A = Await (struct type t = a end) in
+          match left#execute A.await A.yield with
           | _ -> .
-          | [%effect? Await.Await (triggers, res), k] ->
-            (res, triggers), new continuation k
+          | [%effect? A.Await triggers, k] ->
+            triggers, new continuation k
+          | [%effect? A.Yield res, k] ->
+            logic (Either.left res);
+            EffectHandlers.Deep.continue k ()
         in
-        let (res_r, ts_r), cc_r =
-          match right#execute Await.await with
+        let ts_r, cc_r =
+          let module A = Await (struct type t = b end) in
+          match right#execute A.await A.yield with
           | _ -> .
-          | [%effect? Await.Await (triggers, res), k] ->
-            (res, triggers), new continuation k
+          | [%effect? A.Await triggers, k] ->
+            triggers, new continuation k
+          | [%effect? A.Yield res, k] ->
+            logic (Either.right res);
+            EffectHandlers.Deep.continue k ()
         in
 
-        let rec loop ts_l ts_r res_l res_r cc_l cc_r =
-          await#f (ts_l @ ts_r) (extract res_l res_r) @@ fun (ev,g) ->
-          let l,r = self#ev_targets_lr (ts_l, ts_r) (ev,g) in
-          let (res_l, ts_l), cc_l =
-            if l
-            then cc_l#continue ev g
-            else ((None, ts_l), cc_l)
-          in
-          let (res_r, ts_r), cc_r =
-            if r
-            then cc_r#continue ev g
-            else ((None, ts_r), cc_r)
-          in
-          loop ts_l ts_r res_l res_r cc_l cc_r
+        let rec loop ts_l ts_r cc_l cc_r =
+          await#f (ts_l @ ts_r)
+          begin
+            fun (ev,geom) ->
+            let l,r = self#ev_targets_lr (ts_l, ts_r) (ev,geom) in
+            let tss_l, tss_r = [%show: Event.t list] ts_l, [%show: Event.t list] ts_r in
+            (* Printf.printf "Received event:\n\tl: %b #ev %s\n\tr: %b #ev %s\n%!" l tss_l r tss_r; *)
+            let ts_l, cc_l =
+              if l
+              then cc_l#continue ev Draw.{geom with
+                                         w = min geom.w (fst right#size);
+                                         h = min geom.h (snd right#size)}
+              else ts_l, cc_l
+            in
+            let ts_r, cc_r =
+              if r
+              then cc_r#continue ev Draw.{geom with
+                                         x = geom.x + (if flip then 0 else offset);
+                                         y = geom.y + (if flip then offset else 0);
+                                         w = min geom.w (fst right#size);
+                                         h = min geom.h (snd right#size)}
+              else ts_r, cc_r
+            in
+            loop ts_l ts_r cc_l cc_r
+          end
         in
-        loop ts_l ts_r res_l res_r cc_l cc_r
-      ) await left right
+        loop ts_l ts_r cc_l cc_r
+      ) (logic self await yield) left right
 
     method unload = left#unload; right#unload
 
@@ -178,3 +192,20 @@ class ['a] pair ?(flip = false) ?(sep = Theme.room_margin)
       in
       blit_l @ blit_r
   end
+
+class ['a] pair_id ?(flip = false) ?(sep = Theme.room_margin)
+    ?(align) ?(name = if flip then "VPair" else "HPair")
+    ?(logic = fun self await yield res -> yield res) (left : 'a #w) (right : 'a #w)
+  =
+  let logic self await yield res =
+      match res with
+      | Either.Left res
+      | Either.Right res -> logic self await yield res
+        in
+  let left = (left :> 'a w) in
+  let right = (right :> 'a w) in
+  object (self)
+    inherit ['a,'a,'a] pair ~flip ~sep ~align ~name ~logic left right
+  end
+
+let x : string w = new pair_id (new Text_input.t "Test") (new Empty.t (0,0))

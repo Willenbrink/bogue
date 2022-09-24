@@ -45,9 +45,8 @@ class ['a] t ?w ?h ?(noscale = false)
           render <- None
         end
 
-    method execute await =
-      await#f [] None (fun _ -> ());
-      self#execute await
+    method execute await _ =
+      await#forever
 
     (* FIXME somehow, this is flipped*)
     method display canvas layer g =

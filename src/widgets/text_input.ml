@@ -103,11 +103,11 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
       Sdl.stop_text_input ();
       active <- false
 
-    method execute await =
+    method execute await yield =
       let pressed (x,_) =
         selection <- Point (self#px_to_ind x);
-        await#f [`Mouse_release; `Mouse_motion] None @@ function
         | `Mouse_release (_, Event.LMB), _ ->
+        await#f [`Mouse_release; `Mouse_motion] @@ function
           ()
         | `Mouse_motion (x,_), _ ->
           self#select x;
@@ -118,10 +118,9 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
 
       (* Unfocused *)
       begin
-        (* TODO base.ml: same thoughts on initialization apply here *)
-        await#f [`Mouse_press; `Key_press] (Some self#state) @@ function
         | `Mouse_press (pos, Event.LMB), _ -> pressed pos
         | `Key_press (keycode, []), _ when keycode = Sdl.K.tab ->
+        await#f [`Mouse_press; `Key_press] @@ function
           selection <- Area (0, List.length keys)
         | _ -> raise Repeat
       end;
@@ -129,8 +128,8 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
       (* Focused *)
       self#start_input;
       begin
-        await#f [`Codepoint; `Key_press; `Mouse_press] None @@ function
         | `Mouse_press (pos, Event.LMB), _ ->
+        await#f [`Codepoint; `Key_press; `Mouse_press] @@ function
           pressed pos;
           raise Repeat
         | `Key_press (keycode, []), _ when keycode = Sdl.K.tab || keycode = Sdl.K.return ->
@@ -145,7 +144,8 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
       end;
       self#stop_input;
       selection <- Point self#cursor_pos;
-      self#execute await
+      yield self#state;
+      self#execute await yield
 
     method state = String.concat "" keys
 

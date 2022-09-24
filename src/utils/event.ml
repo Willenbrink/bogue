@@ -40,6 +40,7 @@ type button =
 [@@deriving enum, show]
 
 (* TODO alt missing *)
+(* TODO currently not used *)
 type modifier =
   | Ctrl
   | Shift
@@ -83,11 +84,14 @@ let queue : t list ref = ref []
 
 module E = Sdl.Event
 
+let pointer_pos ev =
+    let x = E.(get ev mouse_button_x) in
+    let y = E.(get ev mouse_button_y) in
+    Theme.(unscale_int x, unscale_int y)
+
 let rec poll_event () : (t_rich, t_win) Either.t =
-  let ev = Trigger.wait_event () in
-  Trigger.flush (E.finger_motion);
-  Trigger.flush (E.mouse_motion);
-  match Trigger.event_kind ev with
+  let ev = Sdl.wait_event () in
+  match E.kind ev with
   | `Quit ->
     Either.Right `Exit
   | `Window_event ->
@@ -105,31 +109,19 @@ let rec poll_event () : (t_rich, t_win) Either.t =
         poll_event ()
     end
   | `Key_down ->
-    let modifiers =
-      (if Trigger.ctrl_pressed () then [Ctrl] else [])
-      @ (if Trigger.shift_pressed () then [Shift] else [])
-    in
     Either.left @@
-    Key_press (Sdl.Event.(get ev keyboard_keycode), modifiers)
+    Key_press (Sdl.Event.(get ev keyboard_keycode), [])
   | `Key_up ->
-    let modifiers =
-      (if Trigger.ctrl_pressed () then [Ctrl] else [])
-      @ (if Trigger.shift_pressed () then [Shift] else [])
-    in
     Either.left @@
-    Key_release (Sdl.Event.(get ev keyboard_keycode), modifiers)
-  | `Mouse_button_down -> Either.left @@ Mouse_press (Mouse.pointer_pos ev, LMB) (* TODO *)
-  | `Mouse_button_up -> Either.left @@ Mouse_release (Mouse.pointer_pos ev, LMB) (* TODO *)
+    Key_release (Sdl.Event.(get ev keyboard_keycode), [])
+  | `Mouse_button_down ->
+    Either.left @@ Mouse_press (pointer_pos ev, LMB) (* TODO *)
+  | `Mouse_button_up -> Either.left @@ Mouse_release (pointer_pos ev, LMB) (* TODO *)
   | `Mouse_motion -> Either.left @@
     (* let left = if Trigger.mm_pressed ev then [Left] else [] in *)
-    Mouse_motion (Mouse.pointer_pos ev)
+    Mouse_motion (pointer_pos ev)
   | `Text_input -> Either.left @@
     Codepoint Sdl.Event.(get ev text_input_text)
-  | `Bogue_keyboard_focus | `Bogue_mouse_focus | `Bogue_startup | `Bogue_stop
-  | `Bogue_stopped | `Bogue_full_click | `Bogue_mouse_enter | `Bogue_mouse_leave
-  | `Bogue_var_changed | `Bogue_redraw ->
-    print_endline "Bogue event";
-    assert false
   (* Events to ignore for now *)
   | `App_did_enter_background | `App_did_enter_foreground
   | `App_low_memory | `App_terminating | `App_will_enter_background
@@ -141,12 +133,11 @@ let rec poll_event () : (t_rich, t_win) Either.t =
   | `Finger_motion | `Finger_up | `Joy_axis_motion | `Joy_ball_motion
   | `Joy_button_down | `Joy_button_up | `Joy_device_added
   | `Joy_device_removed | `Joy_hat_motion ->
-    Printf.printf "Unimportant event %s\n" (Trigger.sprint_ev ev);
+    Printf.printf "Unimportant event\n";
     poll_event ()
   | `Mouse_wheel | `Multi_gesture | `Sys_wm_event
   | `Text_editing | `User_event
   | `Display_event | `Sensor_update ->
-    Trigger.sprint_ev ev |> print_endline;
     poll_event ()
   | `Unknown 772 ->
     poll_event () (* TODO Where does this event come from? *)
@@ -155,5 +146,4 @@ let rec poll_event () : (t_rich, t_win) Either.t =
     assert false
   | _ ->
     print_endline "Specific Event";
-    Trigger.sprint_ev ev |> print_endline;
     failwith "Impossible"

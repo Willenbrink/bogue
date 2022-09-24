@@ -706,7 +706,7 @@ let quit () =
   printd debug_graphics "Exit SDL...";
   Sdl.quit ();
   printd debug_graphics
-    "Done.";;
+    "Done."
 
 let sdl_flip = Sdl.render_present;;
 

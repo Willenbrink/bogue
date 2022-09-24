@@ -31,7 +31,6 @@ let exit_board window =
   Draw.destroy_textures (); (* en principe inutile: déjà fait *)
   (* Layout.clear_wtable (); *)
   Draw.check_memory ();
-  Trigger.flush_all ();
   flush_log ()
 
 (*************)
@@ -59,7 +58,6 @@ let debug_shortcuts =
    textures have been calculated and rendered. Of course these two will not be
    executed at all if there is no event to trigger display. *)
 let run ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) window =
-  Trigger.flush_all ();
   Layout.make_window window;
   Sdl.show_window (Layout.window window);
   window#set_fresh false;
@@ -71,13 +69,11 @@ let run ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) window 
 
   (* We have to display the board in order to detect mouse focus
      (otherwise the 'show' field of layouts are not set). *)
-  Trigger.(flush redraw);
   if not window#is_fresh then Layout.render window;
   (* board.mouse_focus <- check_mouse_focus board; *)
   Layout.flip window;
   Draw.destroy_textures ();
 
-  Trigger.renew_my_event ();
   try
     while true do
       let ev = Interop.Event.poll_event () in

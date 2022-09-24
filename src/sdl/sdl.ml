@@ -16,9 +16,26 @@ let get_ticks = get_ticks
 
 (* Events *)
 type event = Sdl.event
-module Event = Event
+module Event =
+  struct
+    include Event
 
-let poll_event = poll_event
+    let kind ev = enum (get ev typ)
+  end
+
+let event_struct = ref None
+
+let wait_event () =
+  begin
+  match !event_struct with
+  | None -> event_struct := Some (Event.create ())
+  | Some _ -> ()
+    end;
+  match wait_event !event_struct with
+  | Error (`Msg msg) -> failwith msg
+  | Ok () -> match !event_struct with
+    | None -> failwith "Event struct uninitialised"
+    | Some ev -> ev
 
 (* Mouse *)
 module System_cursor = System_cursor

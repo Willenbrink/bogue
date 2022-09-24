@@ -357,8 +357,7 @@ let adjust_window_size l =
     let win = window l in
     if (w,h) <> Sdl.get_window_size win
     then begin
-      Sdl.set_window_size win ~w ~h;
-      Trigger.(push_event (create_event E.window_event_resized))
+      Sdl.set_window_size win ~w ~h
     end
     else printd debug_graphics "Window for layout %s already has the required size."
         (sprint_id l)

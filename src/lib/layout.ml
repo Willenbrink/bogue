@@ -54,7 +54,7 @@ let window t = match t#canvas with
   | Some c -> c.Draw.window
 
 class ['a] t ?id ?name ?(adjust = Fit)
-    ?(layer = Draw.get_current_layer ())
+    ?(layer = Draw.current_layer)
     ?mask ?background ?shadow ?keyboard_focus ?(mouse_focus=false)
     ?canvas
     ?(is_fresh = false)
@@ -479,7 +479,7 @@ let flip ?(clear=false) ?(present=true) layout =
   printd debug_graphics "Render layers";
   (* : we assume that the layout layer is in the same component as the
      current_layer... TODO do better *)
-  Draw.render_all_layers (layout#layer);
+  Draw.render_all_layers [layout#layer];
   if present then begin
     printd debug_graphics "Present";
     Draw.(sdl_flip (renderer layout))
@@ -506,7 +506,7 @@ let flip ?clear w =
     flip ~clear ~present:true w;
     w#set_fresh true
   end
-  else Draw.clear_layers w#layer
+  else Queue.clear w#layer
 
 (** initialize SDL if necessary and create a window of the size of the layout *)
 let make_window ?window layout =

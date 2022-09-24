@@ -262,6 +262,8 @@ type blit = {
 }
 and layer = blit Queue.t list
 
+let current_layer : blit Queue.t = Queue.create ()
+
 type canvas = {
   renderer : Sdl.renderer;
   window : Sdl.window;
@@ -496,7 +498,8 @@ let apply_offset ?src ?dst voffset tex =
 let make_blit ?src ?dst ?clip ?transform ?(voffset=0) canvas to_layer tex =
   let transform = default transform (make_transform ()) in
   let src, dst = apply_offset ?src ?dst voffset tex in
-  { src; dst; clip; rndr = canvas.renderer; texture = tex; transform; to_layer };;
+  let to_layer = [to_layer] in
+  { src; dst; clip; rndr = canvas.renderer; texture = tex; transform; to_layer }
 
 (* saves the blit into its layer *)
 let blit_to_layer blit =
@@ -900,15 +903,6 @@ let init ?window ?(name="BOGUE Window") ?x ?y ~w ~h () =
     color;
     gl_context = None;
   }
-
-(* TODO rarely used... ? *)
-let clear_layers layer =
-  List.iter (fun q ->
-      if not (Queue.is_empty q)
-      then begin
-        printd debug_graphics "Clearing layer";
-        Queue.clear q
-      end) layer
 
 (* Clear the canvas, using the background color, or the pre-computed
    texture. For re-computing the texture, use [update_background]. *)

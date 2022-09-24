@@ -122,7 +122,7 @@ class virtual ['a] w ?id size name cursor =
 
     method virtual execute : <f:'b. 'b await; forever: bottom> -> ('a -> unit) -> bottom
 
-    method virtual display : Draw.canvas -> Draw.layer -> Draw.geometry -> Draw.blit list
+    method virtual display : Draw.canvas -> Draw.blit list -> Draw.geometry -> Draw.blit list
   end
 
 let gen w = (w :> 'a w)

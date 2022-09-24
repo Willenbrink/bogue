@@ -61,7 +61,6 @@ let run ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) window 
   Layout.make_window window;
   Sdl.show_window (Layout.window window);
   window#set_fresh false;
-  Draw.update_background (Layout.get_canvas window);
   Thread.delay 0.01; (* we need some delay for the initial Mouse position to be detected *)
   Sdl.stop_text_input ();
   (* List.iter (Widget.set_canvas canvas) board.widgets; *)

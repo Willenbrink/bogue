@@ -63,25 +63,25 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
        A button has essentially no state and yielding only true
        is meaningless and confusing. Instead it should have type unit (there is only
        one acceptable value after all!) *)
-        | `Mouse_enter _,_ -> mouse_over <- true; raise Repeat
-        | `Mouse_leave _,_ -> mouse_over <- false; raise Repeat
     method execute await' yield =
       let await ts h = await'#f (`Mouse_enter :: `Mouse_leave :: ts) @@ function
+        | Mouse_enter _,_ -> mouse_over <- true; raise Repeat
+        | Mouse_leave _,_ -> mouse_over <- false; raise Repeat
         | evg -> h evg
       in
       if switch
       then begin
-        | `Mouse_press (_, Event.LMB), _ ->
         await [`Mouse_press] @@ function
+        | Mouse_press (_, Event.LMB), _ ->
           state <- not state;
           yield state;
           self#execute await' yield
       end
       else begin
         (* TODO this may be a bit too much codegolf *)
-        | `Mouse_release (_, Event.LMB), _
-        | `Mouse_press (_, Event.LMB), _ ->
         await (if state then [`Mouse_release] else [`Mouse_press]) @@ function
+        | Mouse_release (_, Event.LMB), _
+        | Mouse_press (_, Event.LMB), _ ->
           state <- not state;
           yield state;
           self#execute await' yield

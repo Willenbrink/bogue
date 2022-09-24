@@ -106,10 +106,10 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
     method execute await yield =
       let pressed (x,_) =
         selection <- Point (self#px_to_ind x);
-        | `Mouse_release (_, Event.LMB), _ ->
         await#f [`Mouse_release; `Mouse_motion] @@ function
+        | Mouse_release (_, Event.LMB), _ ->
           ()
-        | `Mouse_motion (x,_), _ ->
+        | Mouse_motion (x,_), _ ->
           self#select x;
           raise Repeat
         | _ ->
@@ -118,9 +118,9 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
 
       (* Unfocused *)
       begin
-        | `Mouse_press (pos, Event.LMB), _ -> pressed pos
-        | `Key_press (keycode, []), _ when keycode = Sdl.K.tab ->
         await#f [`Mouse_press; `Key_press] @@ function
+        | Mouse_press (pos, Event.LMB), _ -> pressed pos
+        | Key_press (keycode, []), _ when keycode = Sdl.K.tab ->
           selection <- Area (0, List.length keys)
         | _ -> raise Repeat
       end;
@@ -128,17 +128,19 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
       (* Focused *)
       self#start_input;
       begin
-        | `Mouse_press (pos, Event.LMB), _ ->
         await#f [`Codepoint; `Key_press; `Mouse_press] @@ function
+        | Mouse_press (pos, Event.LMB), _ ->
           pressed pos;
           raise Repeat
-        | `Key_press (keycode, []), _ when keycode = Sdl.K.tab || keycode = Sdl.K.return ->
+        | Key_press (keycode, []), _ when keycode = Sdl.K.tab || keycode = Sdl.K.return ->
           ()
-        | `Codepoint c, _ ->
+        | Codepoint c, _ ->
           self#insert c;
           raise Repeat
-        | `Key_press k, _ ->
-          self#handle_key k;
+        (* TODO this line does not work when we use one k to represent the type.
+           Seems like a compiler limitation? *)
+        | Key_press (k,mods), _ ->
+          self#handle_key (k,mods);
           raise Repeat
         | _ -> raise Repeat
       end;

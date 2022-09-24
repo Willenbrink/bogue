@@ -1,4 +1,14 @@
+(* TODO turn this into a normal variant? Using polymorphic variants is a major hassle
+   because it seems that any interesting feature requires a lot of type shenanigans.
+   It seems we would need excessive GADTs, polymorphic annotations etc. Would enable us to:
+   - Encode possible rich events in the await type. Major problem: type escaping scope
+   - Encode bottom: Empty polymorphic variants are not typable
+*)
 type t = [
+  (* TODO currently there is no way to write an empty polymorphic variant, see
+     https://github.com/ocaml/ocaml/issues/10687
+  *)
+  (* | `Bottom *)
   | `Key_press
   | `Key_repeat
   | `Key_release
@@ -35,32 +45,34 @@ type modifier =
   | Shift
 [@@deriving show]
 
-type t_rich = [
-  | `Key_press of int * modifier list
-  | `Key_repeat of int * modifier list
-  | `Key_release of int * modifier list
+(* TODO currently there is no way to write an empty polymorphic variant, see
+   https://github.com/ocaml/ocaml/issues/10687
+*)
+type t_rich =
+  | Key_press : int * modifier list -> t_rich
+  | Key_repeat : int * modifier list ->  t_rich
+  | Key_release : int * modifier list ->  t_rich
   (* TODO use a UTF8 library of some sort instead of using string? *)
-  | `Codepoint of string
-  | `Mouse_motion of (int * int)
-  | `Mouse_enter of (int * int)
-  | `Mouse_leave of (int * int)
-  | `Mouse_press of (int * int) * button
-  | `Mouse_release of (int * int) * button
-  | `Scroll
-]
+  | Codepoint : string -> t_rich
+  | Mouse_motion : (int * int) -> t_rich
+  | Mouse_enter : (int * int) -> t_rich
+  | Mouse_leave : (int * int) -> t_rich
+  | Mouse_press : (int * int) * button -> t_rich
+  | Mouse_release : (int * int) * button -> t_rich
+  | Scroll : t_rich
 [@@deriving show]
 
-let strip ev : t = match ev with
-  | `Key_press _ -> `Key_press
-  | `Key_repeat _ -> `Key_repeat
-  | `Key_release _ -> `Key_release
-  | `Codepoint _ -> `Codepoint
-  | `Mouse_motion _ -> `Mouse_motion
-  | `Mouse_enter _ -> `Mouse_enter
-  | `Mouse_leave _ -> `Mouse_leave
-  | `Mouse_press _ -> `Mouse_press
-  | `Mouse_release _ -> `Mouse_release
-  | `Scroll -> `Scroll
+let strip (ev : t_rich) : t = match ev with
+  | Key_press _ -> `Key_press
+  | Key_repeat _ -> `Key_repeat
+  | Key_release _ -> `Key_release
+  | Codepoint _ -> `Codepoint
+  | Mouse_motion _ -> `Mouse_motion
+  | Mouse_enter _ -> `Mouse_enter
+  | Mouse_leave _ -> `Mouse_leave
+  | Mouse_press _ -> `Mouse_press
+  | Mouse_release _ -> `Mouse_release
+  | Scroll -> `Scroll
 
 type t_win = [
   | `Exit
@@ -97,21 +109,21 @@ let rec poll_event () : (t_rich, t_win) Either.t =
       @ (if Trigger.shift_pressed () then [Shift] else [])
     in
     Either.left @@
-    `Key_press (Sdl.Event.(get ev keyboard_keycode), modifiers)
+    Key_press (Sdl.Event.(get ev keyboard_keycode), modifiers)
   | `Key_up ->
     let modifiers =
       (if Trigger.ctrl_pressed () then [Ctrl] else [])
       @ (if Trigger.shift_pressed () then [Shift] else [])
     in
     Either.left @@
-    `Key_release (Sdl.Event.(get ev keyboard_keycode), modifiers)
-  | `Mouse_button_down -> Either.left @@ `Mouse_press (Mouse.pointer_pos ev, LMB) (* TODO *)
-  | `Mouse_button_up -> Either.left @@ `Mouse_release (Mouse.pointer_pos ev, LMB) (* TODO *)
+    Key_release (Sdl.Event.(get ev keyboard_keycode), modifiers)
+  | `Mouse_button_down -> Either.left @@ Mouse_press (Mouse.pointer_pos ev, LMB) (* TODO *)
+  | `Mouse_button_up -> Either.left @@ Mouse_release (Mouse.pointer_pos ev, LMB) (* TODO *)
   | `Mouse_motion -> Either.left @@
     (* let left = if Trigger.mm_pressed ev then [Left] else [] in *)
-    `Mouse_motion (Mouse.pointer_pos ev)
+    Mouse_motion (Mouse.pointer_pos ev)
   | `Text_input -> Either.left @@
-    `Codepoint Sdl.Event.(get ev text_input_text)
+    Codepoint Sdl.Event.(get ev text_input_text)
   | `Bogue_keyboard_focus | `Bogue_mouse_focus | `Bogue_startup | `Bogue_stop
   | `Bogue_stopped | `Bogue_full_click | `Bogue_mouse_enter | `Bogue_mouse_leave
   | `Bogue_var_changed | `Bogue_redraw ->

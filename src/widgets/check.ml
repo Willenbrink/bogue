@@ -26,9 +26,9 @@ class t ?(init = false) ?(style = Square) () =
 
     method set_state x = state <- x
 
-      | `Mouse_press _, _ ->
     method execute await yield =
       await#f [`Mouse_press] @@ function
+      | Mouse_press _, _ ->
         self#set_state @@ not self#state;
         yield self#state;
         self#execute await yield

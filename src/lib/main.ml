@@ -81,10 +81,8 @@ let run ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) window 
       before_display ();
       window#handle_widget ev;
 
-      let t = Time.now () in
       Layout.flip window;
       Draw.destroy_textures ();
-      printd debug_graphics "==> Rendering took %u ms" (Time.now () - t);
       after_display ();
     done
   with

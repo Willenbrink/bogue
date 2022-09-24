@@ -20,21 +20,6 @@ let make_box_blit ~dst ?(shadow=true) ~focus voffset canvas layer box =
 
 (* TODO consider this problem. How can we get single value precision without complicating
    everything significantly? *)
-(* Related:
-
-   (* Use this to increase the step when using keyboard. *)
-   method change_speed =
-   let t = Time.now () in
-   if Time.(t - (key_time)) > 200
-   (* delay too long, we return to initial speed. TODO: check that this is bigger
-   than system delay between two key repeats, otherwise this will always
-   apply *)
-   then key_speed <- 1.
-   else key_speed <- (key_speed *. 1.1);
-   key_time <- t;
-   step * (round (key_speed))
-
-*)
 (* this function can be used for the ~t_to function to slow down the slider when
    the range of values is big (bigger than the number of pixels of the slider).
    When the user first move the slider, the slope will be 1 (1 pixel => 1 step),
@@ -107,7 +92,6 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
     method! guess_unset_keyboard_focus = false
 
     val mutable key_speed = 1.
-    val mutable key_time = Time.now ()
     (* TODO render is only used for circular. Otherwise all textures are created and
        destroyed on the fly. Change this ? *)
     val mutable render : Draw.texture option = None

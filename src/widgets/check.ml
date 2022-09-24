@@ -1,11 +1,8 @@
-(** a check button, optional label *)
+(** a check button *)
 
-(* TODO: label. For the moment this is done by combining widgets, see
-   Widget.check_box_with_label *)
 (* TODO: keyboard focus *)
 
 open Base
-open Utils
 
 type style =
   | Square

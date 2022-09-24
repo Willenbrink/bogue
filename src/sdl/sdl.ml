@@ -19,7 +19,6 @@ type event = Sdl.event
 module Event = Event
 
 let poll_event = poll_event
-let pump_events = pump_events
 
 (* Mouse *)
 module System_cursor = System_cursor

@@ -93,7 +93,8 @@ let rec poll_event () : (t_rich, t_win) Either.t =
   | `Window_event ->
     begin
       let eid = Sdl.Event.(get ev window_event_id) in
-      let wid = Sdl.Event.(get ev window_window_id) in
+      (* TODO right now only one window is supported *)
+      (* let wid = Sdl.Event.(get ev window_window_id) in *)
       let data1 = Sdl.Event.(get ev window_data1) |> Int32.to_int in
       let data2 = Sdl.Event.(get ev window_data2) |> Int32.to_int in
       match eid with

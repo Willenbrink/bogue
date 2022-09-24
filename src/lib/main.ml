@@ -34,12 +34,6 @@ let exit_board window =
   Trigger.flush_all ();
   flush_log ()
 
-(** Render all layers and flip window buffers, only for windows with the
-    is_fresh=false field *)
-let flip ?clear window =
-  Layout.flip ?clear window;
-  Draw.destroy_textures ()
-
 (*************)
 let debug_shortcuts =
   let open Shortcut in
@@ -58,18 +52,6 @@ let debug_shortcuts =
         Draw.memory_info ());
   ]
 
-(* [one_step] is what is executed during the main loop *)
-let one_step before_display ?clear window =
-  let ev = Interop.Event.poll_event () in
-
-  before_display ();
-  window#handle_widget ev;
-
-  let t = Time.now () in
-  flip ?clear window; (* This is where all rendering takes place. *)
-  printd debug_graphics "==> Rendering took %u ms" (Time.now () - t);
-  printd debug_graphics "---------- end of loop -----------"
-
 (** The main function that loops indefinitely *)
 (* one can insert code to be executed at two different places: "before_display"
    means after Sync was executed and before Layout.display (except for manual
@@ -83,7 +65,6 @@ let run ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) window 
   window#set_fresh false;
   Draw.update_background (Layout.get_canvas window);
   Thread.delay 0.01; (* we need some delay for the initial Mouse position to be detected *)
-  Sdl.pump_events ();
   Sdl.stop_text_input ();
   (* List.iter (Widget.set_canvas canvas) board.widgets; *)
   (* Warning: layouts may have different canvas because of different layers *)
@@ -93,12 +74,21 @@ let run ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) window 
   Trigger.(flush redraw);
   if not window#is_fresh then Layout.render window;
   (* board.mouse_focus <- check_mouse_focus board; *)
-  flip ~clear:true window;
+  Layout.flip window;
+  Draw.destroy_textures ();
 
   Trigger.renew_my_event ();
   try
     while true do
-      one_step before_display ~clear:true window;
+      let ev = Interop.Event.poll_event () in
+
+      before_display ();
+      window#handle_widget ev;
+
+      let t = Time.now () in
+      Layout.flip window;
+      Draw.destroy_textures ();
+      printd debug_graphics "==> Rendering took %u ms" (Time.now () - t);
       after_display ();
     done
   with

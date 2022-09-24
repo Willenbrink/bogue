@@ -299,8 +299,6 @@ let memo3 f =
 let list_sum list =
   List.fold_left (+) 0 list
 
-(* let find_file list_list = *)
-
 let which command =
   (* BETTER: (specially for portability to WIN/MAC) use
      https://opam.ocaml.org/packages/fileutils/ *)

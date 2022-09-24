@@ -294,10 +294,6 @@ let get_canvas l =
              ((l :> Widget.common), Printf.sprintf "The room #%d is not associated with any canvas"
                 l#id))
 
-(* test if layouts share the same layer (= same depth) *)
-let same_layer l1 l2 =
-  Chain.(l1#layer == l2#layer)
-
 (* if !debug is true, we replace the background by solid red *)
 let delete_background room =
   printd debug_memory "Delete background for room %s" (sprint_id room);

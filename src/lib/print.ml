@@ -35,7 +35,6 @@ let background = function
 let layout_up ?(indent = "") r =
   let list = [
     sprintf "\n%s┏━ Layout %s\n" indent (L.sprint_id r);
-    sprintf "%s┃ layer: %d\n" indent (Chain.depth (r#layer));
     sprintf "%s┃ geometry: %s\n" indent (geometry r#geometry);
     sprintf "%s┃ background: %s\n" indent (option background r#background);
     sprintf "%s┃ content: %s\n" indent (content r#content);
@@ -47,7 +46,6 @@ let layout_up ?(indent = "") r =
 let layout_down ?(indent = "") r =
   let list = [
     sprintf "\n%s┏━ Layout %s\n" indent (L.sprint_id r);
-    sprintf "%s┃ layer: %d\n" indent (Chain.depth (r#layer));
     sprintf "%s┃ geometry: %s\n" indent (geometry r#geometry);
     sprintf "%s┃ background: %s\n" indent (option background r#background);
     sprintf "%s┃ canvas: %s\n" indent (option canvas r#canvas);

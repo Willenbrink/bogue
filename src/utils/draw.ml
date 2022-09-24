@@ -266,13 +266,7 @@ type blit = {
   transform : transform;
   to_layer : layer;
 }
-and layer = blit Queue.t Chain.t;;
-(* layers are organized in a chain. Not thread safe: only the main thread should
-   modify layers.  Adding a new layer to a chain will put it "on top" of the
-   previous layer, as in most drawing programs. It can be confusing because it
-   does not fit well with the vocabulary ('depth') used in the Chain module: the
-   most visible layer is the *last* (= last added = highest 'depth') layer of a
-   Chain. *)
+and layer = blit Queue.t list
 
 type canvas = {
   renderer : Sdl.renderer;
@@ -492,52 +486,20 @@ let tex_size tex =
 (**** Layers ****)
 
 let new_layer () : blit Queue.t =
-  Queue.create ();;
+  Queue.create ()
 
-let current_layer = ref (Chain.singleton (new_layer ()))
+let current_layer = ref [new_layer ()]
 (* TODO, how to get rid of this global variable ? *)
 
 let get_current_layer () = !current_layer
 
 let set_current_layer layer = current_layer := layer
 
-let use_new_layer () = current_layer := Chain.singleton (new_layer ())
+let use_new_layer () = current_layer := [new_layer ()]
 
 let set_get_current_layer layer =
   set_current_layer layer;
-  layer;;
-
-let layer_insert_above layer =
-  printd debug_graphics "Create new layer above";
-  let l = Chain.insert_after layer (new_layer ()) in
-  set_get_current_layer l;;
-
-let layer_above layer =
-  let l = match Chain.next layer with
-    | None -> printd debug_graphics "Create new layer above";
-      Chain.insert_after layer (new_layer ())
-    | t -> t
-  in set_get_current_layer l;;
-
-let layer_insert_below layer =
-  printd debug_graphics "Create new layer below";
-  let l = Chain.insert_before layer (new_layer ()) in
-  set_get_current_layer l;;
-
-let layer_below layer =
-  let l = match Chain.next layer with
-    | None -> printd debug_graphics "Create new layer below";
-      Chain.insert_before layer (new_layer ())
-    | t -> t
-  in set_get_current_layer l;;
-
-let top_layer () =
-  set_get_current_layer (Chain.last !current_layer)
-
-let deepest_layer () =
-  set_get_current_layer (Chain.first !current_layer)
-
-
+  layer
 
 (* compute src and dst for a texture *)
 (* voffset can be positive or negative *)
@@ -569,8 +531,8 @@ let blit_to_layer blit =
   (* let layer = match layer with *)
   (*   | None -> canvas.layer (\* the default current layer *\) *)
   (*   | Some l -> l in *)
-  let queue = Chain.value blit.to_layer in
-  Queue.add blit queue;;
+  let queue = List.hd blit.to_layer in
+  Queue.add blit queue
 
 (* render a blit onscreen *)
 (* WARNING: this does NOT free the texture, because often we want to keep it for
@@ -612,7 +574,7 @@ let render_blits blits =
 
 (* render all layers and empty them *)
 let render_all_layers (layer : layer) =
-  Chain.iter render_blits layer;;
+  List.iter render_blits layer
 
 (* TODO it could be convenient (for a probably very small cost) to render the
    blits onto a target texture instead of directly to the renderer, so that we
@@ -1030,7 +992,7 @@ let init ?window ?(name="BOGUE Window") ?fill ?x ?y ~w ~h () =
 
 (* rarely used... ? *)
 let clear_layers layer =
-  Chain.iter (fun q ->
+  List.iter (fun q ->
       if not (Queue.is_empty q)
       then begin
         printd debug_graphics "Clearing layer";

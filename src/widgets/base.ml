@@ -87,8 +87,6 @@ class virtual common ?id ?(name = "UNNAMED") size () =
     method id : int = id
     method name : string = name
 
-    method virtual canvas : Draw.canvas option
-
     val mutable size : int * int = size
     method size = size
     method resize x =
@@ -109,8 +107,6 @@ class virtual ['a] stateful init =
 class virtual ['a] w ?id size name cursor =
   object
     inherit common ?id ~name size ()
-
-    method canvas = None
 
     val mutable _cursor : Cursor.t = cursor
     method cursor = _cursor

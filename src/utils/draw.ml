@@ -843,12 +843,12 @@ let load_textures window renderer = (* use hashtbl ? *)
 (* return a new canvas. A canvas has the physical size in pixels of the
    rendering window, ie after scaling. *)
 (* if an Sdl window is provided, we try to use it... *)
-let init ?(name="BOGUE Window") ?x ?y ~w ~h () =
+let init ?(title="BOGUE Window") ?x ?y ~w ~h () =
   video_init ();
   (* https://wiki.libsdl.org/SDL_GLattr#multisample *)
   go (Sdl.gl_set_attribute Sdl.Gl.multisamplebuffers 1);
   go (Sdl.gl_set_attribute Sdl.Gl.multisamplesamples 4);
-  let win = go (Sdl.create_window ?x ?y ~w ~h name Sdl.Window.((*fullscreen_desktop*) windowed + resizable + hidden + opengl + allow_highdpi)) in
+  let win = go (Sdl.create_window ?x ?y ~w ~h title Sdl.Window.((*fullscreen_desktop*) windowed + resizable + hidden + opengl + allow_highdpi)) in
   do_option !icon (Sdl.set_window_icon win);
   let px = Sdl.get_window_pixel_format win in
   printd debug_graphics "Window pixel format = %s" (Sdl.get_pixel_format_name px);

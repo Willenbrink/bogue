@@ -15,7 +15,7 @@ let exit_board (layout : 'a Layout.t) =
   if Sdl.is_text_input_active () then Sdl.stop_text_input ();
   Layout.delete_textures layout;
   (* now we destroy the canvas (renderer and window): *)
-  Draw.destroy_canvas (Layout.get_canvas layout);
+  Draw.destroy_canvas layout#canvas;
   Layout.remove_canvas layout;
   Draw.destroy_textures (); (* en principe inutile: déjà fait *)
   (* Layout.clear_wtable (); *)
@@ -48,9 +48,6 @@ let debug_shortcuts =
    executed at all if there is no event to trigger display. *)
 let run ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) widget =
   let window = new Layout.t widget in
-  let Draw.{w;h;_} = window#geometry in
-  let canvas = Draw.init ~name:window#name ~w ~h () in
-  window#set_canvas (Some canvas);
   Sdl.show_window (Layout.window window);
   window#set_fresh false;
   Thread.delay 0.01; (* we need some delay for the initial Mouse position to be detected *)

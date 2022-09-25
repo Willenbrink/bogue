@@ -36,16 +36,12 @@ let sprint_id r =
       | "" -> ""
       | s -> Printf.sprintf " (%s)" s)
 
-(* get the window of the layout *)
-let window t = match t#canvas with
-  | None -> failwith "Invalid"
-  | Some c -> c.Draw.window
+let window t = t#canvas.Draw.window
 
-class ['a] t ?id ?name ?(adjust = Fit)
+class ['a] t ?id ?title ?(adjust = Fit)
     (content' : 'a W.t) =
   object (self)
-    (* FIXME what is the size of a room? We have a resize but no base size *)
-    inherit Base.common ?id ?name (0,0) ()
+    inherit Base.common ?id (0,0) ()
 
     (* should we adjust the size of this room to fit its content ? *)
     method adjust = adjust
@@ -86,7 +82,9 @@ class ['a] t ?id ?name ?(adjust = Fit)
     (* the canvas is not really an intrinsic property of the layout, it is used
        only when rendering is required. It may change "without notice" when a
        layout is copied into another window *)
-    val mutable canvas : Draw.canvas option = None
+    val mutable canvas : Draw.canvas =
+      let w,h = content'#size in
+      Draw.init ?title ~w ~h ()
     method canvas = canvas
     method set_canvas x = canvas <- x
 
@@ -143,9 +141,6 @@ class ['a] t ?id ?name ?(adjust = Fit)
     (* pos0 is the position of the house containing the room *)
     method display =
       is_fresh <- false;
-      match canvas with
-      | None -> failwith "No canvas"
-      | Some canvas ->
         (* clip contains the rect that should contain the current room r. But of
            course, clip can be much bigger than r. *)
         let g = self#geometry in
@@ -204,83 +199,14 @@ exception Fatal_error of (Widget.common * string)
 (*   | Not_found -> failwith (Printf.sprintf "Cannot find room with id=%d" id);; *)
 
 (* get the renderer of the layout *)
-let renderer t = match t#canvas with
-  | Some c -> c.Draw.renderer
-  | _ -> failwith "Cannot get renderer because no canvas was defined"
-
-let get_canvas l =
-  match l#canvas with
-  | Some c -> c
-  | None ->
-    raise (Fatal_error
-             ((l :> Widget.common), Printf.sprintf "The room #%d is not associated with any canvas"
-                l#id))
-
-(* if !debug is true, we replace the background by solid red *)
-let delete_background room =
-  printd debug_memory "Delete background for room %s" (sprint_id room);
-  do_option room#color
-    (fun c ->
-       room#set_color
-           (if !debug then Some Draw.(opaque red) else None)
-    )
-
-(* force compute background at current size. Canvas must be created *)
-let compute_background room =
-  do_option room#color (
-    fun color ->
-      let g = room#geometry in
-      Sdl.log "COMPUTE BG w=%u h=%u" g.w g.h;
-      let box =
-          new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid color) ()
-            in
-      ignore (box#display (get_canvas room) room#layer
-                (Draw.scale_geom g)))
-
-(* change background *)
-(* can be called by a thread *)
-(* TODO it should not be allowed to use a background of type Box in case the box
-   already belongs to another room... *)
-let set_background l b =
-  l#unload;
-  l#set_color b
-
-(** get size of layout *)
-let get_size l =
-  l#geometry.w, l#geometry.h
-
-let get_physical_size l =
-  get_size l |> Draw.scale_size
-
-(** get width of layout *)
-let width l =
-  l#geometry.w
-
-(** get height *)
-let height l =
-  l#geometry.h
-
-let resize_content room = room#content#resize (get_size room)
-
-(* l must be the top house *)
-let adjust_window_size l =
-  if l#canvas <> None
-  then let w,h = get_physical_size l in
-    let win = window l in
-    if (w,h) <> Sdl.get_window_size win
-    then begin
-      Sdl.set_window_size win ~w ~h
-    end
-    else printd debug_graphics "Window for layout %s already has the required size."
-        (sprint_id l)
+let renderer t = t#canvas.Draw.renderer
 
 let delete_textures room =
   room#unload;
   room#content#unload
 
 let remove_canvas room =
-  delete_textures room;
-  room#set_canvas None
+  delete_textures room
 
 (* Flip buffers. Here the layout SHOULD be the main layout (house) of the window
 *)
@@ -288,7 +214,7 @@ let remove_canvas room =
 let flip ?(present=true) layout =
   printd debug_graphics "flip layout %s" (sprint_id layout);
   (* go (Sdl.set_render_target (renderer layout) None); *)
-  Draw.clear_canvas (get_canvas layout);
+  Draw.clear_canvas layout#canvas;
   printd debug_graphics "Render layers";
   Draw.render_all_layers layout#layer;
   if present then begin

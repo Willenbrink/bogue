@@ -39,7 +39,7 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
     val mutable fg = fg
     method set_fg_color x = fg <- x
 
-    method display canvas layer geom =
+    method display canvas geom =
       let font = Draw.get_font font (Theme.scale_int font_size) in
 
       let surf =
@@ -64,7 +64,7 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
           let tex = render_text canvas.Draw.renderer in
           render <- Some tex; tex
       in
-      [Draw.center_tex_to_layer canvas layer tex geom]
+      [Draw.center_tex_to_layer canvas tex geom]
 
   end
 

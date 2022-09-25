@@ -107,7 +107,7 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
       (w + 2*button_margin, h + 2*button_margin)
 
 
-    method display canvas layer g =
+    method display canvas g =
       (* For safety (?), if the size is too small, the check icon is not clipped (see
          [display] below). *)
       let resize (w,h) b =
@@ -126,14 +126,14 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
       in
       (*let margin = if self#state b then 0 else button_margin in*)
       (*  Draw.box canvas.Draw.renderer ~bg (x+margin) (y+margin) (w-2*margin) (h-2*margin); *)
-      let box_blit = box#display canvas layer
+      let box_blit = box#display canvas
           Draw.( { x = g.x (* + margin *);
                    y = g.y (* + margin *);
                    w = g.w;
                    h = g.h;
                    voffset = g.voffset } ) in
       let label_blit =
-        (if self#state then label_on else label_off)#display canvas layer
+        (if self#state then label_on else label_off)#display canvas
           Draw.( { x = g.x + bm + dx;
                    y = g.y + bm + dy;
                    w = g.w - 2*bm;

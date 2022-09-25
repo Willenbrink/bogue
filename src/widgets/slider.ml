@@ -9,8 +9,8 @@ type kind =
   | Vertical (* Warning: values increase from bottom to top *)
   | Circular (* Origin is on the positive real axi *)
 
-let make_box_blit ~dst voffset canvas layer box =
-  let box_blit = Draw.make_blit ~voffset ~dst canvas layer box in
+let make_box_blit ~dst voffset canvas box =
+  let box_blit = Draw.make_blit ~voffset ~dst canvas box in
   [box_blit]
 
 (* TODO consider this problem. How can we get single value precision without complicating
@@ -178,7 +178,7 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
     method private y_pos =
       room_y + self#length - tick_size - state * (self#length - tick_size) / max
 
-    method display canvas layer g =
+    method display canvas g =
       let scale = Theme.scale_int in
       let tick_size = scale tick_size
       and thickness = scale thickness in
@@ -198,7 +198,7 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
         let box = texture canvas.renderer ~color ~w:tick_size ~h:thickness in
         let dst = Sdl.Rect.create ~x:x0 ~y:g.y ~w:tick_size ~h:thickness in
         forget_texture box; (* or save ? but be careful color may change *)
-        make_box_blit ~dst g.voffset canvas layer box
+        make_box_blit ~dst g.voffset canvas box
       | HBar ->
         (* horizontal gradient for the slider *)
         let colors = [opaque Button.color_on; opaque Button.color_off] in
@@ -207,8 +207,8 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
         let dst = Sdl.Rect.create ~x:g.x ~y:g.y ~w:(x0 - g.x + tick_size)
             ~h:thickness in
         forget_texture box; (* or save ? *)
-        make_box_blit ~dst g.voffset canvas layer box
-      (* [make_blit ~voffset:g.voffset ~dst canvas layer box] *)
+        make_box_blit ~dst g.voffset canvas box
+      (* [make_blit ~voffset:g.voffset ~dst canvas box] *)
       | Vertical ->
         let y = scale (self#y_pos) in
         let h = tick_size in (* see example 34 .*)
@@ -221,7 +221,7 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
         (*   gradient_texture canvas.renderer ~h ~w:thickness colors in *)
         let dst = Sdl.Rect.create ~x:g.x ~y ~h ~w:thickness in
         forget_texture box; (* or save ? *)
-        make_box_blit ~dst g.voffset canvas layer box
+        make_box_blit ~dst g.voffset canvas box
       | Circular ->
         let radius = (imin g.w g.h)/2 - 2 in
         let tex = match render with
@@ -237,10 +237,10 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
         let w',h' = tex_size tex in
         let dst = Sdl.Rect.create ~x:(g.x) ~y:(g.y) ~w:w' ~h:h' in
         (* go (Sdl.render_copy ~dst renderer tex); *)
-        let sbox = make_blit ~voffset:g.voffset ~dst canvas layer tex in
+        let sbox = make_blit ~voffset:g.voffset ~dst canvas tex in
         (* ring renderer ~bg:(lighter (opaque grey)) ~radius:(w/2-2)
            ~width (x+w/2) (y+h/2); *)
-        let tick = ray_to_layer canvas layer ~voffset:g.voffset ~bg:color
+        let tick = ray_to_layer canvas ~voffset:g.voffset ~bg:color
             ~thickness:tick_size
             ~angle:(360. *. (float (max - state)) /. (float max)) ~radius
             ~width:thickness (g.x + g.w/2) (g.y + g.h/2) in

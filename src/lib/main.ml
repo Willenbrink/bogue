@@ -1,20 +1,9 @@
-(** BOGUE *)
-(** A GUI Library for Ocaml, using SDL2 *)
-
-(** Vu Ngoc San, December 2013 -- now *)
-
-(* doc on threads:
-   http://ocamlunix.forge.ocamlcore.org/threads.html
-*)
-
 open Interop
 open Interop.Utils
 
 let exit_board (layout : 'a Layout.t) =
-  printd debug_board "Closing layout...";
   if Sdl.is_text_input_active () then Sdl.stop_text_input ();
   Draw.destroy_canvas layout#canvas;
-  Draw.check_memory ();
   flush_log ()
 
 (*************)
@@ -36,19 +25,9 @@ let debug_shortcuts =
   ]
 
 (** The main function that loops indefinitely *)
-(* one can insert code to be executed at two different places: "before_display"
-   means after Sync was executed and before Layout.display (except for manual
-   CTRL-L which would occur before it. "after_display" means just after all
-   textures have been calculated and rendered. Of course these two will not be
-   executed at all if there is no event to trigger display. *)
 let run ?title ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) widget =
   let window = new Layout.t ?title widget in
-  Sdl.show_window (Layout.window window);
-  Thread.delay 0.01; (* we need some delay for the initial Mouse position to be detected *)
-  Sdl.stop_text_input ();
-
-  Layout.flip window;
-  Draw.destroy_textures ();
+  Sdl.show_window window#canvas.Draw.window;
 
   try
     while true do
@@ -56,9 +35,6 @@ let run ?title ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) 
 
       before_display ();
       window#handle_widget ev;
-
-      Layout.flip window;
-      Draw.destroy_textures ();
       after_display ();
     done
   with

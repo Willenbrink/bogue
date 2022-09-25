@@ -15,7 +15,6 @@
    widgets with a connection between them to synchronize the data *)
 
 open Interop
-open Interop.Utils
 type geometry = Draw.geometry = {
   x : int;
   y : int;
@@ -25,59 +24,22 @@ type geometry = Draw.geometry = {
 }
 module W = Widget
 
-type adjust =
-  | Fit
-  | Width
-  | Height
-  | Nothing
-
-let sprint_id r =
-  Printf.sprintf "#%u%s" r#id (match r#name with
-      | "" -> ""
-      | s -> Printf.sprintf " (%s)" s)
-
-let window t = t#canvas.Draw.window
-
-class ['a] t ?id ?title ?(adjust = Fit)
-    (content' : 'a W.t) =
+class ['a] t ?id ?title (widget : 'a W.t) =
   object (self)
-    (* should we adjust the size of this room to fit its content ? *)
-    method adjust = adjust
-
-    (* relative geometry wrt the house. All components are dynamic variables,
-       that need to be recomputed at each iteration. Note: rooms inside a house
-       must be physically inside the geometry of the house. If not, they will
-       not be detected by the mouse, for instance. *)
     val mutable geometry =
-      let w,h = content'#size in
+      let w,h = widget#size in
       Draw.{x=0; y=0; w; h; voffset=0}
     method geometry = geometry
     method set_geometry x = geometry <- x
 
-    val mutable color : Draw.color option = None
-    method color = color
-    method set_color bg = color <- bg
-
-    val mutable content : 'a Widget.t = content'
-    method content = content
-    method set_content x = content <- x
-
-    (* : the particular layer = chain element of this layout. If a room
-       contains other Rooms, its layer should be at least as deep as the layers
-       of the Rooms, otherwise the "background" might end-up not being at the
-       background... *)
-    (* in principle a chain of layers is attached to a window. When creating a
-       new window, one has to select a new layer chain (use_new_layer) *)
-    val mutable layer = Draw.current_layer
-    method layer = layer
-    method set_layer x = layer <- x
+    method content = widget
 
     (* the canvas contains the "hardware" information to render the room *)
     (* the canvas is not really an intrinsic property of the layout, it is used
        only when rendering is required. It may change "without notice" when a
        layout is copied into another window *)
     val mutable canvas : Draw.canvas =
-      let w,h = content'#size in
+      let w,h = widget#size in
       Draw.init ?title ~w ~h ()
     method canvas = canvas
     method set_canvas x = canvas <- x
@@ -97,22 +59,22 @@ class ['a] t ?id ?title ?(adjust = Fit)
       | Either.Left ev ->
         let widget = self#content in
 
-        (* let w,h = Sdl.get_window_size @@ window (self :> 'a t) in *)
+        (* let w,h = Sdl.get_window_size @@ (self :> 'a t)#canvas.Draw.window in *)
         (* Printf.printf "geom: %iw,%ih\n" w h; *)
         let f = match cc with
           | None -> fun () ->
             print_endline "Start execution of root widget";
+            (* This should never terminate as the root widget#execute loops forever *)
             let _ = widget#execute A.await A.yield in
             failwith "Root widget terminated"
           | Some (triggers, cont) -> fun () ->
             if List.mem (Event.strip ev) triggers
             then begin
               Printf.printf "Event %s is handled\n" (Event.show_t_rich ev);
+              (* This terminates as bottom only prevents yields, not awaits. *)
+              (* Once the await is handled (i.e. the continuation stored) the handler terminates. *)
+              (* Afterwards the continuation terminates. *)
               cont ev self#geometry;
-              (* TODO why does this terminate?
-                 And why is it no problem if we don't overwrite the continuation? *)
-              (* failwith "Root continuation terminated" *)
-              (* cc <- None *)
             end
         in
         begin
@@ -128,38 +90,11 @@ class ['a] t ?id ?title ?(adjust = Fit)
         end;
         self#display
 
-    (* this function sends all the blits to be displayed to the layers *)
-    (* it does not directly interact with the renderer *)
-    (* pos0 is the position of the house containing the room *)
     method display =
-        (* clip contains the rect that should contain the current room r. But of
-           course, clip can be much bigger than r. *)
-        let g = self#geometry in
-        let x = g.x in
-        let y = g.y + g.voffset in
-        (*print_endline ("ALPHA=" ^ (string_of_float (Avar.old room#geometry.transform.alpha)));*)
-
-        let bg = match color with
-          | None -> []
-          | Some c ->
-            let box = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) () in
-            box#display canvas self#layer
-                Draw.(scale_geom {x; y; w = g.w; h = g.h; voffset = - g.voffset})
-        in
-
-        let blits = self#content#display canvas self#layer Draw.{g with x; y} in
-        let blits = List.rev_append bg blits in
-
-        (* TODO presumably blit has clip = None as default *)
-        List.iter (fun blit -> Draw.blit_to_layer { blit with clip = None }) blits
+        widget#display canvas self#geometry
+      |> List.iter Draw.blit_to_layer;
+      Draw.clear_canvas canvas;
+      Draw.render_all_layers ();
+      Draw.(sdl_flip canvas.renderer);
+      Draw.destroy_textures ();
   end
-
-let flip w =
-  (if Draw.window_is_shown (window w)
-  then w#display);
-  (* go (Sdl.set_render_target (renderer layout) None); *)
-  Draw.clear_canvas w#canvas;
-  printd debug_graphics "Render layers";
-  Draw.render_all_layers w#layer;
-  printd debug_graphics "Present";
-  Draw.(sdl_flip w#canvas.renderer)

@@ -34,7 +34,7 @@ class t ?(init = false) ?(style = Square) () =
 
     method style = style
 
-    method display canvas layer g =
+    method display canvas g =
       (* print "Display button with state %b" state; *)
       let open Draw in
       let texture_on = match style with
@@ -58,7 +58,7 @@ class t ?(init = false) ?(style = Square) () =
       (* let (w,h) = tex_size tex in *)
       (* Printf.printf "TEX SIZE=(%u,%u)\n" w h; *)
 
-      [center_tex_to_layer ~clip:false ~horiz:false canvas layer tex g]
+      [center_tex_to_layer ~clip:false ~horiz:false canvas tex g]
       (* we could center horizontally, but then first one should change textures so
          that check_off and check_on have same width. *)
   end

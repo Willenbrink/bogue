@@ -357,7 +357,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
     (* REMARK: instead of blitting surfaces, one could also use textures and SDL
        RenderTarget ? *)
-    method display canvas layer g = (* TODO mettre un lock global ? *)
+    method display canvas g = (* TODO mettre un lock global ? *)
       Option.iter Draw.forget_texture render;
       render <- None;
       let cursor = match cursor with
@@ -456,7 +456,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
       Sdl.set_text_input_rect (Some area);
       room_x <- g.x;
       let text_blit = copy_tex_to_layer ~overlay:(Draw.Xoffset 0) ~voffset:g.voffset
-          canvas layer tex area (g.x + (Theme.scale_int left_margin))
+          canvas tex area (g.x + (Theme.scale_int left_margin))
           (g.y + (Theme.scale_int bottom_margin)) in
       (* we could instead have used a box surface of larger size, including margins,
          and use tex_to_layer instead of copy_tex_to_layer *)
@@ -473,7 +473,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
         let cursor_g = { g with x = g.x + Theme.scale_int left_margin +
                                     self#cursor_pos_px () - offset;
                                 y = g.y + bh - voff } in
-        [text_blit; tex_to_layer canvas layer cursor cursor_g]
+        [text_blit; tex_to_layer canvas cursor cursor_g]
       else [text_blit]
 
     method shift_check_sel ~shift ~one ~right =

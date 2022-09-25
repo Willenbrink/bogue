@@ -171,7 +171,7 @@ class ['a] t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font =
 
     method get_font = Draw.get_font font (Theme.scale_int font_size)
 
-    method display canvas layer g =
+    method display canvas g =
       let open Draw in
       let tex = match render with
         | Some t -> t
@@ -226,7 +226,7 @@ class ['a] t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font =
           end
       in
       let dst = geom_to_rect g in
-      [make_blit ~voffset:g.voffset ~dst canvas layer tex]
+      [make_blit ~voffset:g.voffset ~dst canvas tex]
 
   end
 

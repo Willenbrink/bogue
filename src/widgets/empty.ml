@@ -10,5 +10,5 @@ class ['a] t size =
     method execute await _ =
       await#forever
 
-    method display _ _ _ = []
+    method display _ _ = []
   end

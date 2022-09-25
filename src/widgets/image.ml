@@ -49,7 +49,7 @@ class ['a] t ?w ?h ?(noscale = false)
       await#forever
 
     (* FIXME somehow, this is flipped*)
-    method display canvas layer g =
+    method display canvas g =
       let open Draw in
       let tex = match render with
         | Some t -> t
@@ -85,7 +85,7 @@ class ['a] t ?w ?h ?(noscale = false)
          this size... *)
       in
       let dst = geom_to_rect g in
-      [make_blit ~dst ~voffset:g.voffset canvas layer tex]
+      [make_blit ~dst ~voffset:g.voffset canvas tex]
   end
 
 (* NOTE once we have a more recent version (>= 2.0.2) of SDL_image, we should be

@@ -39,17 +39,6 @@ let textures_to_destroy = ref []
 (* the generic window icon *)
 let icon  : (Sdl.surface option) ref = ref None;;
 
-let check_memory () =
-  if !textures_in_memory <> 0
-  then printd (debug_memory+debug_error) "Textures remaining: %i"
-      !textures_in_memory;
-  if !surfaces_in_memory > 1 + !ttf_surfaces_in_memory
-  then printd (debug_memory+debug_error) "Surfaces remaining: %i"
-      (!surfaces_in_memory - 1 - !ttf_surfaces_in_memory);
-  (* there is always the icon surface in memory, that's ok *)
-  if !ttf_surfaces_in_memory > 0
-  then printd debug_memory "TTF surfaces in memory: %i" !ttf_surfaces_in_memory;;
-
 (* SDL wrappers *)
 
 let create_color (r,g,b,a) =
@@ -172,8 +161,6 @@ let ttf_set_font_style font style =
 let rect_translate r (x0,y0) =
   Sdl.Rect.(create ~x:(x r + x0) ~y:(y r + y0) ~w:(w r) ~h:(h r));;
 
-
-
 (* this function should only be called by the main loop *)
 (* TODO try to remove all of this, and instead invoque Gc.finalise on every
    texture creation ? Bad idea in fact. *)
@@ -244,9 +231,7 @@ type blit = {
   rndr : Sdl.renderer;
   dst : Sdl.rect option; (* destination rect *)
   src : Sdl.rect option; (* source rect *)
-  clip : Sdl.rect option;
   transform : transform;
-  to_layer : blit Queue.t;
 }
 
 let current_layer : blit Queue.t = Queue.create ()
@@ -257,13 +242,6 @@ type canvas = {
   color : color;
   textures : textures;
   mutable gl_context : Sdl.gl_context option
-  (* layers : layer; *) (* not necessary ? *)
-  (* There is one layer chain per canvas. The chain element "layers" referenced
-     here may end up not being the first or last layer of the chain, since we
-     are allowed to add new layers before or after it. One should use
-     (Chain.last layer) to get the top layer (ie the most visible layer) *)
-  (* This field is in fact not necessary, since any layout in this canvas points
-     to the same set of layers. *)
 }
 
 (* There should be one (and only one) canvas per window *)
@@ -482,56 +460,33 @@ let apply_offset ?src ?dst voffset tex =
          Some (Sdl.Rect.create ~x ~y:(y-vo) ~w ~h:(h+vo));;
 
 (* prepare a blit *)
-let make_blit ?src ?dst ?clip ?transform ?(voffset=0) canvas to_layer tex =
+let make_blit ?src ?dst ?transform ?(voffset=0) canvas tex =
   let transform = default transform (make_transform ()) in
   let src, dst = apply_offset ?src ?dst voffset tex in
-  { src; dst; clip; rndr = canvas.renderer; texture = tex; transform; to_layer }
+  { src; dst; rndr = canvas.renderer; texture = tex; transform }
 
 (* saves the blit into its layer *)
 let blit_to_layer blit =
-  Queue.add blit blit.to_layer
+  Queue.add blit current_layer
 
 (* render a blit onscreen *)
 (* WARNING: this does NOT free the texture, because often we want to keep it for
    re-use. In case of a one-time texture, use forget_texture before calling
    make_blit. *)
 let render_blit blit =
-  (* if no transform = go (Sdl.render_copy ?src:blit.src ?dst:blit.dst blit.rndr
-     blit.texture) *)
   let t = blit.transform in
   let alpha = round (255. *. t.alpha) in
   let orig_alpha = go (Sdl.get_texture_alpha_mod blit.texture) in
   go (Sdl.set_texture_alpha_mod blit.texture alpha);
-  go (Sdl.render_set_clip_rect blit.rndr blit.clip);
   go (Sdl.render_copy_ex ?src:blit.src ?dst:blit.dst blit.rndr
         blit.texture t.angle t.center t.flip);
   go (Sdl.render_set_clip_rect blit.rndr None);
-  (* : this seems necessary in some cases, see example 35bis. For (extreme)
-     optimization we might try to factor this out. *)
-
-  (* BUG/WORKAROUND. Something is fishy with (un)setting clip_rect. Not sure
-     why, but if I don't draw a dummy thing like a point or a rect, then the
-     texture gets corrupted. It become unproperly offset, and has some random
-     glitches. Hence the following lines where we draw a transparent point at
-     0,0. For more debug information, one can also draw the clip rectangle as
-     follows: *)
-  (* set_color blit.rndr (random_color ()); *)
-  (* go (Sdl.render_draw_rect blit.rndr blit.clip); *)
-  set_color blit.rndr none;
-  go (Sdl.render_draw_point blit.rndr (-1) (-1));
-  (* END WORKAROUND *)
-
   go (Sdl.set_texture_alpha_mod blit.texture orig_alpha)
-(* : we do this in case the texture is used at several places onscreen *)
-
-(* render all blits in one layer. first in, first out *)
-let render_blits blits =
-  Queue.iter render_blit blits;
-  Queue.clear blits
 
 (* render all layers and empty them *)
-let render_all_layers layer =
-  render_blits layer
+let render_all_layers () =
+  Queue.iter render_blit current_layer;
+  Queue.clear current_layer
 
 (* TODO it could be convenient (for a probably very small cost) to render the
    blits onto a target texture instead of directly to the renderer, so that we
@@ -737,11 +692,11 @@ let box renderer ?bg x y w h =
   end
 
 (** create a "blit" of a filled rectangle *)
-let box_to_layer canvas layer ?(bg = opaque grey) ?voffset x y w h =
+let box_to_layer canvas ?(bg = opaque grey) ?voffset x y w h =
   let tex = texture canvas.renderer ~color:bg ~w ~h in
   let dst = Sdl.Rect.create ~x ~y ~w ~h in
   forget_texture tex;
-  make_blit ?voffset ~dst canvas layer tex;;
+  make_blit ?voffset ~dst canvas tex
 
 (** save and reset some useful settings before setting a render target *)
 (* TODO : not thread safe !*)
@@ -883,15 +838,8 @@ let init ?(title="BOGUE Window") ?x ?y ~w ~h () =
 (* Clear the canvas, using the background color, or the pre-computed
    texture. For re-computing the texture, use [update_background]. *)
 let clear_canvas c =
-  printd debug_graphics "Clear canvas";
-  (* go (Sdl.render_set_clip_rect c.renderer None); I lost many hours due to
-     this one. If the above line is active, the render_clear only affects part
-     of the renderer, no idea why... What's even more illogical, the SDL doc
-     says that render_clear does not take clip_rect into account... *)
   set_color c.renderer c.color;
   go (Sdl.render_clear c.renderer)
-  (* paste background image *)
-
 
 (* like the hand of a clock. It was used to draw a ring, below (ring_tex_old) by
    rotating the ray *)
@@ -931,12 +879,12 @@ let ray renderer ?(bg = opaque black) ~radius ~width ?thickness ~angle x y =
   let tex, center, dst, _ = make_ray renderer ?thickness ~bg ~radius ~width x y in
   go(Sdl.render_copy_ex renderer ~dst tex angle (Some center) Sdl.Flip.none);;
 
-let ray_to_layer canvas layer ?(bg = opaque black) ?voffset ~radius ~width ?thickness ~angle x y =
+let ray_to_layer canvas ?(bg = opaque black) ?voffset ~radius ~width ?thickness ~angle x y =
   let tex, center, dst, _ = make_ray canvas.renderer ?thickness ~bg ~radius ~width x y in
   let transform = make_transform ~angle ~center () in
   (* { flip = Sdl.Flip.none; angle; center = Some center; alpha = 255 } in *)
   forget_texture tex;
-  make_blit ?voffset ~dst ~transform canvas layer tex;;
+  make_blit ?voffset ~dst ~transform canvas tex
 
 (* draw a circle on the renderer *)
 (* cf experiments in circle.ml *)
@@ -1577,7 +1525,7 @@ let gradient_texture renderer ~w ~h ?angle ?(pop=true) colors =
 (* Note: shadows look better if the box has a white (or light) background *)
 (* Warning: the 'radius' here corresponds to 'width' in Style module (+ theme
    scaling) *)
-let box_shadow canvas layer ?(radius = Theme.scale_int 8) ?(color = pale_grey)
+let box_shadow canvas ?(radius = Theme.scale_int 8) ?(color = pale_grey)
     ?(size=Theme.scale_int 2) ?(offset=scale_pos (3,5)) ?voffset dst  =
   (* size = 0 means that the complete shadow has the same size as the box -- and
      hence cannot be seen if offset=(0,0). If size>0 then the shadow is larger
@@ -1626,41 +1574,41 @@ let box_shadow canvas layer ?(radius = Theme.scale_int 8) ?(color = pale_grey)
          doing this for each blit *)
       let bottom =
         let dst = Sdl.Rect.create ~x ~y:(y+h) ~w ~h:radius in
-        make_blit ?voffset ~dst canvas layer horiz in
+        make_blit ?voffset ~dst canvas horiz in
       let top =
         let dst = Sdl.Rect.create ~x ~y:(y-radius) ~w ~h:radius in
         let transform = make_transform ~flip:Sdl.Flip.vertical () in
-        make_blit ?voffset ~dst ~transform canvas layer horiz in
+        make_blit ?voffset ~dst ~transform canvas horiz in
       let left =
         let dst = Sdl.Rect.create ~x:(x-radius) ~y ~w:radius ~h in
-        make_blit ?voffset ~dst canvas layer vert in
+        make_blit ?voffset ~dst canvas vert in
       let right =
         let dst = Sdl.Rect.create ~x:(x+w) ~y ~w:radius ~h in
         let transform = make_transform ~flip:Sdl.Flip.horizontal () in
-        make_blit ?voffset ~dst ~transform canvas layer vert in
+        make_blit ?voffset ~dst ~transform canvas vert in
 
       let top_right =
         let dst = Sdl.Rect.create ~x:(x+w) ~y:(y-radius) ~w:radius ~h:radius in
-        make_blit ?voffset ~dst canvas layer corner in
+        make_blit ?voffset ~dst canvas corner in
       let top_left =
         let dst = Sdl.Rect.create ~x:(x-radius) ~y:(y-radius)
             ~w:radius ~h:radius in
         let transform = make_transform ~flip:Sdl.Flip.horizontal () in
-        make_blit ?voffset ~dst ~transform canvas layer corner in
+        make_blit ?voffset ~dst ~transform canvas corner in
       let bottom_left =
         let dst = Sdl.Rect.create ~x:(x-radius) ~y:(y+h) ~w:radius ~h:radius in
         let transform = make_transform
             ~flip:Sdl.Flip.(horizontal + vertical) () in
-        make_blit ?voffset ~dst ~transform canvas layer corner in
+        make_blit ?voffset ~dst ~transform canvas corner in
       let bottom_right =
         let dst = Sdl.Rect.create ~x:(x+w) ~y:(y+h) ~w:radius ~h:radius in
         let transform = make_transform ~flip:Sdl.Flip.vertical () in
-        make_blit ?voffset ~dst ~transform canvas layer corner in
+        make_blit ?voffset ~dst ~transform canvas corner in
 
       (* we fill also the inside rectangle, otherwise it looks bad if applied to
          a transparent box (but who wants to add shadow to a transparent box?),
          and also if the offset is larger than the radius.  *)
-      let inside = box_to_layer ?voffset canvas layer ~bg:scolor x y w h in
+      let inside = box_to_layer ?voffset canvas ~bg:scolor x y w h in
 
       List.iter forget_texture [horiz; vert; corner];
 
@@ -1671,7 +1619,7 @@ let box_shadow canvas layer ?(radius = Theme.scale_int 8) ?(color = pale_grey)
 (** copy the texture on the canvas, clipped (or else) in the given
     area *)
 let copy_tex_to_layer ?(overlay = TopRight) ?voffset ?transform
-    canvas layer tex area x y =
+    canvas tex area x y =
   let w, h = tex_size tex in
   let rect = Sdl.Rect.create ~x ~y ~w ~h in
   let dst = Sdl.intersect_rect rect area in
@@ -1686,13 +1634,13 @@ let copy_tex_to_layer ?(overlay = TopRight) ?voffset ?transform
         | Xoffset x0 -> Sdl.Rect.create ~x:(min x0 (w - Sdl.Rect.w dst))
                           ~y:0 ~w:(Sdl.Rect.w dst) ~h:(Sdl.Rect.h dst)
       ) in
-  make_blit ?src ?dst ?voffset ?transform canvas layer tex
+  make_blit ?src ?dst ?voffset ?transform canvas tex
 
 (* new version for layers. If clip is true and the texture is larger than the
    geometry, we do not center, instead we align from the origin. *)
 (* TODO use voffset *)
 let center_tex_to_layer ?(horiz=true) ?(verti=true) ?(clip=true)
-    canvas layer tex g =
+    canvas tex g =
   let tw, th = tex_size tex in
   let w, h = if clip then imin tw g.w, imin th g.h else tw, th in
   let src =
@@ -1703,12 +1651,12 @@ let center_tex_to_layer ?(horiz=true) ?(verti=true) ?(clip=true)
   let x = if horiz then g.x + (g.w - w) / 2 else g.x in
   let y = if verti then g.y + (g.h - h) / 2 else g.y in
   let dst = Sdl.Rect.create ~x ~y ~w ~h in
-  make_blit ~voffset:g.voffset ?src ~dst canvas layer tex
+  make_blit ~voffset:g.voffset ?src ~dst canvas tex
 
-let tex_to_layer canvas layer tex g =
+let tex_to_layer canvas tex g =
   let w, h = tex_size tex in
   let dst = Sdl.Rect.create ~x:g.x ~y:g.y ~w ~h in
-  make_blit ~voffset:g.voffset ~dst canvas layer tex
+  make_blit ~voffset:g.voffset ~dst canvas tex
 
 (* Texture manipulations *)
 (* multiply the alpha of the texture by the alpha of the mask *)

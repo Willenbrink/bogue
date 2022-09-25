@@ -63,9 +63,9 @@ class t ?(flip = false) ?(sep = Theme.room_margin)
 
     method unload = List.iter (fun (_,c) -> c#unload) children
 
-    method display canvas layer geom =
+    method display canvas geom =
       let f (x,c) =
-        c#display canvas layer Draw.{geom with x = geom.x + (if flip then 0 else x);
+        c#display canvas Draw.{geom with x = geom.x + (if flip then 0 else x);
                                                y = geom.y + (if flip then x else 0);
                                                w = min geom.w (fst c#size);
                                                h = min geom.h (snd c#size);
@@ -175,14 +175,14 @@ class ['l,'r,'res] pair ?(flip = false) ?(sep = Theme.room_margin)
 
     method unload = left#unload; right#unload
 
-    method display canvas layer geom =
+    method display canvas geom =
       let blit_l =
-        left#display canvas layer Draw.{geom with
+        left#display canvas Draw.{geom with
                                         w = min geom.w (fst left#size);
                                         h = min geom.h (snd left#size)}
       in
       let blit_r =
-        right#display canvas layer Draw.{geom with
+        right#display canvas Draw.{geom with
                                          x = geom.x + (if flip then 0 else offset);
                                          y = geom.y + (if flip then offset else 0);
                                          w = min geom.w (fst right#size);

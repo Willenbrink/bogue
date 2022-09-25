@@ -43,7 +43,7 @@ class ['a] t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
       await#forever
 
     (* As all widget display functions, the geometry g must be already scaled. *)
-    method display canvas layer geom=
+    method display canvas geom=
       let open Draw in
       (* TODO: make sure hoffset <= h *)
       let tex = match render with
@@ -61,7 +61,7 @@ class ['a] t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
                 | None -> begin
                     let (w,h) = img#size in
                     make_geom ~w ~h ()
-                    |> img#display canvas layer
+                    |> img#display canvas
                     |> ignore;
                     match img#render with
                     | Some tex -> tex
@@ -183,12 +183,12 @@ class ['a] t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
               "Shadow with rounded corner not implemented yet.";
             [] (* TODO *)
           ) else (
-            box_shadow ~voffset:geom.voffset canvas layer ~color:black
+            box_shadow ~voffset:geom.voffset canvas ~color:black
               ~radius:(Theme.scale_int s.Style.width)
               ~size:(Theme.scale_int s.Style.size)
               ~offset:(Draw.scale_pos s.Style.offset) dst
           ) in
 
-      List.rev ((make_blit ~voffset:geom.voffset ~dst canvas layer tex)::shadow_blits)
+      List.rev ((make_blit ~voffset:geom.voffset ~dst canvas tex)::shadow_blits)
 
   end

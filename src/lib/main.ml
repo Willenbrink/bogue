@@ -57,7 +57,8 @@ let debug_shortcuts =
    CTRL-L which would occur before it. "after_display" means just after all
    textures have been calculated and rendered. Of course these two will not be
    executed at all if there is no event to trigger display. *)
-let run ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) window =
+let run ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) widget =
+  let window = Layout.resident widget in
   Layout.make_window window;
   Sdl.show_window (Layout.window window);
   window#set_fresh false;

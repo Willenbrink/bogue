@@ -2,7 +2,6 @@ open Bogue
 open Main
 module W = Widget
 module L = Layout
-module T = Trigger
 
 let example () =
   let sl = new Slider.t ~kind:Slider.Vertical in
@@ -26,8 +25,6 @@ let example () =
   (* let layout = L.resident (comb b l) in *)
   (* let layout = L.resident row_b in *)
   let layout =
-    L.resident
-      begin
         new Row.pair ~flip:true
           row_ti
           begin
@@ -35,7 +32,6 @@ let example () =
               (comb (new Button.t ~switch:true "Switch") (l "Init"))
               (comb (new Button.t "Hold") (l "Init"))
           end
-      end
   in
   run layout
 

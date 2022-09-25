@@ -30,14 +30,11 @@ type transform =
     alpha : float; (* alpha multiplier: 0..1 *)
   }
 
-let textures_in_memory = ref 0;;
-let surfaces_in_memory = ref 0;;
-let ttf_surfaces_in_memory = ref 0;;
+let textures_in_memory = ref 0
+let surfaces_in_memory = ref 0
+let ttf_surfaces_in_memory = ref 0
 
-let textures_to_destroy = ref (Queue.create ())
-(* TODO this should be attached to a window. Make sure all textures that
-   belonged to a renderer are removed from this queue when the renderer is
-   detroyed. Otherwise we will be destroying a new texture! *)
+let textures_to_destroy = ref []
 
 (* the generic window icon *)
 let icon  : (Sdl.surface option) ref = ref None;;
@@ -181,27 +178,18 @@ let rect_translate r (x0,y0) =
 (* TODO try to remove all of this, and instead invoque Gc.finalise on every
    texture creation ? Bad idea in fact. *)
 let destroy_textures () =
-  let queue = !textures_to_destroy in
-  let rec loop i =
-    if Queue.is_empty queue
-    then (if i > 0
-          then printd debug_memory "%u texture%s destroyed" i
-              (if i>1 then "s" else ""))
-    else (let () =
-            try
-              Sdl.destroy_texture (Queue.pop queue)
-            with _ ->
-              printd debug_warning
-                "The texture to destroy was invalid. It might be normal, \
-                 because it is possible that the program decided to free \
-                 a texture, and at the same time the Gc decided to free \
-                 the object that contained this texture. If there is \
-                 a Gc.finalise asking to destroy the texture, it will be \
-                 destroyed twice, which raises an SDL error. But it might also \
-                 mean that there is a design flaw in the program..." in
-          decr textures_in_memory;
-          loop (i+1)) in
-  loop 0;;
+  List.iter (fun tex ->
+      (try Sdl.destroy_texture tex
+      with _ ->
+        printd debug_warning
+          "The texture to destroy was invalid. It might be normal, \
+           because it is possible that the program decided to free \
+           a texture, and at the same time the Gc decided to free \
+           the object that contained this texture. If there is \
+           a Gc.finalise asking to destroy the texture, it will be \
+           destroyed twice, which raises an SDL error. But it might also \
+           mean that there is a design flaw in the program...");
+      decr textures_in_memory) !textures_to_destroy
 
 
 (* --- *)
@@ -215,7 +203,7 @@ let destroy_textures () =
 
    If a widget is not used anymore, it is necessary to call forget_texture. *)
 (* This is thread-safe. *)
-let forget_texture tex = Queue.push tex !textures_to_destroy
+let forget_texture tex = textures_to_destroy := tex :: !textures_to_destroy
 
 (* prints some memory info *)
 let memory_info () =
@@ -258,9 +246,8 @@ type blit = {
   src : Sdl.rect option; (* source rect *)
   clip : Sdl.rect option;
   transform : transform;
-  to_layer : layer;
+  to_layer : blit Queue.t;
 }
-and layer = blit Queue.t list
 
 let current_layer : blit Queue.t = Queue.create ()
 
@@ -498,13 +485,11 @@ let apply_offset ?src ?dst voffset tex =
 let make_blit ?src ?dst ?clip ?transform ?(voffset=0) canvas to_layer tex =
   let transform = default transform (make_transform ()) in
   let src, dst = apply_offset ?src ?dst voffset tex in
-  let to_layer = [to_layer] in
   { src; dst; clip; rndr = canvas.renderer; texture = tex; transform; to_layer }
 
 (* saves the blit into its layer *)
 let blit_to_layer blit =
-  let queue = List.hd blit.to_layer in
-  Queue.add blit queue
+  Queue.add blit blit.to_layer
 
 (* render a blit onscreen *)
 (* WARNING: this does NOT free the texture, because often we want to keep it for
@@ -542,11 +527,11 @@ let render_blit blit =
 (* render all blits in one layer. first in, first out *)
 let render_blits blits =
   Queue.iter render_blit blits;
-  Queue.clear blits;;
+  Queue.clear blits
 
 (* render all layers and empty them *)
-let render_all_layers (layer : layer) =
-  List.iter render_blits layer
+let render_all_layers layer =
+  render_blits layer
 
 (* TODO it could be convenient (for a probably very small cost) to render the
    blits onto a target texture instead of directly to the renderer, so that we

@@ -224,7 +224,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
               | Box b -> b
             in
             let blits =
-              box#display canvas (self#layer)
+              box#display canvas self#layer
                 Draw.(scale_geom {x; y; w = g.w; h = g.h; voffset = - g.voffset})
             in
             blits
@@ -374,7 +374,8 @@ let set_size ?(check_window = true) ?(update_bg = false) ?w ?h (l : 'a t) =
       l#set_geometry { l#geometry with h };
     | None, None -> () in
 
-  if update_bg && l#canvas <> None then compute_background l;
+  (* TODO FIXME maybe important? *)
+  (* if update_bg && l#canvas <> None then compute_background l; *)
   (* = ou plutot unload_background ?? *)
   if check_window then adjust_window_size l;
   resize_content l
@@ -458,7 +459,6 @@ let remove_canvas room =
    or tower, which is essentially always the case... *)
 let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?canvas ?layer
     ?keyboard_focus widget =
-  let widget = (widget :> 'a Widget.t) in
   let (w',h') = widget#size in
   let w = default w w' in
   let h = default h h' in
@@ -472,14 +472,12 @@ let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?canvas ?layer
 (* Flip buffers. Here the layout SHOULD be the main layout (house) of the window
 *)
 (* only one canvas/renderer is used, the one specified by the layout *)
-let flip ?(clear=false) ?(present=true) layout =
+let flip ?(present=true) layout =
   printd debug_graphics "flip layout %s" (sprint_id layout);
   (* go (Sdl.set_render_target (renderer layout) None); *)
-  if clear then Draw.clear_canvas (get_canvas layout);
+  Draw.clear_canvas (get_canvas layout);
   printd debug_graphics "Render layers";
-  (* : we assume that the layout layer is in the same component as the
-     current_layer... TODO do better *)
-  Draw.render_all_layers [layout#layer];
+  Draw.render_all_layers layout#layer;
   if present then begin
     printd debug_graphics "Present";
     Draw.(sdl_flip (renderer layout))
@@ -497,13 +495,11 @@ let render (layout : 'a t) =
   if Draw.window_is_shown (window layout) then layout#display
   else printd debug_board "Window (layout #%u) is hidden" layout#id
 
-let flip ?clear w =
+let flip w =
   if not w#is_fresh
   then begin
     render w;
-    let clear = default clear true in
-    printd debug_graphics "clear=%b" clear;
-    flip ~clear ~present:true w;
+    flip ~present:true w;
     w#set_fresh true
   end
   else Queue.clear w#layer

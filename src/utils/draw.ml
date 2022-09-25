@@ -234,8 +234,6 @@ type blit = {
   transform : transform;
 }
 
-let current_layer : blit Queue.t = Queue.create ()
-
 type canvas = {
   renderer : Sdl.renderer;
   window : Sdl.window;
@@ -465,10 +463,6 @@ let make_blit ?src ?dst ?transform ?(voffset=0) canvas tex =
   let src, dst = apply_offset ?src ?dst voffset tex in
   { src; dst; rndr = canvas.renderer; texture = tex; transform }
 
-(* saves the blit into its layer *)
-let blit_to_layer blit =
-  Queue.add blit current_layer
-
 (* render a blit onscreen *)
 (* WARNING: this does NOT free the texture, because often we want to keep it for
    re-use. In case of a one-time texture, use forget_texture before calling
@@ -482,11 +476,6 @@ let render_blit blit =
         blit.texture t.angle t.center t.flip);
   go (Sdl.render_set_clip_rect blit.rndr None);
   go (Sdl.set_texture_alpha_mod blit.texture orig_alpha)
-
-(* render all layers and empty them *)
-let render_all_layers () =
-  Queue.iter render_blit current_layer;
-  Queue.clear current_layer
 
 (* TODO it could be convenient (for a probably very small cost) to render the
    blits onto a target texture instead of directly to the renderer, so that we

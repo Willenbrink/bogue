@@ -91,10 +91,9 @@ class ['a] t ?id ?title (widget : 'a W.t) =
         self#display
 
     method display =
-        widget#display canvas self#geometry
-      |> List.iter Draw.blit_to_layer;
+        let blits = widget#display canvas self#geometry in
       Draw.clear_canvas canvas;
-      Draw.render_all_layers ();
+      List.iter Draw.render_blit blits;
       Draw.(sdl_flip canvas.renderer);
       Draw.destroy_textures ();
   end

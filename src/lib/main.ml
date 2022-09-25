@@ -13,12 +13,7 @@ open Interop.Utils
 let exit_board (layout : 'a Layout.t) =
   printd debug_board "Closing layout...";
   if Sdl.is_text_input_active () then Sdl.stop_text_input ();
-  Layout.delete_textures layout;
-  (* now we destroy the canvas (renderer and window): *)
   Draw.destroy_canvas layout#canvas;
-  Layout.remove_canvas layout;
-  Draw.destroy_textures (); (* en principe inutile: déjà fait *)
-  (* Layout.clear_wtable (); *)
   Draw.check_memory ();
   flush_log ()
 
@@ -46,14 +41,11 @@ let debug_shortcuts =
    CTRL-L which would occur before it. "after_display" means just after all
    textures have been calculated and rendered. Of course these two will not be
    executed at all if there is no event to trigger display. *)
-let run ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) widget =
-  let window = new Layout.t widget in
+let run ?title ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) widget =
+  let window = new Layout.t ?title widget in
   Sdl.show_window (Layout.window window);
-  window#set_fresh false;
   Thread.delay 0.01; (* we need some delay for the initial Mouse position to be detected *)
   Sdl.stop_text_input ();
-  (* List.iter (Widget.set_canvas canvas) board.widgets; *)
-  (* Warning: layouts may have different canvas because of different layers *)
 
   Layout.flip window;
   Draw.destroy_textures ();

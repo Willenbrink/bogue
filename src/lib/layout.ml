@@ -41,14 +41,8 @@ let window t = t#canvas.Draw.window
 class ['a] t ?id ?title ?(adjust = Fit)
     (content' : 'a W.t) =
   object (self)
-    inherit Base.common ?id (0,0) ()
-
     (* should we adjust the size of this room to fit its content ? *)
     method adjust = adjust
-
-    val mutable is_fresh = false
-    method is_fresh = is_fresh
-    method set_fresh b = is_fresh <- b
 
     (* relative geometry wrt the house. All components are dynamic variables,
        that need to be recomputed at each iteration. Note: rooms inside a house
@@ -87,8 +81,6 @@ class ['a] t ?id ?title ?(adjust = Fit)
       Draw.init ?title ~w ~h ()
     method canvas = canvas
     method set_canvas x = canvas <- x
-
-    method unload  = ()
 
     val mutable cc = None
 
@@ -140,7 +132,6 @@ class ['a] t ?id ?title ?(adjust = Fit)
     (* it does not directly interact with the renderer *)
     (* pos0 is the position of the house containing the room *)
     method display =
-      is_fresh <- false;
         (* clip contains the rect that should contain the current room r. But of
            course, clip can be much bigger than r. *)
         let g = self#geometry in
@@ -163,74 +154,12 @@ class ['a] t ?id ?title ?(adjust = Fit)
         List.iter (fun blit -> Draw.blit_to_layer { blit with clip = None }) blits
   end
 
-(* The whole connected component of a layout is a tree, whose vertices (nodes)
-   are rooms and leaves are widgets (=Resident). The number of branches (=Rooms
-   list) from a vertex is arbitrary. The house field gives the parent of a
-   vertex.
-
-   There are several interesting ways of going through a tree:
-   - through every vertex
-   - only through leaves
-   - only leaves at a common level (=same generation number)
-   - nearest neighbour (left, right, up, or down) in the planar embedding
-*)
-
-(* We use words "room", "layout", and "house" for the same type of object.
-
-   - "layout" will in general refer to the main house, ie containing everything
-     that is displayed on the window.
-   - "house" in general refers to a parent of some room, ie an object contaning
-     sub-rooms.
-   - "room" is the generic term for sub objects contained in the general layout.
-*)
-
-
-exception Fatal_error of (Widget.common * string)
-
-(*let rooms_table : (int, room) Hashtbl.t = Hashtbl.create 50;;*)
-(* this is where we store the reverse lookup: room#id ==> room *)
-(* of course the problem is to free this when rooms are not used anymore... to
-   prevent a memory leak. *)
-(* TODO use weak tables (or Ephemerons ???) *)
-(* https://caml.inria.fr/pub/docs/manual-ocaml/libref/Weak.html *)
-
-(* let of_id id = *)
-(*   try Hashtbl.find rooms_table id with *)
-(*   | Not_found -> failwith (Printf.sprintf "Cannot find room with id=%d" id);; *)
-
-(* get the renderer of the layout *)
-let renderer t = t#canvas.Draw.renderer
-
-let delete_textures room =
-  room#unload;
-  room#content#unload
-
-let remove_canvas room =
-  delete_textures room
-
-(* Flip buffers. Here the layout SHOULD be the main layout (house) of the window
-*)
-(* only one canvas/renderer is used, the one specified by the layout *)
-let flip ?(present=true) layout =
-  printd debug_graphics "flip layout %s" (sprint_id layout);
-  (* go (Sdl.set_render_target (renderer layout) None); *)
-  Draw.clear_canvas layout#canvas;
-  printd debug_graphics "Render layers";
-  Draw.render_all_layers layout#layer;
-  if present then begin
-    printd debug_graphics "Present";
-    Draw.(sdl_flip (renderer layout))
-  end
-
 let flip w =
-  if not w#is_fresh
-  then begin
-    begin
-      if Draw.window_is_shown (window w)
-      then w#display
-      else printd debug_board "Window (layout #%u) is hidden" w#id
-    end;
-    flip ~present:true w;
-    w#set_fresh true
-  end
-  else Queue.clear w#layer
+  (if Draw.window_is_shown (window w)
+  then w#display);
+  (* go (Sdl.set_render_target (renderer layout) None); *)
+  Draw.clear_canvas w#canvas;
+  printd debug_graphics "Render layers";
+  Draw.render_all_layers w#layer;
+  printd debug_graphics "Present";
+  Draw.(sdl_flip w#canvas.renderer)

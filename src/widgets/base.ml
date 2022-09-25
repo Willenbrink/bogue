@@ -81,7 +81,13 @@ let await_loop (type a) await triggers_ext handler_ext triggers (handler : _ -> 
       raise Repeat
     | false,false -> assert false
 
-class virtual common ?id ?(name = "UNNAMED") size () =
+class virtual ['a] stateful init =
+  object
+    val mutable state : 'a = init
+    method state = state
+  end
+
+class virtual ['a] w ?id size name cursor =
   let id = match id with None -> fresh_int () | Some id -> id in
   object (self)
     method id : int = id
@@ -96,17 +102,6 @@ class virtual common ?id ?(name = "UNNAMED") size () =
     (* unload all textures but the widget remains usable. (Rendering will recreate
        all textures) *)
     method virtual unload : unit
-  end
-
-class virtual ['a] stateful init =
-  object
-    val mutable state : 'a = init
-    method state = state
-  end
-
-class virtual ['a] w ?id size name cursor =
-  object
-    inherit common ?id ~name size ()
 
     val mutable _cursor : Cursor.t = cursor
     method cursor = _cursor

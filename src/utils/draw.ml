@@ -843,22 +843,16 @@ let load_textures window renderer = (* use hashtbl ? *)
 (* return a new canvas. A canvas has the physical size in pixels of the
    rendering window, ie after scaling. *)
 (* if an Sdl window is provided, we try to use it... *)
-let init ?window ?(name="BOGUE Window") ?x ?y ~w ~h () =
+let init ?(name="BOGUE Window") ?x ?y ~w ~h () =
   video_init ();
   (* https://wiki.libsdl.org/SDL_GLattr#multisample *)
   go (Sdl.gl_set_attribute Sdl.Gl.multisamplebuffers 1);
   go (Sdl.gl_set_attribute Sdl.Gl.multisamplesamples 4);
-  let win = default window
-      (go (Sdl.create_window ?x ?y ~w ~h name Sdl.Window.((*fullscreen_desktop*) windowed + resizable + hidden + opengl + allow_highdpi))) in
+  let win = go (Sdl.create_window ?x ?y ~w ~h name Sdl.Window.((*fullscreen_desktop*) windowed + resizable + hidden + opengl + allow_highdpi)) in
   do_option !icon (Sdl.set_window_icon win);
   let px = Sdl.get_window_pixel_format win in
   printd debug_graphics "Window pixel format = %s" (Sdl.get_pixel_format_name px);
-  let renderer = match window with
-    | None -> go (Sdl.create_renderer ~flags:Sdl.Renderer.targettexture win)
-    | Some win -> match Sdl.get_renderer win with
-      | Ok w -> printd debug_graphics "Using existing renderer"; w
-      | Error _ ->
-        go (Sdl.create_renderer ~flags:Sdl.Renderer.targettexture win) in
+  let renderer = go (Sdl.create_renderer ~flags:Sdl.Renderer.targettexture win) in
   let ri = go (Sdl.get_renderer_info renderer) in
   let ww, wh = Sdl.get_window_size win in
   printd debug_graphics "Window size = (%u,%u)" ww wh;
@@ -872,11 +866,8 @@ let init ?window ?(name="BOGUE Window") ?x ?y ~w ~h () =
     (String.concat ", " (List.map Sdl.get_pixel_format_name ri.Sdl.ri_texture_formats));
   (* go (Sdl.set_render_draw_blend_mode renderer Sdl.Blend.mode_blend); *)
 
-  (* set dummy solid background in case of new window *)
-  if window = None then begin
-    set_color renderer (opaque red);
-    go (Sdl.render_clear renderer)
-  end;
+  set_color renderer (opaque red);
+  go (Sdl.render_clear renderer);
 
   printd debug_graphics "Canvas created";
 

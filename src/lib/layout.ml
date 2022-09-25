@@ -25,18 +25,6 @@ type geometry = Draw.geometry = {
 }
 module W = Widget
 
-(* FIXME copy of style? *)
-type background = (* TODO instead we should keep track of how the box was created... in case we want to recreate (eg. use it for another window... ?) *)
-  (* TODO use Style.background ? Cependant Style est antérieur (et utilisé par)
-     à Box... *)
-  | Solid of Draw.color
-  | Box : unit Box.t -> background
-
-let color_bg color =
-  Solid color
-
-let bg_color = color_bg Draw.(opaque bg_color)
-
 type adjust =
   | Fit
   | Width
@@ -54,10 +42,7 @@ let window t = match t#canvas with
   | Some c -> c.Draw.window
 
 class ['a] t ?id ?name ?(adjust = Fit)
-    ?(layer = Draw.current_layer)
-    ?mask ?background ?shadow
-    ?canvas ?(is_fresh = false)
-    _geometry (content' : 'a W.t) =
+    (content' : 'a W.t) =
   object (self)
     (* FIXME what is the size of a room? We have a resize but no base size *)
     inherit Base.common ?id ?name (0,0) ()
@@ -65,7 +50,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
     (* should we adjust the size of this room to fit its content ? *)
     method adjust = adjust
 
-    val mutable is_fresh = is_fresh
+    val mutable is_fresh = false
     method is_fresh = is_fresh
     method set_fresh b = is_fresh <- b
 
@@ -73,31 +58,15 @@ class ['a] t ?id ?name ?(adjust = Fit)
        that need to be recomputed at each iteration. Note: rooms inside a house
        must be physically inside the geometry of the house. If not, they will
        not be detected by the mouse, for instance. *)
-    val mutable geometry = _geometry
+    val mutable geometry =
+      let w,h = content'#size in
+      Draw.{x=0; y=0; w; h; voffset=0}
     method geometry = geometry
     method set_geometry x = geometry <- x
 
-    val mutable background : background option = background
-    (* Some (Solid Draw.(opaque blue))) DEBUG *)
-    method background = background
-    method set_background x = background <- x
-
-    (* this can be used to force recreating the background, for instance after
-       changing the size of the room *)
-    method unload =
-      do_option background (function
-          | Box b -> b#unload
-          | Solid _ -> ())
-
-    val mutable shadow : Style.shadow option = shadow
-    method shadow = shadow
-    method set_shadow x = shadow <- x
-
-    (* If there is a mask, a position (x,y) will be declared inside the layout
-       if it corresponds to a mask pixel with alpha value <> 0. A mask will act
-       as a clip if it is uniformly white, and the shape is given by nonzero
-       alpha values. (TODO) *)
-    method mask : Sdl.surface option = mask
+    val mutable color : Draw.color option = None
+    method color = color
+    method set_color bg = color <- bg
 
     val mutable content : 'a Widget.t = content'
     method content = content
@@ -109,7 +78,7 @@ class ['a] t ?id ?name ?(adjust = Fit)
        background... *)
     (* in principle a chain of layers is attached to a window. When creating a
        new window, one has to select a new layer chain (use_new_layer) *)
-    val mutable layer = layer
+    val mutable layer = Draw.current_layer
     method layer = layer
     method set_layer x = layer <- x
 
@@ -117,9 +86,11 @@ class ['a] t ?id ?name ?(adjust = Fit)
     (* the canvas is not really an intrinsic property of the layout, it is used
        only when rendering is required. It may change "without notice" when a
        layout is copied into another window *)
-    val mutable canvas : Draw.canvas option = canvas
+    val mutable canvas : Draw.canvas option = None
     method canvas = canvas
     method set_canvas x = canvas <- x
+
+    method unload  = ()
 
     val mutable cc = None
 
@@ -182,25 +153,13 @@ class ['a] t ?id ?name ?(adjust = Fit)
         let y = g.y + g.voffset in
         (*print_endline ("ALPHA=" ^ (string_of_float (Avar.old room#geometry.transform.alpha)));*)
 
-        (* background (cf compute_background)*)
-        let bg = match self#background with
+        let bg = match color with
           | None -> []
-          | Some bg ->
-            let box = match bg with
-              | Solid c ->
-                (* let c = Draw.random_color () in *)  (* DEBUG *)
-                let b = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) ?shadow:self#shadow () in
-                self#set_background (Some (Box b));
-                b
-              | Box b -> b
-            in
-            let blits =
-              box#display canvas self#layer
+          | Some c ->
+            let box = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) () in
+            box#display canvas self#layer
                 Draw.(scale_geom {x; y; w = g.w; h = g.h; voffset = - g.voffset})
-            in
-            blits
         in
-        (* !!! in case of shadow, the blits contains several elements!! *)
 
         let blits = self#content#display canvas self#layer Draw.{g with x; y} in
         let blits = List.rev_append bg blits in
@@ -260,27 +219,21 @@ let get_canvas l =
 (* if !debug is true, we replace the background by solid red *)
 let delete_background room =
   printd debug_memory "Delete background for room %s" (sprint_id room);
-  do_option room#background
-    (fun b ->
-       let () = room#set_background
-           (if !debug then Some (Solid Draw.(opaque red)) else None) in
-       match b with
-       | Solid _ -> ()
-       | Box b -> b#unload;
+  do_option room#color
+    (fun c ->
+       room#set_color
+           (if !debug then Some Draw.(opaque red) else None)
     )
 
 (* force compute background at current size. Canvas must be created *)
 let compute_background room =
-  do_option room#background (
-    fun bg ->
+  do_option room#color (
+    fun color ->
       let g = room#geometry in
       Sdl.log "COMPUTE BG w=%u h=%u" g.w g.h;
-      let box = match bg with
-        | Solid c ->
-          let b = new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid c) () in
-          room#set_background (Some (Box b));
-          b
-        | Box b -> b#unload; b in
+      let box =
+          new Box.t ~size:(g.w,g.h) ~bg:(Style.Solid color) ()
+            in
       ignore (box#display (get_canvas room) room#layer
                 (Draw.scale_geom g)))
 
@@ -290,7 +243,7 @@ let compute_background room =
    already belongs to another room... *)
 let set_background l b =
   l#unload;
-  l#set_background b
+  l#set_color b
 
 (** get size of layout *)
 let get_size l =
@@ -321,111 +274,13 @@ let adjust_window_size l =
     else printd debug_graphics "Window for layout %s already has the required size."
         (sprint_id l)
 
-(* Change the size of the room. By default this will cancel the resize function
-   of this room. If [set_size] or its derivatives [set_width] and [set_height]
-   are used as part of a layout resize function of the same room, this default
-   behaviour should be disabled to prevent the resize function to cancel itself:
-   use [keep_resize:true].  *)
-(* TODO faire un module Resize avec keep_resize=true par défaut. *)
-let set_size ?(check_window = true) ?(update_bg = false) ?w ?h (l : 'a t) =
-  let () = match w,h with
-    | Some w, Some h ->
-      l#set_geometry { l#geometry with w; h };
-    | Some w, None ->
-      l#set_geometry { l#geometry with w };
-    | None, Some h ->
-      l#set_geometry { l#geometry with h };
-    | None, None -> () in
-
-  (* TODO FIXME maybe important? *)
-  (* if update_bg && l#canvas <> None then compute_background l; *)
-  (* = ou plutot unload_background ?? *)
-  if check_window then adjust_window_size l;
-  resize_content l
-
-let set_height ?check_window ?update_bg l h =
-  set_size ?check_window ?update_bg ~h l
-
-let set_width ?check_window ?update_bg l w =
-  set_size ?check_window ?update_bg ~w l
-
-(* The public version of [set_size] *)
-let set_size ?check_window ?update_bg l (w,h) =
-  set_size ?check_window ?update_bg ~w ~h l
-
-(** get current absolute x position (relative to the top-left corner of the
-    window). Not necessarily up-to-date. *)
-let xpos l =
-  l#geometry.x
-
-(** get current absolute y position *)
-let ypos l =
-  l#geometry.y
-
-(** change x of layout, without adjusting parent house. Warning, by default this
-    disables the resize function. *)
-(* this is the x coordinate wrt the containing house *)
-(* this won't work if there is an animation running (see Avar.set) *)
-let setx l x =
-  l#set_geometry { l#geometry with x }
-
-(** change y of layout, without adjusting parent house *)
-(* see above *)
-let sety l y =
-  l#set_geometry { l#geometry with y }
-
-(* see above *)
-(* warning, it the animation is not finished, using Avar.set has almost no
-   effect *)
-let set_voffset (l : 'a t) vo =
-  l#set_geometry  { l#geometry with voffset = vo }
-
-(* use this to shift the voffset by a constant amount without stopping an
-   animation *)
-let shift_voffset (l : 'a t) dv =
-  l#set_geometry  { l#geometry with voffset = l#geometry.voffset + dv }
-
-(* see get_window_pos. It should be set *after* Bogue.make and *before*
-   Bogue.run. Otherwise it has possibly no effect, or perhaps causes some
-   glitches. TODO make a test to ensure this ?? *)
-let set_window_pos layout (x,y)=
-  let g = layout#geometry in
-  layout#set_geometry { g with x; y }
-
-(********************)
-
-
-(* use this to reset all widget textures (room + all children) for reducing
-   memory. The layout can still be used without any impact, the textures will be
-   recreated on the fly. If you want to really remove all created textures, you
-   have to use delete_backgrounds too; but then the backgrounds will *not* be
-   recreated. *)
-let unload_widget_textures room = room#unload
-
-(* same, but for all rooms + widgets *)
-let unloads room =
+let delete_textures room =
   room#unload;
   room#content#unload
-
-let delete_textures room =
-  unloads room;
-  delete_background room
 
 let remove_canvas room =
   delete_textures room;
   room#set_canvas None
-
-(** create a room (=layout) with a unique resident (=widget), no margin possible *)
-(* x and y should be 0 if the room is the main layout *)
-(* warning, the widget is always centered *)
-(* x,y specification will be overwritten if the room is then included in a flat
-   or tower, which is essentially always the case... *)
-let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?canvas ?layer widget =
-  let (w',h') = widget#size in
-  let w = default w w' in
-  let h = default h h' in
-  let geometry = Draw.geometry ~x ~y ~w ~h () in
-  new t ?name ?background ?layer ?canvas geometry widget
 
 (* Flip buffers. Here the layout SHOULD be the main layout (house) of the window
 *)
@@ -441,36 +296,15 @@ let flip ?(present=true) layout =
     Draw.(sdl_flip (renderer layout))
   end
 
-(* prerender the layout to the layers *)
-let render (layout : 'a t) =
-  (* let renderer = renderer layout in *)
-  (* go (Sdl.render_set_clip_rect renderer None); *)
-  (* Draw.(set_color renderer (opaque black)); *)
-  (* go (Sdl.render_clear renderer); *)
-  (* Draw.clear_canvas (get_canvas layout); *)
-  (* We should not clear the canvas here, since all rendering is done at the end
-     of the main loop, with flip *)
-  if Draw.window_is_shown (window layout) then layout#display
-  else printd debug_board "Window (layout #%u) is hidden" layout#id
-
 let flip w =
   if not w#is_fresh
   then begin
-    render w;
+    begin
+      if Draw.window_is_shown (window w)
+      then w#display
+      else printd debug_board "Window (layout #%u) is hidden" w#id
+    end;
     flip ~present:true w;
     w#set_fresh true
   end
   else Queue.clear w#layer
-
-(** initialize SDL if necessary and create a window of the size of the layout *)
-let make_window ?window layout =
-  printd debug_graphics "Make window";
-  let w,h = get_physical_size layout in
-  let wmax, hmax = 4096, 4096 in
-  (* = TODO ? instead clip to ri_max_texture_width,ri_max_texture_height ? *)
-  if wmax < w || hmax < h
-  then printd debug_error "  The layout has size (%u,%u), which exceeds the max size (%u,%u)." w h wmax hmax;
-  let w = min w wmax in
-  let h = min h hmax in
-  let canvas = Draw.init ?window ~name:layout#name ~w ~h () in
-  layout#set_canvas (Some canvas)

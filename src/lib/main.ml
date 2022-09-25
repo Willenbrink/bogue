@@ -10,24 +10,13 @@
 open Interop
 open Interop.Utils
 
-let close_window_layout layout =
+let exit_board (layout : 'a Layout.t) =
   printd debug_board "Closing layout...";
   if Sdl.is_text_input_active () then Sdl.stop_text_input ();
-  (* DEBUG: clipboard sometimes causes problems *)
-  (* if Sdl.has_clipboard_text ()  *)
-  (* then begin let text = go(Sdl.get_clipboard_text ()) in *)
-  (*   printd debug_warning "Clipboard has [%s]" text *)
-  (* end; *)
   Layout.delete_textures layout;
   (* now we destroy the canvas (renderer and window): *)
   Draw.destroy_canvas (Layout.get_canvas layout);
-  Layout.remove_canvas layout
-
-(* call this to close everything. Don't use the layouts after this ! *)
-(* However in principle you can run board again, and then the layouts are
-   usable(?) *)
-let exit_board window =
-  close_window_layout window;
+  Layout.remove_canvas layout;
   Draw.destroy_textures (); (* en principe inutile: déjà fait *)
   (* Layout.clear_wtable (); *)
   Draw.check_memory ();
@@ -58,8 +47,10 @@ let debug_shortcuts =
    textures have been calculated and rendered. Of course these two will not be
    executed at all if there is no event to trigger display. *)
 let run ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) widget =
-  let window = Layout.resident widget in
-  Layout.make_window window;
+  let window = new Layout.t widget in
+  let Draw.{w;h;_} = window#geometry in
+  let canvas = Draw.init ~name:window#name ~w ~h () in
+  window#set_canvas (Some canvas);
   Sdl.show_window (Layout.window window);
   window#set_fresh false;
   Thread.delay 0.01; (* we need some delay for the initial Mouse position to be detected *)
@@ -67,10 +58,6 @@ let run ?(before_display = fun () -> ()) ?(after_display = fun () -> ()) widget 
   (* List.iter (Widget.set_canvas canvas) board.widgets; *)
   (* Warning: layouts may have different canvas because of different layers *)
 
-  (* We have to display the board in order to detect mouse focus
-     (otherwise the 'show' field of layouts are not set). *)
-  if not window#is_fresh then Layout.render window;
-  (* board.mouse_focus <- check_mouse_focus board; *)
   Layout.flip window;
   Draw.destroy_textures ();
 

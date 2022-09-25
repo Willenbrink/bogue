@@ -39,7 +39,6 @@ let layout_up ?(indent = "") r =
     sprintf "%s┃ background: %s\n" indent (option background r#background);
     sprintf "%s┃ content: %s\n" indent (content r#content);
     sprintf "%s┃ canvas: %s\n" indent (option canvas r#canvas);
-    sprintf "%s┃ keyboard_focus: %s\n" indent (option bool r#keyboard_focus);
     sprintf "%s┗━" indent ] in
   String.concat "" list
 
@@ -49,7 +48,6 @@ let layout_down ?(indent = "") r =
     sprintf "%s┃ geometry: %s\n" indent (geometry r#geometry);
     sprintf "%s┃ background: %s\n" indent (option background r#background);
     sprintf "%s┃ canvas: %s\n" indent (option canvas r#canvas);
-    sprintf "%s┃ keyboard_focus: %s\n" indent (option bool r#keyboard_focus);
     sprintf "%s┃ content: %s\n" indent (widget r#content);
     sprintf "%s┗━" indent ] in
   String.concat "" list

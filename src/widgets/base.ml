@@ -98,10 +98,6 @@ class virtual common ?id ?(name = "UNNAMED") size () =
     (* unload all textures but the widget remains usable. (Rendering will recreate
        all textures) *)
     method virtual unload : unit
-
-    method focus_with_keyboard = ()
-    method remove_keyboard_focus = ()
-    method guess_unset_keyboard_focus = true
   end
 
 class virtual ['a] stateful init =

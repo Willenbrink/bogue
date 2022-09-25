@@ -55,9 +55,8 @@ let window t = match t#canvas with
 
 class ['a] t ?id ?name ?(adjust = Fit)
     ?(layer = Draw.current_layer)
-    ?mask ?background ?shadow ?keyboard_focus ?(mouse_focus=false)
-    ?canvas
-    ?(is_fresh = false)
+    ?mask ?background ?shadow
+    ?canvas ?(is_fresh = false)
     _geometry (content' : 'a W.t) =
   object (self)
     (* FIXME what is the size of a room? We have a resize but no base size *)
@@ -121,34 +120,6 @@ class ['a] t ?id ?name ?(adjust = Fit)
     val mutable canvas : Draw.canvas option = canvas
     method canvas = canvas
     method set_canvas x = canvas <- x
-
-    (* set interactively when has mouse focus *)
-    val mutable mouse_focus = mouse_focus
-    method mouse_focus = mouse_focus
-    method set_mouse_focus x = mouse_focus <- x
-
-    (* None = cannot have focus; Some b = has focus or not *)
-    (* TODO: should we move the keyboard_focus to the Widget ? A layout which
-       contains a Rooms list cannot really have keyboard_focus...and in fact it
-       will not be detected by 'next_keyboard' *)
-    val mutable keyboard_focus : bool option = keyboard_focus
-    method keyboard_focus = keyboard_focus
-    method set_keyboard_focus x = keyboard_focus <- x
-
-    (** set keyboard_focus if possible *)
-    (* we don't lock because it will be modified only by the main loop *)
-    method! focus_with_keyboard =
-      do_option self#keyboard_focus (fun b ->
-          if not b then begin
-            printd debug_board "Setting layout keyboard_focus";
-            self#set_keyboard_focus @@ Some true;
-            self#content#focus_with_keyboard
-          end
-        )
-
-    method! remove_keyboard_focus =
-      do_option self#keyboard_focus (fun b -> if b then self#set_keyboard_focus @@ Some false);
-      self#content#remove_keyboard_focus
 
     val mutable cc = None
 
@@ -272,14 +243,6 @@ exception Fatal_error of (Widget.common * string)
 (* let of_id id = *)
 (*   try Hashtbl.find rooms_table id with *)
 (*   | Not_found -> failwith (Printf.sprintf "Cannot find room with id=%d" id);; *)
-
-
-(* pressing the TAB key in the main loop will switch the keyboard focus to
-   another room. Here we save the room that had keyboard focus just before
-   pressing TAB. This global variable should be thread safe because it is
-   modified only by the main loop. Another option could be to store the room_id
-   in an event. (?) *)
-let keyboard_focus_before_tab : Widget.common option ref = ref None
 
 (* get the renderer of the layout *)
 let renderer t = match t#canvas with
@@ -457,17 +420,12 @@ let remove_canvas room =
 (* warning, the widget is always centered *)
 (* x,y specification will be overwritten if the room is then included in a flat
    or tower, which is essentially always the case... *)
-let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?canvas ?layer
-    ?keyboard_focus widget =
+let resident ?name ?(x = 0) ?(y = 0) ?w ?h ?background ?canvas ?layer widget =
   let (w',h') = widget#size in
   let w = default w w' in
   let h = default h h' in
-  let keyboard_focus = match keyboard_focus with
-    | Some true -> Some false
-    | Some false -> None
-    | None -> widget#guess_unset_keyboard_focus |> (fun b -> if b then None else Some false) in
   let geometry = Draw.geometry ~x ~y ~w ~h () in
-  new t ?name ?background ?keyboard_focus ?layer ?canvas geometry widget
+  new t ?name ?background ?layer ?canvas geometry widget
 
 (* Flip buffers. Here the layout SHOULD be the main layout (house) of the window
 *)

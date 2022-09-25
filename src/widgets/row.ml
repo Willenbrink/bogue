@@ -92,8 +92,6 @@ class ['l,'r,'res] pair ?(flip = false) ?(sep = Theme.room_margin)
   object (self)
     inherit ['res] w size name Cursor.Arrow
 
-    val mutable keyboard_focus = None
-
     method private ev_targets_lr (ts_l, ts_r) ((ev : Event.t_rich), (g : Draw.geometry)) =
       match ev with
       | Scroll -> failwith "Scroll not implemented" (* TODO *)

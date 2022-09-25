@@ -41,8 +41,6 @@ let wait_event () =
 module System_cursor = System_cursor
 let create_system_cursor = create_system_cursor
 let set_cursor = set_cursor
-let get_cursor = get_cursor
-let get_mouse_focus = get_mouse_focus
 
 (* Keyboard *)
 type keycode = int

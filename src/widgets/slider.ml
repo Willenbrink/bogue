@@ -9,14 +9,9 @@ type kind =
   | Vertical (* Warning: values increase from bottom to top *)
   | Circular (* Origin is on the positive real axi *)
 
-let make_box_blit ~dst ?(shadow=true) ~focus voffset canvas layer box =
-  (* Let's see if it is nice to add a "shadow" to the tick *)
+let make_box_blit ~dst voffset canvas layer box =
   let box_blit = Draw.make_blit ~voffset ~dst canvas layer box in
-  if shadow && focus then
-    let shadow_blits = Draw.box_shadow ~offset:(0,0) ~size:(Theme.scale_int 6)
-        canvas layer dst in
-    List.rev (box_blit :: shadow_blits)
-  else [box_blit]
+  [box_blit]
 
 (* TODO consider this problem. How can we get single value precision without complicating
    everything significantly? *)
@@ -80,16 +75,6 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
     (* we store here the room position (unscaled) *)
     val mutable room_x = 0
     val mutable room_y = 0
-
-    (* we need to replicate here the keyboard_focus field of the layout, because
-       we use it to render the widget differently if it has keyboard_focu It
-       acts similarly as the .active field of Text_input. It is set by
-       Widget.set_keyboard_focu *)
-    val mutable keyboard_focus = false
-    method keyboard_focus = keyboard_focus
-    method! focus_with_keyboard = keyboard_focus <- true
-    method! remove_keyboard_focus = keyboard_focus <- false
-    method! guess_unset_keyboard_focus = false
 
     val mutable key_speed = 1.
     (* TODO render is only used for circular. Otherwise all textures are created and
@@ -165,7 +150,6 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
     method execute await yield =
       await#f [`Mouse_press] @@ function
       | Mouse_press (pos,Event.LMB), _ ->
-        keyboard_focus <- true;
         let offset = self#click pos in
         begin
           await#f [`Mouse_release; `Mouse_motion; `Key_press] @@ function
@@ -178,7 +162,6 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
             raise Repeat
           | Key_press (k,[]),_ -> self#receive_key k
         end;
-        keyboard_focus <- false;
         yield state;
         self#execute await yield
 
@@ -205,13 +188,7 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
       and gy = Theme.unscale_int g.y in
       if room_x <> gx then room_x <- gx;
       if room_y <> gy then room_y <- gy;
-      let focus = self#keyboard_focus in
-      let shadow = true (* for testing *) in
-      let c = if shadow then opaque Button.color_on
-        else set_alpha 200 Button.color_on in
-      let color = if self#keyboard_focus && not shadow
-        then Draw.(darker c)
-        else c in
+      let color = set_alpha 200 Button.color_on in
       let x0 = scale (self#x_pos) in
       (*   set_color renderer (opaque color); *)
       match kind with
@@ -221,7 +198,7 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
         let box = texture canvas.renderer ~color ~w:tick_size ~h:thickness in
         let dst = Sdl.Rect.create ~x:x0 ~y:g.y ~w:tick_size ~h:thickness in
         forget_texture box; (* or save ? but be careful color may change *)
-        make_box_blit ~dst ~shadow ~focus g.voffset canvas layer box
+        make_box_blit ~dst g.voffset canvas layer box
       | HBar ->
         (* horizontal gradient for the slider *)
         let colors = [opaque Button.color_on; opaque Button.color_off] in
@@ -230,7 +207,7 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
         let dst = Sdl.Rect.create ~x:g.x ~y:g.y ~w:(x0 - g.x + tick_size)
             ~h:thickness in
         forget_texture box; (* or save ? *)
-        make_box_blit ~dst ~shadow ~focus g.voffset canvas layer box
+        make_box_blit ~dst g.voffset canvas layer box
       (* [make_blit ~voffset:g.voffset ~dst canvas layer box] *)
       | Vertical ->
         let y = scale (self#y_pos) in
@@ -244,7 +221,7 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
         (*   gradient_texture canvas.renderer ~h ~w:thickness colors in *)
         let dst = Sdl.Rect.create ~x:g.x ~y ~h ~w:thickness in
         forget_texture box; (* or save ? *)
-        make_box_blit ~dst ~shadow ~focus g.voffset canvas layer box
+        make_box_blit ~dst g.voffset canvas layer box
       | Circular ->
         let radius = (imin g.w g.h)/2 - 2 in
         let tex = match render with

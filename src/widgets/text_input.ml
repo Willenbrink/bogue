@@ -17,8 +17,6 @@ type selection =
      x is therefore the first value temporally, but not necessarily smaller than y*)
   | Area of (int * int)
 
-(* we cannot use Sdl.color type here if we want to memoize, since colors are
-       typically recreated by Sdl.Color.create... *)
 let render_key font key color =
   let color = Draw.create_color color in
   let surf = Draw.ttf_render font key color in
@@ -34,22 +32,12 @@ let render_key font key color =
   surf
 
 let text_dims font text =
-  if text = "" then (print_endline "ERROR: text empty !"; 0,0) (* OK ? or use 1,1 ?? *)
-  else let w,h = (* if !memo *)
-         (* (\* if !memo, this is (maybe ?) faster to get surface_size than calling *)
-         (*    TTF.size_utf8. BUT this will save another surface (with color 0,0,0,0) i *)
-         (*    the table... *\) *)
-         (*   then let surf = render_key font text (0,0,0,0) in *)
-         (*     (\* : no need to free in case of memo *\) *)
-         (*     Sdl.get_surface_size surf *)
-         (*   else *) Label.physical_size_text font text
-    in
+  if text = ""
+  then (print_endline "ERROR: text empty !"; 0,0) (* OK ? or use 1,1 ?? *)
+  else
+    let w,h = Label.physical_size_text font text in
     printd debug_graphics "Size of '%s' = (%d,%d)." text w h;
     w,h
-
-(* we use all-purpose memo to memoize the kerning values. One could do
-       something more optimized, of course. *)
-let text_dims = memo2 text_dims
 
 let text_width font s =
   let w,_ = text_dims font s in w
@@ -184,9 +172,6 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
 *)
 
-
-    val mutable memo = true (* use more memory (memoization) for speeding up display *)
-    val default_size = (128,32)
     val left_margin = 2 (* in logical pixels *)
     val bottom_margin = 5 (* used for underline *)
     (* TODO replace bottom_margin by cursor height (to compute) *)
@@ -194,25 +179,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
      * let cursor_height = 9 *)
     (* let cursor_thickness = 2 *)
 
-    (* memoize. Warning: do NOT free the resulting surfaces !! *)
-    (* NOTE: it seems that this memoing does not really improve speed, but at least
-       it does not degrade speed... *)
-    (* Warning: the arguments should not be mutable, otherwise memo is likely to
-       fail (equality problem). For instance, do not use Sdl.Color type instead of
-       (r,g,b,a) *)
-
-    method get_render_key =
-      if memo then let f,table = memo3 render_key in
-        let cleanup () =
-          printd debug_graphics "Cleaning up %u SDL_TTF surfaces..."
-            (Hashtbl.length table);
-          Hashtbl.iter (fun _ surf ->
-              Draw.free_surface surf;
-              decr Draw.ttf_surfaces_in_memory) table;
-          Hashtbl.clear table in
-        Draw.at_cleanup cleanup;
-        f
-      else render_key
+    method get_render_key = render_key
 
     (** return size of rendered text. It seems that Sdl.TTF.size_utf8 does not always
         give the exact same result as size of blended-rendered surface. Warning:
@@ -349,8 +316,6 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
         | (surf, w) :: rest ->
           let dst_rect = Sdl.Rect.create ~x:w ~y:0 ~w:0 ~h:0 in
           go (Sdl.blit_surface ~src:surf None ~dst:total_surf (Some dst_rect));
-          (* no free in case of memo: *)
-          if not memo then Draw.free_surface surf;
           draw_loop rest in
       draw_loop surfs;
       total_surf

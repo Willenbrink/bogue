@@ -1,18 +1,7 @@
 open Tsdl
 open Sdl
 
-module Tsdl_image = Tsdl_image
-
-type uint8 = int
-type int16 = int
-type uint16 = int
-type uint32 = int32
-type uint64 = int64
-type ('a, 'b) bigarray = ('a, 'b, Bigarray.c_layout) Bigarray.Array1.t
-
-(* Timer *)
-let delay = delay
-let get_ticks = get_ticks
+let get_ticks () = Int32.to_int (get_ticks ())
 
 (* Events *)
 type event = Sdl.event
@@ -191,10 +180,10 @@ module Audio = Audio
 type audio_spec = Sdl.audio_spec = {
   as_freq : int;
   as_format : Audio.format;
-  as_channels : uint8;
-  as_silence : uint8;
-  as_samples : uint8;
-  as_size : uint32;
+  as_channels : int;
+  as_silence : int;
+  as_samples : int;
+  as_size : int32;
   as_callback : audio_callback option;
 }
 type audio_device_id = Sdl.audio_device_id

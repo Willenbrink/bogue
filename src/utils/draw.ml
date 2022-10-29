@@ -121,11 +121,6 @@ let rec create_texture_from_surface renderer surface =
     incr textures_in_memory;
     t
 
-let create_system_cursor = memo Sdl.create_system_cursor
-
-let set_system_cursor sdl_cursor =
-  Sdl.set_cursor (Some (go (create_system_cursor sdl_cursor)))
-
 let sdl_image_load file =
   printd debug_memory "Create surface_load (%s)" file;
   incr surfaces_in_memory;
@@ -428,15 +423,11 @@ let color_to_int32 ?format surf (r,g,b,a) =
   let format' = default format (copy_surface_format surf) in
   let r = Sdl.map_rgba format' r g b a in
   if format = None then Sdl.free_format format';
-  r;;
-
-(* TODO this won't work in 32bits systems. Use Int32 for pixel instead *)
-(* not used *)
-(* let color_of_int surf pixel =
- *   Sdl.get_rgba (Sdl.get_surface_format surf) (Int32.of_int pixel);; *)
+  r
 
 let tex_size tex =
-  let _,_,(w,h) = go (Sdl.query_texture tex) in w,h;;
+  let _,_,(w,h) = go (Sdl.query_texture tex) in
+  w,h
 
 (**** Layers ****)
 
@@ -1377,7 +1368,7 @@ let rounded_box renderer color ?(antialias=true) ~w ~h ~radius ~thick x0 y0 =
     end
   end
 
-let filled_rounded_box renderer color ?(antialias=true) ~w ~h ~radius x0 y0 =
+let filled_rounded_box renderer color ~antialias ~w ~h ~radius x0 y0 =
   let thick = imax w h in
   (* of course this is too much, but rounded_box will correct this
      automatically *)

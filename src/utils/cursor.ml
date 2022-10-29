@@ -13,4 +13,7 @@ let get cursor =
     | Hand -> hand
     | Ibeam -> ibeam
   in
-  go (Draw.create_system_cursor shape)
+  go (Sdl.create_system_cursor shape)
+
+let set_system_cursor sdl_cursor =
+  Sdl.set_cursor (Some (go (Sdl.create_system_cursor sdl_cursor)))

@@ -102,7 +102,7 @@ let printd code =
   printf (fun s ->
       output_string !log_channel
         (xterm_blue ^
-         "[" ^ (string_of_int (Int32.to_int (Sdl.get_ticks ()) mod 60000)) ^ "]" ^
+         "[" ^ (string_of_int (Sdl.get_ticks () mod 60000)) ^ "]" ^
          xterm_light_grey ^ "[" ^
          (string_of_int (Thread.id (Thread.self ()))) ^ "]" ^ xterm_nc ^ " :\t " ^
          xterm_nc ^ xterm_red ^ (debug_to_string code) ^ xterm_nc ^ ": "
@@ -264,40 +264,6 @@ let one_of_two o1 o2 = match o1, o2 with
 let remove_option = function
   | Some x -> x
   | None -> raise None_option
-
-
-(* memo *)
-(* standard memo fns. Don't use when the variable is mutable, it would store the
-   old value for ever when the variable changes. *)
-
-let memo f =
-  let store = Hashtbl.create 100 in
-  fun x -> try Hashtbl.find store x with
-    | Not_found -> let result = f x in
-      Hashtbl.add store x result;
-      printd debug_memory "##Size of Hashtbl : %u" (Hashtbl.length store);
-      result
-
-let memo2 f =
-  let store = Hashtbl.create 100 in
-  fun x y -> try Hashtbl.find store (x,y) with
-    | Not_found -> let result = f x y in
-      Hashtbl.add store (x,y) result;
-      printd debug_memory "##Size of Hashtbl2 : %u" (Hashtbl.length store);
-      result
-
-let memo3 f =
-  let store3 = Hashtbl.create 100 in
-  (fun x y z -> try Hashtbl.find store3 (x,y,z) with
-     | Not_found -> let result = f x y z in
-       Hashtbl.add store3 (x,y,z) result;
-       printd debug_memory "###Size of Hashtbl3 : %u" (Hashtbl.length store3);
-       result),
-  store3
-
-(* inutile ? *)
-let list_sum list =
-  List.fold_left (+) 0 list
 
 let which command =
   (* BETTER: (specially for portability to WIN/MAC) use

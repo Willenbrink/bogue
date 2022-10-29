@@ -5,7 +5,6 @@ open Utils
 type style = Ttf.Style.t
 
 let physical_size_text font text =
-  (* Attention, SDL_ttf n'est peut-être pas encore initialisé... *)
   go (Ttf.size_utf8 font text)
 
 class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)

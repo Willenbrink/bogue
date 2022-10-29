@@ -70,7 +70,7 @@ let free_surface surface =
   Sdl.free_surface surface;
   let w,h = Sdl.get_surface_size surface in
   printd debug_memory "Freeing surface (%i,%i)" w h;
-  decr surfaces_in_memory;;
+  decr surfaces_in_memory
 
 (* Sdl.get_surface_format. See issue in tsdl.ml *)
 (* the resulting format should be freed after use *)
@@ -184,7 +184,6 @@ let destroy_textures () =
    forget_texture on the old texture, so that it will be freed by Sdl.
 
    If a widget is not used anymore, it is necessary to call forget_texture. *)
-(* This is thread-safe. *)
 let forget_texture tex = textures_to_destroy := tex :: !textures_to_destroy
 
 (* prints some memory info *)
@@ -274,7 +273,7 @@ let destroy_canvas c =
      that was destroyed this way, it will in fact most probably refer to a new
      texture with same id that was created after this... *)
   Sdl.destroy_window c.window;
-  do_option c.gl_context Sdl.gl_delete_context;;
+  do_option c.gl_context Sdl.gl_delete_context
 
 type geometry = {
   x : int;

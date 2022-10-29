@@ -123,10 +123,8 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
         | Key_press (keycode, []), _ when keycode = Sdl.K.tab || keycode = Sdl.K.return ->
           ()
         | Codepoint c, _ ->
-          self#insert c;
+          self#insert [c];
           raise Repeat
-        (* TODO this line does not work when we use one k to represent the type.
-           Seems like a compiler limitation? *)
         | Key_press (k,mods), _ ->
           self#handle_key (k,mods);
           raise Repeat
@@ -181,26 +179,12 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
     method get_render_key = render_key
 
-    (** return size of rendered text. It seems that Sdl.TTF.size_utf8 does not always
-        give the exact same result as size of blended-rendered surface. Warning:
-        thus, should use this only on single letters ! *)
-    (* from http://www.libsdl.org/projects/SDL_ttf/docs/SDL_ttf_frame.html : *)
-    (* Kerning is the process of spacing adjacent characters apart depending on the
-       actual two adjacent characters. This allows some characters to be closer to
-       each other than others. When kerning is not used, such as when using the
-       glyph metrics advance value, the characters will be spaced out at a constant
-       size that accomodates all pairs of adjacent characters. This would be the
-       maximum space between characters needed. There's currently no method to
-       retrieve the kerning for a pair of characters from SDL_ttf, However correct
-       kerning will be applied when a string of text is rendered instead of
-       individual glyphs. *)
-    (* initial size of the widget *)
-    (* not scaled, in order to conform to all widgets size functions *)
     method! size = (* TODO *)
       let w,h =
         match render with
         | Some tex -> Draw.tex_size tex
-        | None -> text_dims (self#font) (prompt) in
+        | None -> text_dims self#font prompt (* Estimate due to kerning *)
+      in
       let w,h = Draw.unscale_size (w,h) in
       (w + 2*left_margin (* this should probably be left_margin + cursor_width/2 *),
        h + 2*bottom_margin)
@@ -235,18 +219,6 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
             loop rest (cx + advance) (n+1) in
       loop (keys) 0 0
 
-
-    (* Recall that none of the functions that are called by threads should call
-       video functions directly. *)
-
-    (** treat the click event to position the cursor, once the widget is active *)
-    (* method click_cursor ev = *)
-    (*   printd debug_event "Click cursor"; *)
-    (*   let x0u, _ = Mouse.pointer_pos ev in *)
-    (*   let x0 = Theme.scale_int x0u in (\* on pourrait éviter de faire unscale-scale *\) *)
-    (*   cursor_pos <- self#x_to_cursor x0; *)
-    (*   self#clear *)
-
     method kill_selection =
       match selection with
       | Area (n1,n2) ->
@@ -258,19 +230,15 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
       | Point _ -> ()
 
     method select_all =
-      let l = List.length (keys) in
+      let l = List.length keys in
       selection <- Area (0,l)
 
-    (* insert a list of letters *)
-    method insert_list list =
+    method insert list =
       self#kill_selection;
       let x = self#cursor_pos in
-      let head, tail = split_list (keys) x in
+      let head, tail = split_list keys x in
       selection <- Point (x + (List.length list));
       keys <- List.flatten [head; list; tail];
-
-      (** insert a letter *)
-    method insert c = self#insert_list [c]
 
     (* find a word containg the cursor position *)
     (* method find_word = *)
@@ -322,7 +290,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
     (* REMARK: instead of blitting surfaces, one could also use textures and SDL
        RenderTarget ? *)
-    method display canvas g = (* TODO mettre un lock global ? *)
+    method display canvas g =
       Option.iter Draw.forget_texture render;
       render <- None;
       let cursor = match cursor with
@@ -333,7 +301,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
           let s = self#draw_keys cursor_font [cursor_char] ~fg:Draw.(opaque cursor_color) in
           (* TODO use render_key, it should be faster *)
           let tex = Draw.create_texture_from_surface canvas.Draw.renderer s in
-          cursor <- (Some tex);
+          cursor <- Some tex;
           Draw.free_surface s;
           tex
       in
@@ -489,15 +457,8 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
       if Sdl.has_clipboard_text () then
         let text = go (Sdl.get_clipboard_text ()) in
         let list = Utf8.split text in
-        self#insert_list list
+        self#insert list
 
-
-    (* treat the text events *)
-    (* DOC: *)
-    (* SDL_Scancode values are used to represent the physical location of a keyboard
-       key on the keyboard. *)
-    (* SDL_Keycode values are mapped to the current layout of the keyboard and
-       correlate to an SDL_Scancode *)
     method handle_key k =
       match k with
       | c, Event.[Ctrl] -> begin match c with
@@ -508,7 +469,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
           | _ -> ()
         end
       | _, [] | _, [Event.Shift] -> begin
-          let shift = snd k = [Event.Shift] in
+          let shift = (snd k = [Event.Shift]) in
           match k with
           | c,[] when c = Sdl.K.backspace -> self#delete ~right:false
           | c,[] when c = Sdl.K.delete -> self#delete ~right:true

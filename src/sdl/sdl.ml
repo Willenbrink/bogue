@@ -50,10 +50,6 @@ let set_clipboard_text = set_clipboard_text
 let get_clipboard_text = get_clipboard_text
 let has_clipboard_text = has_clipboard_text
 
-(* Log *)
-(* module Log = Log  *)
-let log = log
-
 (* Errors *)
 let get_error = get_error
 

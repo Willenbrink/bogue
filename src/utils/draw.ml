@@ -54,18 +54,6 @@ let create_surface_like surf ~w ~h =
   let depth,r,g,b,a = go (Sdl.pixel_format_enum_to_masks format) in
   create_rgb_surface ~w ~h ~depth (r,g,b,a);;
 
-(* see also create_surface below *)
-
-let create_surface_from ~like:surf bigarray =
-  let format = Sdl.get_surface_format_enum surf in
-  let pitch = Sdl.get_surface_pitch surf in
-  (* This is the usual SDL pitch in number of bytes per row *)
-  let depth,r,g,b,a = go (Sdl.pixel_format_enum_to_masks format) in
-  let w,h = Sdl.get_surface_size surf in
-  printd debug_memory "CReate surface_from (%i,%i)" w h;
-  incr surfaces_in_memory;
-  go(Sdl.create_rgb_surface_from bigarray ~w ~h ~depth ~pitch r g b a);;
-
 let free_surface surface =
   Sdl.free_surface surface;
   let w,h = Sdl.get_surface_size surface in
@@ -190,12 +178,10 @@ let forget_texture tex = textures_to_destroy := tex :: !textures_to_destroy
 let memory_info () =
   let open Printf in
   printf
-    "Memory info:\n Textures: %d\n Surfaces: %d \nThreads: %d\nSystem RAM: \
-     %u\t Allocated kbytes: %02f\n"
+    "Memory info:\n Textures: %d\n Surfaces: %d \nThreads: %d\t Allocated kbytes: %02f\n"
     !textures_in_memory
     !surfaces_in_memory
     !threads_created
-    (Sdl.get_system_ram ())
     (Gc.allocated_bytes () /. 1024.);
   Gc.print_stat stdout;
   flush_all ();;
@@ -231,6 +217,7 @@ type blit = {
 type canvas = {
   renderer : Sdl.renderer;
   window : Sdl.window;
+  window_glfw : GLFW.window;
   color : color;
   textures : textures;
   mutable gl_context : Sdl.gl_context option
@@ -263,6 +250,7 @@ let at_cleanup f =
   cleanup := f :: !cleanup;;
 
 let destroy_canvas c =
+  GLFW.destroyWindow c.window_glfw;
   Sdl.hide_window c.window;
   let t = c.textures in
   List.iter forget_texture [t.check_on; t.check_off; t.radio_on; t.radio_off ];
@@ -511,12 +499,13 @@ let create_target ?(format = Sdl.Pixel.format_argb8888) renderer w h =
 
 (** Sdl quit *)
 let quit () =
+  GLFW.terminate ();
   printd debug_board "Quitting...";
   List.iter (fun f -> f ()) !cleanup;
   do_option !icon free_surface;
   icon := None;
   printd debug_event "Quitting SDL Events";
-  Sdl.quit_sub_system Sdl.Init.events;
+  Sdl.quit_sub_system ();
   printd debug_graphics "Exit SDL...";
   Sdl.quit ();
   printd debug_graphics
@@ -529,9 +518,6 @@ let video_init () =
   then printd debug_graphics "SDL Video already initialized"
   else (go (Sdl.init_sub_system Sdl.Init.video);
         printd debug_graphics "SDL Video initialized";
-        at_cleanup (fun () ->
-            printd debug_graphics "Quitting SDL Video";
-            Sdl.quit_sub_system Sdl.Init.video);
         if !icon = None
         then icon := Some (sdl_image_load (Theme.current ^ "/bogue-icon.png"))
        );;
@@ -678,7 +664,6 @@ let box_to_layer canvas ?(bg = opaque grey) ?voffset x y w h =
   make_blit ?voffset ~dst canvas tex
 
 (** save and reset some useful settings before setting a render target *)
-(* TODO : not thread safe !*)
 let push_target ?(clear=true) ?(bg=none) renderer target =
   (* we save the clip rectangle of the current target *)
   let clip = if Sdl.render_is_clip_enabled renderer
@@ -778,6 +763,9 @@ let load_textures window renderer = (* use hashtbl ? *)
    rendering window, ie after scaling. *)
 (* if an Sdl window is provided, we try to use it... *)
 let init ?(title="BOGUE Window") ?x ?y ~w ~h () =
+  GLFW.init ();
+  let win_glfw = GLFW.createWindow ~width:w ~height:h ~title:"GLFW Window" () in
+
   video_init ();
   (* https://wiki.libsdl.org/SDL_GLattr#multisample *)
   go (Sdl.gl_set_attribute Sdl.Gl.multisamplebuffers 1);
@@ -809,6 +797,7 @@ let init ?(title="BOGUE Window") ?x ?y ~w ~h () =
   let textures = load_textures win renderer in
   { renderer;
     window = win;
+    window_glfw = win_glfw;
     textures;
     color;
     gl_context = None;
@@ -1399,24 +1388,20 @@ let gradientv3 renderer ?angle colors =
   let n = List.length colors in
   if n <> 0 then begin
     let small =
-      if (Sdl.(set_hint Hint.render_scale_quality "1"))
-      then begin
-        (* create an n pixels texture *)
-        let small = create_target renderer 1 n in
-        let push = push_target ~clear:false renderer small in
+      Sdl.set_hint ();
+      (* create an n pixels texture *)
+      let small = create_target renderer 1 n in
+      let push = push_target ~clear:false renderer small in
 
-        (* draw the n points *)
-        go (Sdl.set_render_target renderer (Some small));
-        go (Sdl.set_render_draw_blend_mode renderer Sdl.Blend.mode_none);
-        List.iteri (fun i c ->
-            set_color renderer c;
-            go (Sdl.render_draw_point renderer 0 i)) colors;
-        pop_target renderer push;
-        go (Sdl.set_texture_blend_mode small Sdl.Blend.mode_none);
-        small
-      end
-      else (* Cannot set SDL_HINT_RENDER_SCALE_QUALITY *)
-        failwith "todo"
+      (* draw the n points *)
+      go (Sdl.set_render_target renderer (Some small));
+      go (Sdl.set_render_draw_blend_mode renderer Sdl.Blend.mode_none);
+      List.iteri (fun i c ->
+          set_color renderer c;
+          go (Sdl.render_draw_point renderer 0 i)) colors;
+      pop_target renderer push;
+      go (Sdl.set_texture_blend_mode small Sdl.Blend.mode_none);
+      small
     in
 
     begin
@@ -1459,8 +1444,7 @@ let gradientv3 renderer ?angle colors =
 let corner_gradient2 renderer c1 c2 =
   let w,h = go(Sdl.get_renderer_output_size renderer) in
   let small =
-    if (Sdl.(set_hint Hint.render_scale_quality "1"))
-    then begin
+    Sdl.set_hint ();
       (* create an 2x2 texture *)
       let small = create_target renderer 2 2 in
       let push = push_target ~clear:false renderer small in
@@ -1476,9 +1460,6 @@ let corner_gradient2 renderer c1 c2 =
       pop_target renderer push;
       go (Sdl.set_texture_blend_mode small Sdl.Blend.mode_none);
       small
-    end
-    else (* Cannot set SDL_HINT_RENDER_SCALE_QUALITY *)
-      failwith "todo"
   in
   (* we double the size of the destination blit to remove the 1/2 pixel boundary
      effects: *)

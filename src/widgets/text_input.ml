@@ -444,7 +444,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
         let n1,n2 = min n1 n2, max n1 n2 in
         let _, tail = split_list (keys) n1 in
         let head, _ = split_list tail (n2-n1) in
-        go (Sdl.set_clipboard_text (String.concat "" head))
+        GLFW.setClipboardString ~window:() ~string:(String.concat "" head)
       | _ -> ()
 
     (* copy and kill *)
@@ -454,10 +454,9 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
     (* paste from clipboard *)
     method paste =
-      if Sdl.has_clipboard_text () then
-        let text = go (Sdl.get_clipboard_text ()) in
-        let list = Utf8.split text in
-        self#insert list
+      let text = GLFW.getClipboardString ~window:() in
+      let list = Utf8.split text in
+      self#insert list
 
     method handle_key k =
       match k with

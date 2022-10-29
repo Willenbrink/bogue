@@ -1,7 +1,19 @@
 open Tsdl
 open Sdl
 
-let get_ticks () = Int32.to_int (get_ticks ())
+(* Initialization and Shutdown *)
+module Init = Init
+let quit = quit
+let init_sub_system = init_sub_system
+let quit_sub_system () = quit_sub_system Init.events
+let was_init = was_init
+
+let set_hint () =
+  if set_hint Hint.render_scale_quality "1"
+  then ()
+  else failwith "set_hint failed"
+
+
 
 (* Events *)
 type event = Sdl.event
@@ -45,10 +57,7 @@ let stop_text_input = stop_text_input
 let set_text_input_rect = set_text_input_rect
 let pressed = pressed
 
-(* Clipboard *)
-let set_clipboard_text = set_clipboard_text
-let get_clipboard_text = get_clipboard_text
-let has_clipboard_text = has_clipboard_text
+
 
 (* Errors *)
 let get_error = get_error
@@ -126,7 +135,6 @@ let query_texture = query_texture
 let get_texture_alpha_mod = get_texture_alpha_mod
 let set_texture_alpha_mod = set_texture_alpha_mod
 let set_texture_blend_mode = set_texture_blend_mode
-let set_texture_color_mod = set_texture_color_mod
 let update_texture = update_texture
 
 (* Pixels Formats *)
@@ -138,29 +146,18 @@ let map_rgba = map_rgba
 let free_format = free_format
 let get_pixel_format_name = get_pixel_format_name
 
-(* Platform and cpu information *)
-let get_system_ram = get_system_ram
-
 (* Surface *)
 type surface = Sdl.surface
 let create_rgb_surface = create_rgb_surface
-let create_rgb_surface_from = create_rgb_surface_from
 let free_surface = free_surface
 let blit_scaled = blit_scaled
 let get_surface_format_enum = get_surface_format_enum
 let get_surface_pitch = get_surface_pitch
 let get_surface_size = get_surface_size
 let fill_rect = fill_rect
-let lock_surface = lock_surface
-let unlock_surface = unlock_surface
-let get_surface_pixels = get_surface_pixels
-let get_surface_blend_mode = get_surface_blend_mode
 let set_surface_blend_mode = set_surface_blend_mode
-let get_surface_color_mod = get_surface_color_mod
-let set_surface_color_mod = set_surface_color_mod
 let blit_surface = blit_surface
 let get_clip_rect = get_clip_rect
-let convert_surface_format = convert_surface_format
 let set_surface_rle = set_surface_rle
 
 (* Color *)
@@ -171,46 +168,7 @@ module Color = Color
 type point = Sdl.point
 module Point = Point
 
-(* Audio Devices *)
-module Audio = Audio
-type audio_spec = Sdl.audio_spec = {
-  as_freq : int;
-  as_format : Audio.format;
-  as_channels : int;
-  as_silence : int;
-  as_samples : int;
-  as_size : int32;
-  as_callback : audio_callback option;
-}
-type audio_device_id = Sdl.audio_device_id
-type audio_callback = Sdl.audio_callback
-let audio_callback = audio_callback
-let open_audio_device = open_audio_device
-let close_audio_device = close_audio_device
-let unlock_audio_device = unlock_audio_device
-let lock_audio_device = lock_audio_device
-let pause_audio_device = pause_audio_device
-let get_current_audio_driver = get_current_audio_driver
-let get_num_audio_drivers = get_num_audio_drivers
-
-(* IO Abstraction *)
-let rw_from_file = rw_from_file
-let rw_close = rw_close
-let load_wav_rw = load_wav_rw
-
 (* Rectangles *)
 type rect = Sdl.rect
 module Rect = Rect
 let intersect_rect = intersect_rect
-let has_intersection = has_intersection
-
-(* Initialization and Shutdown *)
-module Init = Init
-let quit = quit
-let init_sub_system = init_sub_system
-let quit_sub_system = quit_sub_system
-let was_init = was_init
-
-(* Hints *)
-module Hint = Hint
-let set_hint = set_hint

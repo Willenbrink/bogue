@@ -102,7 +102,7 @@ let printd code =
   printf (fun s ->
       output_string !log_channel
         (xterm_blue ^
-         "[" ^ (string_of_int (Sdl.get_ticks () mod 60000)) ^ "]" ^
+         "[" ^ string_of_float (GLFW.getTime ()) ^ "]" ^
          xterm_light_grey ^ "[" ^
          (string_of_int (Thread.id (Thread.self ()))) ^ "]" ^ xterm_nc ^ " :\t " ^
          xterm_nc ^ xterm_red ^ (debug_to_string code) ^ xterm_nc ^ ": "

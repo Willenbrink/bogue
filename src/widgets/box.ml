@@ -99,10 +99,6 @@ class ['a] t ?(size = default_size) ?(bg = default_bg) ?border ?shadow () =
           let tex = match border with
             | Some ({ Style.radius = Some radius; _ } as b) ->
               let thick = imax 0 ((Theme.scale_int b.Style.down.Style.width) -1) in
-              (* avec ou sans le "-1" sont acceptables. "avec" crée un petit liseré
-                 entre les deux couleurs transparentes. "sans" laisse un peu trop de
-                 "transparent" aux coins. Si on évite les bordures transparentes (ce
-                 qui est à conseiller), "avec" est mieux. *)
               (* we have a choice here. If both the border and the background have
                  alpha components, do we draw the border on top of the background
                  (blending the 2 alphas) (thick=0 or 1), or do we draw them

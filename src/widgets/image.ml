@@ -34,14 +34,14 @@ class ['a] t ?w ?h ?(noscale = false)
     inherit ['a] w size "Image" Cursor.Arrow
 
     val background = bg (* idem *)
-    val mutable render : Draw.texture option = None
+    val mutable render : (Raylib.Texture.t) option = None
     method render = render
 
     method unload =
       match render with
       | None -> ()
       | Some tex -> begin
-          Draw.forget_texture tex;
+          Raylib.unload_texture (tex);
           render <- None
         end
 
@@ -49,7 +49,7 @@ class ['a] t ?w ?h ?(noscale = false)
       await#forever
 
     (* FIXME somehow, this is flipped*)
-    method display canvas g =
+    method display geom =
       let tex = match render with
         | Some t -> t
         | None ->
@@ -72,9 +72,9 @@ class ['a] t ?w ?h ?(noscale = false)
           (* let tex = create_texture_from_surface canvas.renderer box in *)
           (* Var.set img.render (Some tex); *)
           (* tex *)
-          let tex = Draw.load_image canvas.renderer file in
-          render <- Some tex;
-          tex
+          let tex_ray = Raylib.load_texture file in
+          render <- Some ( tex_ray);
+          tex_ray
           (* TODO render on background *)
 
       (* it is better to render first the image at full resolution and then
@@ -83,8 +83,7 @@ class ['a] t ?w ?h ?(noscale = false)
          required size would be zero. So we have to be careful not to render at
          this size... *)
       in
-      let dst = Draw.geom_to_rect g in
-      [Draw.make_blit ~dst ~voffset:g.voffset canvas tex]
+      [geom, tex]
   end
 
 (* NOTE once we have a more recent version (>= 2.0.2) of SDL_image, we should be

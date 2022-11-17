@@ -154,79 +154,25 @@ class ['a] t ?(size = default_size) ?(font_size = Theme.text_font_size) ?(font =
     (** change the content of the text on the fly *)
     method set_text x =
       let x = paragraphs_of_string x in
-      do_option render Draw.forget_texture;
-      render <- None;
-      _paragraphs <- x
-
-    method unload =
+      _paragraphs <- x;
       match render with
       | None -> ()
-      | Some tex -> begin
-          Draw.forget_texture tex;
-          render <- None
-        end
+      | Some (tex_ray) ->
+        Raylib.unload_texture tex_ray;
+        render <- None
 
     method execute await _ =
       await#forever
 
     method get_font = Draw.get_font font (Theme.scale_int font_size)
 
-    method display canvas g =
+    method display geom =
       let open Draw in
-      let tex = match render with
-        | Some t -> t
-        | None ->
-          begin
-            let font = self#get_font in
-            let fg = opaque text_color in
-            let lineskip = Ttf.font_line_skip font in
-            let space = fst (Label.physical_size_text font " ") in (* idem *)
-            let target_surf = create_surface ~renderer:canvas.renderer g.w g.h in
-
-            let rec loop list dx dy =
-              if dy > g.h then ()
-              else match list with
-                | [] -> ();
-                | []::rest -> loop rest 0 (dy + lineskip)
-                | (entity::rest_line)::rest ->
-                  match entity with
-                  | Word w ->
-                    let surf = render_word ~fg font w in
-                    let rect = Sdl.get_clip_rect surf in
-                    let tw,th = Sdl.Rect.(w rect, h rect) in
-                    if dx <> 0 && dx+tw >= g.w then begin
-                      free_surface surf;
-                      (* this word will hence be rendered twice. This could be
-                         optimized of course. *)
-                      loop list 0 (dy + lineskip);
-                    end
-                    (* =we go to new line *)
-                    else (go (Sdl.blit_surface ~src:surf (Some rect) ~dst:target_surf
-                                (Some (Sdl.Rect.create ~x:dx ~y:dy ~w:tw ~h:th)));
-                          free_surface surf;
-                          loop (rest_line::rest) (dx + tw) dy)
-                  | Space ->
-                    let space = if Ttf.Style.(test (Ttf.get_font_style font) italic)
-                      then (round (float space *. 0.6)) else space in
-                    loop (rest_line::rest) (dx + space) dy
-                  (* TODO Space should be rendered in case of underline or
-                     strikethrough. But not when we break at the end of the line, of
-                     course *)
-                  | Style s ->
-                    let current_style = Ttf.get_font_style font in
-                    let new_style = if s =  Ttf.Style.normal
-                      then s else Ttf.Style.(s + current_style) in
-                    ttf_set_font_style font new_style;
-                    loop (rest_line::rest) dx dy
-            in
-            loop (paragraphs) 0 0;
-            let tex = create_texture_from_surface canvas.renderer target_surf in
-            free_surface target_surf;
-            render <- Some tex; tex
-          end
-      in
-      let dst = geom_to_rect g in
-      [make_blit ~voffset:g.voffset ~dst canvas tex]
+      let img = Raylib.gen_image_color geom.w geom.h Raylib.Color.blank in
+      Raylib.image_draw_text (Raylib.addr img) (unsplit paragraphs) 0 0 14 Raylib.Color.black;
+      let tex = Raylib.load_texture_from_image img in
+      Raylib.unload_image img;
+      [geom, tex]
 
   end
 

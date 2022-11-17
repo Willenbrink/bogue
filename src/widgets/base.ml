@@ -96,12 +96,7 @@ class virtual ['a] w ?id size name cursor =
     val mutable size : int * int = size
     method size = size
     method resize x =
-      self#unload;
       size <- x
-
-    (* unload all textures but the widget remains usable. (Rendering will recreate
-       all textures) *)
-    method virtual unload : unit
 
     val mutable _cursor : Cursor.t = cursor
     method cursor = _cursor
@@ -109,7 +104,7 @@ class virtual ['a] w ?id size name cursor =
 
     method virtual execute : <f:'b. 'b await; forever: bottom> -> ('a -> unit) -> bottom
 
-    method virtual display : Draw.canvas -> Draw.geometry -> Draw.blit list
+    method virtual display : Draw.geometry -> (Draw.geometry * Raylib.Texture.t) list
   end
 
 let gen w = (w :> 'a w)

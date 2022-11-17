@@ -18,15 +18,13 @@ class virtual ['a] t ?(name = "Collection") size children =
     inherit ['a] w size name Cursor.Arrow
     val children = children
 
-    method unload = List.iter (fun (_,c) -> c#unload) children
-
-    method display canvas geom =
-      let f ((x,y),c) =
-        c#display canvas Draw.{geom with x = geom.x + x;
-                                               y = geom.y + y;
-                                               w = min geom.w (fst c#size);
-                                               h = min geom.h (snd c#size);
-                                    }
+    method display geom =
+      let rec f ((x,y),c) =
+          c#display Draw.{geom with x = geom.x + x;
+                                                        y = geom.y + y;
+                                                        w = min geom.w (fst c#size);
+                                                        h = min geom.h (snd c#size);
+                                             }
       in
       let blits = List.concat_map f children in
       blits

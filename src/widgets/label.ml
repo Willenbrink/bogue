@@ -23,14 +23,7 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
     val mutable text = text
     method text = text
     method set_text x =
-      if text <> x then self#unload;
       text <- x
-
-    val mutable render : Draw.texture option = None
-    method unload =
-      let tex = render in
-      render <- None;
-      do_option tex Draw.forget_texture
 
     method execute await _ =
       await#forever
@@ -38,32 +31,13 @@ class ['a] t ?(font_size = Theme.label_font_size) ?(font = Theme.label_font)
     val mutable fg = fg
     method set_fg_color x = fg <- x
 
-    method display canvas geom =
-      let font = Draw.get_font font (Theme.scale_int font_size) in
+    method display geom =
+      let img = Raylib.gen_image_color geom.w geom.h Raylib.Color.blank in
+      Raylib.image_draw_text (Raylib.addr img) text 0 0 14 Raylib.Color.black;
 
-      let surf =
-        let text = if text = "" then " " else text in
-        printd debug_graphics "render_text:%s" text;
-        let color = Draw.create_color fg in
-        Draw.ttf_set_font_style font style;
-        Draw.ttf_render font text color
-      in
-
-      let render_text renderer =
-        printd debug_graphics "convert to texture";
-        let tex = Draw.create_texture_from_surface renderer surf in
-        Draw.free_surface surf;
-        tex
-      in
-
-      let tex = match render with
-        | Some t -> t
-        | None ->
-          Printf.printf "Creating renderer\n";
-          let tex = render_text canvas.Draw.renderer in
-          render <- Some tex; tex
-      in
-      [Draw.center_tex_to_layer canvas tex geom]
+      let tex = Raylib.load_texture_from_image img in
+      Raylib.unload_image img;
+      [geom, tex]
 
   end
 

@@ -7,8 +7,6 @@ class ['a] t ?id execute child =
   object (self)
     inherit ['a] w ?id child#size ("Single " ^ child#name) Cursor.Arrow
 
-    method unload = child#unload
-
     method execute = execute self child
 
     method display = child#display

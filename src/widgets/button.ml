@@ -26,15 +26,6 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
               label_off was provided";
       default label_on (new Label.t ?fg text),
       default label_off (new Label.t ?fg text) in
-  let border_on, border_off = match border_c, border_r with
-    | None, None -> None, None
-    | None, Some radius ->
-      Some Style.(border ~radius (line ~color:(Style.get_color bg_on) () )),
-      Some Style.(border ~radius (line ~color:(Style.get_color bg_off) () ))
-    | _ ->
-      let s = Style.(border ?radius:border_r (line ?color:border_c ())) in
-      Some s, Some s
-  in
 
   let button_margin = 6 in (* logical size - TODO theme this var ? *)
   let bm = Theme.scale_int button_margin in
@@ -46,18 +37,10 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
     val label_on = label_on
     val label_off = label_off
     val mutable mouse_over = false
-    val box_on = new Box.t ~bg:bg_on ?border:border_on ()
-    val box_off = new Box.t ~bg:bg_off ?border:border_off ()
-    val box_over = map_option bg_over (fun bg -> new Box.t ~bg ())
+    val box_on = new Box.t ()
+    val box_off = new Box.t ()
 
     method release = if not switch then state <- false
-
-    method unload =
-      label_on#unload;
-      label_off#unload;
-      box_on#unload;
-      box_off#unload;
-      do_option box_over (fun o -> o#unload)
 
     (* TODO button and switch should be two different classes.
        A button has essentially no state and yielding only true
@@ -106,38 +89,27 @@ class t ?(switch = false) ?(size = (0,0) (* TODO give sensible default *)) ?bord
       let w = imax w w' and h = imax h h' in
       (w + 2*button_margin, h + 2*button_margin)
 
-
-    method display canvas g =
-      (* For safety (?), if the size is too small, the check icon is not clipped (see
-         [display] below). *)
-      let resize (w,h) b =
-        let size = w - 2*button_margin, h - 2*button_margin in
-        List.iter (fun x -> x#resize size) [label_on; label_off];
-        List.iter (fun x -> x#resize (w,h)) [box_on; box_off];
-        do_option box_over (fun x -> x#resize (w,h))
-      in
-
-      let (dx,dy) = if self#state then (0, 1) else (0, 0) in
+    method display g =
+      let dx,dy = if self#state then (0, 1) else (0, 0) in
       let box = if self#state
         then box_on
-        else if mouse_over
-        then default box_over box_off
         else box_off
       in
       (*let margin = if self#state b then 0 else button_margin in*)
       (*  Draw.box canvas.Draw.renderer ~bg (x+margin) (y+margin) (w-2*margin) (h-2*margin); *)
-      let box_blit = box#display canvas
+      let box_blit_ray = box#display
           Draw.( { x = g.x (* + margin *);
                    y = g.y (* + margin *);
                    w = g.w;
                    h = g.h;
                    voffset = g.voffset } ) in
-      let label_blit =
-        (if self#state then label_on else label_off)#display canvas
+      let label_blit_ray =
+        (if self#state then label_on else label_off)#display
           Draw.( { x = g.x + bm + dx;
                    y = g.y + bm + dy;
                    w = g.w - 2*bm;
                    h = g.h - 2*bm;
                    voffset = g.voffset } )
-      in List.concat [box_blit; label_blit]
+      in
+      List.concat [box_blit_ray; label_blit_ray]
   end

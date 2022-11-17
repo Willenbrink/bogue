@@ -61,11 +61,9 @@ class t ?(flip = false) ?(sep = Theme.room_margin)
       let _ = List.map exec_child children in
       await#forever
 
-    method unload = List.iter (fun (_,c) -> c#unload) children
-
-    method display canvas geom =
+    method display geom =
       let f (x,c) =
-        c#display canvas Draw.{geom with x = geom.x + (if flip then 0 else x);
+        c#display Draw.{geom with x = geom.x + (if flip then 0 else x);
                                                y = geom.y + (if flip then x else 0);
                                                w = min geom.w (fst c#size);
                                                h = min geom.h (snd c#size);
@@ -94,15 +92,16 @@ class ['l,'r,'res] pair ?(flip = false) ?(sep = Theme.room_margin)
 
     method private ev_targets_lr (ts_l, ts_r) ((ev : Event.t_rich), (g : Draw.geometry)) =
       match ev with
-      | Scroll -> failwith "Scroll not implemented" (* TODO *)
+      | Scroll _ -> failwith "Scroll not implemented" (* TODO *)
       (* Events that can affect both childs *)
+      | Mouse_enter | Mouse_leave
       | Key_press _ | Key_repeat _
       | Key_release _ | Codepoint _ ->
         List.mem (Event.strip ev) ts_l,
         List.mem (Event.strip ev) ts_r
       (* Events than can affect only the child the mouse is above *)
-      | Mouse_motion pos | Mouse_enter pos
-      | Mouse_leave pos | Mouse_press (pos,_)
+      | Mouse_motion pos
+      | Mouse_press (pos,_)
       | Mouse_release (pos,_) ->
         let x_m,y_m = pos in
         (* Disabled because of Mouse_leave TODO document! *)
@@ -173,22 +172,20 @@ class ['l,'r,'res] pair ?(flip = false) ?(sep = Theme.room_margin)
         loop ts_l ts_r cc_l cc_r
       ) (logic self await yield) left right
 
-    method unload = left#unload; right#unload
-
-    method display canvas geom =
-      let blit_l =
-        left#display canvas Draw.{geom with
+    method display geom =
+      let blitr_l =
+        left#display Draw.{geom with
                                         w = min geom.w (fst left#size);
                                         h = min geom.h (snd left#size)}
       in
-      let blit_r =
-        right#display canvas Draw.{geom with
+      let blitr_r =
+        right#display Draw.{geom with
                                          x = geom.x + (if flip then 0 else offset);
                                          y = geom.y + (if flip then offset else 0);
                                          w = min geom.w (fst right#size);
                                          h = min geom.h (snd right#size)}
       in
-      blit_l @ blit_r
+      blitr_l @ blitr_r
   end
 
 class ['a] pair_id ?(flip = false) ?(sep = Theme.room_margin)

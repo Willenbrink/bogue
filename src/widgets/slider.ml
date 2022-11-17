@@ -2,17 +2,6 @@ open Interop
 open Utils
 open Base
 
-type kind =
-  | Horizontal (* Horizontal bar with a small slider; values increase from left
-                  to right. No background *)
-  | HBar (* Horizontal bar filled up to the value *)
-  | Vertical (* Warning: values increase from bottom to top *)
-  | Circular (* Origin is on the positive real axi *)
-
-let make_box_blit ~dst voffset canvas box =
-  let box_blit = Draw.make_blit ~voffset ~dst canvas box in
-  [box_blit]
-
 (* TODO consider this problem. How can we get single value precision without complicating
    everything significantly? *)
 (* this function can be used for the ~t_to function to slow down the slider when
@@ -37,21 +26,10 @@ let make_box_blit ~dst voffset canvas box =
 (*     (1. -. x0 *. m) *. (Float.pow t (float_of_int k)) +. t +. x0 *. m *)
 (*   else x *. m *)
 
-class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
-    ?(thickness = 20) ?w ?h ?tick_size ?(max = 100) ?(step = Stdlib.max 1 (max / 100)) () =
-  let tick_size = default tick_size (match kind with
-      | HBar -> 4
-      | _ -> 50) in
-  let size = match kind with
-    | HBar
-    | Horizontal
-    | Circular -> default w length, default h thickness
-    | Vertical -> default w thickness, default h length in
-  let thickness = match kind with
-    | HBar
-    | Horizontal -> snd size
-    | Vertical -> fst size
-    | Circular -> thickness in
+class t ?(init = 0) ?(length = 200) ?(live = false)
+    ?(thickness = 20) ?w ?h ?(tick_size = 50) ?(max = 100) ?(step = Stdlib.max 1 (max / 100)) () =
+  let size = default w length, default h thickness in
+  let thickness =  snd size in
   (* Slider can take values from 0 to max, both included. Must be non zero. *)
   let () = assert (max > 0) in
 
@@ -63,66 +41,20 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
     val mutable tick_size = tick_size(* in pixel Size of the handle *)
     method tick_size = tick_size
     method set_tick_size x =
-      let min_tick_size =
-        match kind with
-        | HBar -> 4
-        | Horizontal -> 25
-        | Vertical -> 20
-        | Circular -> 15
-      in
-      tick_size <- imax min_tick_size x
+      tick_size <- imax 25 x
 
     (* we store here the room position (unscaled) *)
     val mutable room_x = 0
     val mutable room_y = 0
 
     val mutable key_speed = 1.
-    (* TODO render is only used for circular. Otherwise all textures are created and
-       destroyed on the fly. Change this ? *)
-    val mutable render : Draw.texture option = None
-
-    method length =
-      let w,h = self#size in
-      match kind with
-      | HBar
-      | Horizontal -> w
-      | Circular -> imin w h
-      | Vertical -> h
-
-    method unload =
-      match render with
-      | None -> ()
-      | Some tex -> begin
-          Draw.forget_texture tex;
-          render <- None
-        end
-
-    (* events *)
 
     (* Compute the pre-value (in principle between 0 and max, but sometimes can be
        outside if the tick is large) from the mouse position *)
     method compute_value (x,y) offset =
       let w,h = size in
-      let v = match kind with
-        | Horizontal ->
-          if tick_size = w then 0 (* the value should be undefined here *)
-          else offset + (max * (x - tick_size/2 - room_x)) / (w - tick_size)
-        | HBar ->
-          (max * (x - room_x)) / w
-        | Vertical ->
-          if tick_size = h then 0 (* undefined *)
-          else offset + max - (max * (y - tick_size/2 - (room_y))) / (h - tick_size)
-        | Circular ->
-          let x0 = room_x + w/2 in
-          let y0 = room_y + h/2 in
-          if x = x0 then if y>y0 then 3 * max / 4 else max / 4
-          else
-            let a = (float max) *. atan (float (y0-y) /. (float (x-x0))) /. pi /. 2. in
-            let a' = if x > x0 then if y <= y0 then a else a +. (float max)
-              else a +. (float  max) /. 2. in
-            round a' in
-      (* printd debug_custom "Mouse (%d,%d), value=%d" x y v; *)
-      v
+      if tick_size = w then 0 (* the value should be undefined here *)
+      else offset + (max * (x - tick_size/2 - room_x)) / (w - tick_size)
 
     (* This should be called on mouse_button_down. *)
     (* If the click is over the tick, we do *not* change value: this is the standard
@@ -142,9 +74,10 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
     method receive_key k =
       let increase () = state <- (min max (state + step)) in
       let decrease () = state <- (Stdlib.max 0 (state - step)) in
+      let open GLFW in
       match k with
-      | c when c = Sdl.K.left || c = Sdl.K.down -> decrease ()
-      | c when c = Sdl.K.right || c = Sdl.K.up -> increase ()
+      | Left | Down -> decrease ()
+      | Right | Up -> increase ()
       | _ -> ()
 
     method execute await yield =
@@ -167,82 +100,23 @@ class t ?(kind = Horizontal) ?(init = 0) ?(length = 200) ?(live = false)
 
     method! resize (w,h) =
       super#resize (w,h);
-      thickness <- (match kind with
-          | HBar | Horizontal -> h
-          | Vertical -> w
-          | Circular -> thickness)
+      thickness <- h
 
     method private x_pos =
-      room_x + state * (self#length - tick_size) / max
+      room_x + state * (fst self#size - tick_size) / max
 
     method private y_pos =
-      room_y + self#length - tick_size - state * (self#length - tick_size) / max
+      room_y + fst self#size - tick_size - state * (fst self#size - tick_size) / max
 
-    method display canvas g =
-      let scale = Theme.scale_int in
-      let tick_size = scale tick_size
-      and thickness = scale thickness in
+    method display geom =
       let open Draw in
-      let renderer = canvas.renderer in
-      let gx = Theme.unscale_int g.x
-      and gy = Theme.unscale_int g.y in
-      if room_x <> gx then room_x <- gx;
-      if room_y <> gy then room_y <- gy;
-      let color = set_alpha 200 Button.color_on in
-      let x0 = scale (self#x_pos) in
-      (*   set_color renderer (opaque color); *)
-      match kind with
-      | Horizontal ->
-        (* let rect = Sdl.Rect.create ~x:x0 ~y:g.y ~w:thickness ~h:width in *)
-        (* go (Sdl.render_fill_rect renderer (Some rect)); *)
-        let box = texture canvas.renderer ~color ~w:tick_size ~h:thickness in
-        let dst = Sdl.Rect.create ~x:x0 ~y:g.y ~w:tick_size ~h:thickness in
-        forget_texture box; (* or save ? but be careful color may change *)
-        make_box_blit ~dst g.voffset canvas box
-      | HBar ->
-        (* horizontal gradient for the slider *)
-        let colors = [opaque Button.color_on; opaque Button.color_off] in
-        let box = gradient_texture canvas.renderer ~w:(x0 - g.x + tick_size)
-            ~h:thickness ~angle:90. colors in
-        let dst = Sdl.Rect.create ~x:g.x ~y:g.y ~w:(x0 - g.x + tick_size)
-            ~h:thickness in
-        forget_texture box; (* or save ? *)
-        make_box_blit ~dst g.voffset canvas box
-      (* [make_blit ~voffset:g.voffset ~dst canvas box] *)
-      | Vertical ->
-        let y = scale (self#y_pos) in
-        let h = tick_size in (* see example 34 .*)
-        let box = texture canvas.renderer ~color ~h ~w:thickness in
+      room_x <- geom.x;
+      room_y <- geom.y;
 
-        (* else let colors = [opaque Button.color_on; *)
-        (*                    opaque Button.color_off] in *)
-        (*   (\* let _ = print_endline (Printf.sprintf "dy = %i" dy) in *\) *)
-        (*   let colors = if dy < 0 then colors else List.rev colors in *)
-        (*   gradient_texture canvas.renderer ~h ~w:thickness colors in *)
-        let dst = Sdl.Rect.create ~x:g.x ~y ~h ~w:thickness in
-        forget_texture box; (* or save ? *)
-        make_box_blit ~dst g.voffset canvas box
-      | Circular ->
-        let radius = (imin g.w g.h)/2 - 2 in
-        let tex = match render with
-          | Some t -> t
-          | None ->
-            let t' = ring_tex renderer ~color:(lighter (transp grey))
-                ~radius ~width:thickness (g.w/2) (g.h/2) in
-            (* j'ai essayé de mettre une taille double puis de réduire avec
-               render_copy, mais apparemment ça ne fait pas d'antialiasing *)
-            (* let t' = convolution ~emboss:false renderer *)
-            (*            (gaussian_blur ~radius:3) 3 t in *)
-            render <- (Some t'); t' in
-        let w',h' = tex_size tex in
-        let dst = Sdl.Rect.create ~x:(g.x) ~y:(g.y) ~w:w' ~h:h' in
-        (* go (Sdl.render_copy ~dst renderer tex); *)
-        let sbox = make_blit ~voffset:g.voffset ~dst canvas tex in
-        (* ring renderer ~bg:(lighter (opaque grey)) ~radius:(w/2-2)
-           ~width (x+w/2) (y+h/2); *)
-        let tick = ray_to_layer canvas ~voffset:g.voffset ~bg:color
-            ~thickness:tick_size
-            ~angle:(360. *. (float (max - state)) /. (float max)) ~radius
-            ~width:thickness (g.x + g.w/2) (g.y + g.h/2) in
-        [sbox; tick]
+      let img = Raylib.gen_image_color geom.w geom.h Raylib.Color.gray in
+      Raylib.image_draw_rectangle (Raylib.addr img) self#x_pos geom.y tick_size thickness Raylib.Color.lightgray;
+      let tex_ray = Raylib.load_texture_from_image img in
+      Raylib.unload_image img;
+
+      [geom, tex_ray]
   end

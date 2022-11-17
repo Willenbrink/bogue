@@ -32,35 +32,36 @@ type button =
   | LMB
   | RMB
   | MMB
-  | B4
-  | B5
-  | B6
-  | B7
-  | B8
-[@@deriving enum, show]
-
-(* TODO alt missing *)
-(* TODO currently not used *)
-type modifier =
-  | Ctrl
-  | Shift
+  | Other of int
 [@@deriving show]
+
+type modifier = GLFW.key_mod =
+  | Shift
+  | Control
+  | Alt
+  | Super
+[@@deriving show]
+
+type key = GLFW.key
+
+let pp_key fmt _ = Format.pp_print_string fmt "<opaque>"
 
 (* TODO currently there is no way to write an empty polymorphic variant, see
    https://github.com/ocaml/ocaml/issues/10687
 *)
-type t_rich =
-  | Key_press : int * modifier list -> t_rich
-  | Key_repeat : int * modifier list ->  t_rich
-  | Key_release : int * modifier list ->  t_rich
+
   (* TODO use a UTF8 library of some sort instead of using string? *)
+type t_rich =
+  | Key_press : key * modifier list -> t_rich
+  | Key_repeat : key * modifier list ->  t_rich
+  | Key_release : key * modifier list ->  t_rich
   | Codepoint : string -> t_rich
   | Mouse_motion : (int * int) -> t_rich
-  | Mouse_enter : (int * int) -> t_rich
-  | Mouse_leave : (int * int) -> t_rich
+  | Mouse_enter : t_rich
+  | Mouse_leave : t_rich
   | Mouse_press : (int * int) * button -> t_rich
   | Mouse_release : (int * int) * button -> t_rich
-  | Scroll : t_rich
+  | Scroll : (float * float) -> t_rich
 [@@deriving show]
 
 let strip (ev : t_rich) : t = match ev with
@@ -73,14 +74,13 @@ let strip (ev : t_rich) : t = match ev with
   | Mouse_leave _ -> `Mouse_leave
   | Mouse_press _ -> `Mouse_press
   | Mouse_release _ -> `Mouse_release
-  | Scroll -> `Scroll
+  | Scroll _ -> `Scroll
 
 type t_win = [
+  | `Init
   | `Exit
   | `Resize of int * int
 ]
-
-let queue : t list ref = ref []
 
 module E = Sdl.Event
 
@@ -89,61 +89,76 @@ let pointer_pos ev =
     let y = E.(get ev mouse_button_y) in
     Theme.(unscale_int x, unscale_int y)
 
-let rec poll_event () : (t_rich, t_win) Either.t =
-  let ev = Sdl.wait_event () in
-  match E.kind ev with
-  | `Quit ->
-    Either.Right `Exit
-  | `Window_event ->
-    begin
-      let eid = Sdl.Event.(get ev window_event_id) in
-      (* TODO right now only one window is supported *)
-      (* let wid = Sdl.Event.(get ev window_window_id) in *)
-      let data1 = Sdl.Event.(get ev window_data1) |> Int32.to_int in
-      let data2 = Sdl.Event.(get ev window_data2) |> Int32.to_int in
-      match eid with
-      | id when id = Sdl.Event.window_event_size_changed ->
-        Either.right @@ `Resize (data1,data2)
-      | _ ->
-        Printf.printf "Window event %i\n" eid;
-        poll_event ()
-    end
-  | `Key_down ->
-    Either.left @@
-    Key_press (Sdl.Event.(get ev keyboard_keycode), [])
-  | `Key_up ->
-    Either.left @@
-    Key_release (Sdl.Event.(get ev keyboard_keycode), [])
-  | `Mouse_button_down ->
-    Either.left @@ Mouse_press (pointer_pos ev, LMB) (* TODO *)
-  | `Mouse_button_up -> Either.left @@ Mouse_release (pointer_pos ev, LMB) (* TODO *)
-  | `Mouse_motion -> Either.left @@
-    (* let left = if Trigger.mm_pressed ev then [Left] else [] in *)
-    Mouse_motion (pointer_pos ev)
-  | `Text_input -> Either.left @@
-    Codepoint Sdl.Event.(get ev text_input_text)
-  (* Events to ignore for now *)
-  | `App_did_enter_background | `App_did_enter_foreground
-  | `App_low_memory | `App_terminating | `App_will_enter_background
-  | `App_will_enter_foreground | `Clipboard_update
-  | `Controller_axis_motion | `Controller_button_down
-  | `Controller_button_up | `Controller_device_added
-  | `Controller_device_remapped | `Controller_device_removed
-  | `Dollar_gesture | `Dollar_record | `Drop_file | `Finger_down
-  | `Finger_motion | `Finger_up | `Joy_axis_motion | `Joy_ball_motion
-  | `Joy_button_down | `Joy_button_up | `Joy_device_added
-  | `Joy_device_removed | `Joy_hat_motion ->
-    Printf.printf "Unimportant event\n";
-    poll_event ()
-  | `Mouse_wheel | `Multi_gesture | `Sys_wm_event
-  | `Text_editing | `User_event
-  | `Display_event | `Sensor_update ->
-    poll_event ()
-  | `Unknown 772 ->
-    poll_event () (* TODO Where does this event come from? *)
-  | `Unknown id ->
-    Printf.printf "Received event with id %i\n" id;
-    assert false
-  | _ ->
-    print_endline "Specific Event";
-    failwith "Impossible"
+let cursor_pos = ref (0,0)
+
+let inputs : (t_rich, t_win) Either.t Queue.t = Queue.create ()
+
+let wait () =
+  GLFW.waitEvents ();
+  let res = Queue.fold (fun acc x -> x::acc) [] inputs in
+  Queue.clear inputs;
+  res
+
+let init () =
+  let window =
+    match Raylib.get_window_handle () with
+    | None -> failwith "Raylib not initialized"
+    | Some win_ptr ->
+      (* GLFW does not use Ctypes so we need to convert a fat ctypes pointer to the GLFW bindings format. *)
+      (* The bindings use a C integer + 1, i.e. the normal OCaml representation for ints. *)
+      let raw = Ctypes.raw_address_of_ptr win_ptr in
+      let raw' = Int64.of_nativeint raw |> Int64.to_int in
+      GLFW.window_magic (Obj.magic raw' : GLFW.window)
+  in
+  let open GLFW in
+  Queue.push (Either.right `Init) inputs;
+  setWindowSizeCallback ~window ~f:(Some (fun _ w h ->
+      Queue.push (Either.right (`Resize (w,h))) inputs
+    ))
+  |> ignore;
+  setWindowCloseCallback ~window ~f:(Some (fun _ ->
+      Queue.push (Either.right `Exit) inputs
+    ))
+  |> ignore;
+  let f ev = Queue.push (Either.left ev) inputs in
+  setKeyCallback ~window ~f:(Some (fun _ key int action mods ->
+      let ev =
+        match action with
+        | Press -> Key_press (key, mods)
+        | Release -> Key_release (key, mods)
+        | Repeat -> Key_repeat (key, mods)
+      in
+      f ev
+    ))
+  |> ignore;
+  setCharCallback ~window ~f:(Some (fun _ char ->
+      let (*the unicdoe odyssey begin*) uchar = Uchar.of_int char in
+      let buffer = Buffer.create 1 in
+      Buffer.add_utf_8_uchar buffer uchar;
+      Codepoint (Buffer.contents buffer)
+      |> f))
+  |> ignore;
+  setCursorPosCallback ~window ~f:(Some (fun _ float1 float2 ->
+      let pos = (int_of_float float1, int_of_float float2) in
+      cursor_pos := pos;
+      Mouse_motion pos
+      |> f
+    ))
+  |> ignore;
+  setCursorEnterCallback ~window ~f:(Some (fun _ bool ->
+      f (if bool then Mouse_enter else Mouse_leave)))
+  |> ignore;
+  setMouseButtonCallback ~window ~f:(Some (fun _ button action mods->
+      let button =
+        if button = 0 then LMB
+        else if button = 1 then RMB
+        else if button = 2 then MMB
+        else Other button
+      in
+      f (if action
+         then Mouse_press (!cursor_pos, button)
+         else Mouse_release (!cursor_pos, button))
+    ))
+  |> ignore;
+  setScrollCallback ~window ~f:(Some (fun _ x y -> Scroll (x, y) |> f))
+  |> ignore

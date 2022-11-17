@@ -4,7 +4,7 @@ module W = Widget
 module L = Layout
 
 let example () =
-  let sl = new Slider.t ~kind:Slider.Vertical in
+  let sl = new Slider.t in
   let c = new Check.t in
   let l = new Label.t in
   let ti = new Text_input.t  in

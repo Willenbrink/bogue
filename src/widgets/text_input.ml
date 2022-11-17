@@ -108,7 +108,7 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
       begin
         await#f [`Mouse_press; `Key_press] @@ function
         | Mouse_press (pos, Event.LMB), _ -> pressed pos
-        | Key_press (keycode, []), _ when keycode = Sdl.K.tab ->
+        | Key_press (GLFW.Tab, []), _ ->
           selection <- Area (0, List.length keys)
         | _ -> raise Repeat
       end;
@@ -120,7 +120,7 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
         | Mouse_press (pos, Event.LMB), _ ->
           pressed pos;
           raise Repeat
-        | Key_press (keycode, []), _ when keycode = Sdl.K.tab || keycode = Sdl.K.return ->
+        | Key_press (GLFW.Tab, []), _ | Key_press (GLFW.Enter, []), _ ->
           ()
         | Codepoint c, _ ->
           self#insert [c];
@@ -290,124 +290,125 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
     (* REMARK: instead of blitting surfaces, one could also use textures and SDL
        RenderTarget ? *)
-    method display canvas g =
-      Option.iter Draw.forget_texture render;
-      render <- None;
-      let cursor = match cursor with
-        | Some s -> s
-        | None ->
-          let csize = 2*(Theme.scale_int font_size)/3 in
-          let cursor_font = Draw.get_font Theme.fa_font csize in
-          let s = self#draw_keys cursor_font [cursor_char] ~fg:Draw.(opaque cursor_color) in
-          (* TODO use render_key, it should be faster *)
-          let tex = Draw.create_texture_from_surface canvas.Draw.renderer s in
-          cursor <- Some tex;
-          Draw.free_surface s;
-          tex
-      in
-      let cw, _ = Draw.tex_size cursor in
-      let tex = match render with
-        | Some t -> t
-        | None ->
-          let start_time = Unix.gettimeofday () in (* =for debug only *)
-          let keys = keys in
-          let fg = if keys <> [] then Draw.(opaque text_color) else
-              (* if active then Draw.(opaque pale_grey) else *) Draw.(opaque faint_color) in
-          let keys = if keys = [] && not active then [prompt] else keys in
-          let surf = self#draw_keys (self#font) keys ~fg in
-          (* TODO: draw only the relevent text, not everything. *)
-          let tw,th = Sdl.get_surface_size surf in
-          (* we need to make a slightly larger surface in order to have room for
-             underline and cursor *)
-          let box = Draw.create_surface ~like:surf
-              (tw + cw + cw/2) (th + Theme.scale_int bottom_margin) in
-          go (Sdl.set_surface_blend_mode box Sdl.Blend.mode_none);
+    method display g =
+      (* Option.iter Draw.forget_texture render; *)
+      (* render <- None; *)
+      (* let cursor = match cursor with *)
+      (*   | Some s -> s *)
+      (*   | None -> *)
+      (*     let csize = 2*(Theme.scale_int font_size)/3 in *)
+      (*     let cursor_font = Draw.get_font Theme.fa_font csize in *)
+      (*     let s = self#draw_keys cursor_font [cursor_char] ~fg:Draw.(opaque cursor_color) in *)
+      (*     (\* TODO use render_key, it should be faster *\) *)
+      (*     let tex = Draw.create_texture_from_surface canvas.Draw.renderer s in *)
+      (*     cursor <- Some tex; *)
+      (*     Draw.free_surface s; *)
+      (*     tex *)
+      (* in *)
+      (* let cw, _ = Draw.tex_size cursor in *)
+      (* let tex = match render with *)
+      (*   | Some t -> t *)
+      (*   | None -> *)
+      (*     let start_time = Unix.gettimeofday () in (\* =for debug only *\) *)
+      (*     let keys = keys in *)
+      (*     let fg = if keys <> [] then Draw.(opaque text_color) else *)
+      (*         (\* if active then Draw.(opaque pale_grey) else *\) Draw.(opaque faint_color) in *)
+      (*     let keys = if keys = [] && not active then [prompt] else keys in *)
+      (*     let surf = self#draw_keys (self#font) keys ~fg in *)
+      (*     (\* TODO: draw only the relevent text, not everything. *\) *)
+      (*     let tw,th = Sdl.get_surface_size surf in *)
+      (*     (\* we need to make a slightly larger surface in order to have room for *)
+      (*        underline and cursor *\) *)
+      (*     let box = Draw.create_surface ~like:surf *)
+      (*         (tw + cw + cw/2) (th + Theme.scale_int bottom_margin) in *)
+      (*     go (Sdl.set_surface_blend_mode box Sdl.Blend.mode_none); *)
 
-          (* draw text on the larger surface, at (0,0) (upper-left corner)
-             preserving transparency information *)
-          let rect = Draw.rect_translate (Sdl.get_clip_rect surf) (cw/2, 0) in
-          go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_none);
-          go (Sdl.blit_surface ~src:surf None ~dst:box (Some rect));
+      (*     (\* draw text on the larger surface, at (0,0) (upper-left corner) *)
+      (*        preserving transparency information *\) *)
+      (*     let rect = Draw.rect_translate (Sdl.get_clip_rect surf) (cw/2, 0) in *)
+      (*     go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_none); *)
+      (*     go (Sdl.blit_surface ~src:surf None ~dst:box (Some rect)); *)
 
-          (* draw selection background: this will erase the corresponding text... *)
-          (match selection with
-           | Area (n1,n2) ->
-             let n1, n2 = min n1 n2, max n1 n2 in
-             let x1 = self#cursor_pos_px ~n:n1 () in
-             let x2 = self#cursor_pos_px ~n:n2 () in
-             let sel_rect = Sdl.Rect.create ~x:x1 ~y:0 ~w:(x2-x1) ~h:th in
-             let sel_rect_cw = Draw.rect_translate sel_rect (cw/2, 0) in
-             Draw.fill_rect box (Some sel_rect_cw) Draw.(opaque sel_bg_color);
-             (* now we reblit the text on the selection rectangle, this time with
-                blending *)
-             let sel = self#draw_keys (self#font) keys ~fg:Draw.(opaque sel_fg_color) in
-             (* TODO: draw only the relevent text, not everything. *)
-             go (Sdl.set_surface_blend_mode sel Sdl.Blend.mode_blend);
-             go (Sdl.blit_surface ~src:sel (Some sel_rect) ~dst:box (Some sel_rect_cw))
-           | Point _ -> ());
+      (*     (\* draw selection background: this will erase the corresponding text... *\) *)
+      (*     (match selection with *)
+      (*      | Area (n1,n2) -> *)
+      (*        let n1, n2 = min n1 n2, max n1 n2 in *)
+      (*        let x1 = self#cursor_pos_px ~n:n1 () in *)
+      (*        let x2 = self#cursor_pos_px ~n:n2 () in *)
+      (*        let sel_rect = Sdl.Rect.create ~x:x1 ~y:0 ~w:(x2-x1) ~h:th in *)
+      (*        let sel_rect_cw = Draw.rect_translate sel_rect (cw/2, 0) in *)
+      (*        Draw.fill_rect box (Some sel_rect_cw) Draw.(opaque sel_bg_color); *)
+      (*        (\* now we reblit the text on the selection rectangle, this time with *)
+      (*           blending *\) *)
+      (*        let sel = self#draw_keys (self#font) keys ~fg:Draw.(opaque sel_fg_color) in *)
+      (*        (\* TODO: draw only the relevent text, not everything. *\) *)
+      (*        go (Sdl.set_surface_blend_mode sel Sdl.Blend.mode_blend); *)
+      (*        go (Sdl.blit_surface ~src:sel (Some sel_rect) ~dst:box (Some sel_rect_cw)) *)
+      (*      | Point _ -> ()); *)
 
-          Draw.free_surface surf;
-          if active then begin
-            (* draw underline *)
-            let thick = Theme.scale_int 1 in
-            let hline = Sdl.Rect.create ~x:(cw/2) ~y:(th (*+ bmargin - thick*)) ~w:tw ~h:thick in
-            (* Sdl.fill_rect : If the color value contains an alpha
-               component then the destination is simply filled with that
-               alpha information, no blending takes place. *)
-            Draw.fill_rect box (Some hline) Draw.(transp grey);
+      (*     Draw.free_surface surf; *)
+      (*     if active then begin *)
+      (*       (\* draw underline *\) *)
+      (*       let thick = Theme.scale_int 1 in *)
+      (*       let hline = Sdl.Rect.create ~x:(cw/2) ~y:(th (\*+ bmargin - thick*\)) ~w:tw ~h:thick in *)
+      (*       (\* Sdl.fill_rect : If the color value contains an alpha *)
+      (*          component then the destination is simply filled with that *)
+      (*          alpha information, no blending takes place. *\) *)
+      (*       Draw.fill_rect box (Some hline) Draw.(transp grey); *)
 
-            (* move the offset to have the cursor in the visible area *)
-            let cx = self#cursor_pos_px () in
-            let _offset = offset in
-            let _offset = if cx <= _offset+cw then max 0 (cx-cw)
-              else if cx - _offset >= g.Draw.w - cw - cw/2
-              then min tw (cx - g.Draw.w + cw + cw/2)
-              else _offset in
-            offset <- _offset
-          end;
-          (* we extract the visible part and save it as a texture, with all
-             transparency info (no blending) *)
-          (* note: if we don't clip to the visible part, it is easy to reach the max
-             allowed texure width = 4096 *)
-          let bw, bh = Sdl.get_surface_size box in
-          let _offset = offset in
-          let rect_b = Sdl.Rect.create ~x:_offset ~y:0 ~w:(min g.Draw.w (bw - _offset)) ~h:bh in
-          let visible = Draw.create_surface ~like:box ~color:Draw.none (Sdl.Rect.w rect_b) bh in
-          (* this surface (converted to texture) will be *blended* on the canvas *)
-          go (Sdl.blit_surface ~src:box (Some rect_b) ~dst:visible None);
-          let tex = Draw.create_texture_from_surface canvas.Draw.renderer visible in
-          Draw.free_surface box;
-          Draw.free_surface visible;
-          render <- (Some tex);
-          printd debug_graphics "Time for creating texture = %f s" (Unix.gettimeofday () -.  start_time);
-          tex
-      in
+      (*       (\* move the offset to have the cursor in the visible area *\) *)
+      (*       let cx = self#cursor_pos_px () in *)
+      (*       let _offset = offset in *)
+      (*       let _offset = if cx <= _offset+cw then max 0 (cx-cw) *)
+      (*         else if cx - _offset >= g.Draw.w - cw - cw/2 *)
+      (*         then min tw (cx - g.Draw.w + cw + cw/2) *)
+      (*         else _offset in *)
+      (*       offset <- _offset *)
+      (*     end; *)
+      (*     (\* we extract the visible part and save it as a texture, with all *)
+      (*        transparency info (no blending) *\) *)
+      (*     (\* note: if we don't clip to the visible part, it is easy to reach the max *)
+      (*        allowed texure width = 4096 *\) *)
+      (*     let bw, bh = Sdl.get_surface_size box in *)
+      (*     let _offset = offset in *)
+      (*     let rect_b = Sdl.Rect.create ~x:_offset ~y:0 ~w:(min g.Draw.w (bw - _offset)) ~h:bh in *)
+      (*     let visible = Draw.create_surface ~like:box ~color:Draw.none (Sdl.Rect.w rect_b) bh in *)
+      (*     (\* this surface (converted to texture) will be *blended* on the canvas *\) *)
+      (*     go (Sdl.blit_surface ~src:box (Some rect_b) ~dst:visible None); *)
+      (*     let tex = Draw.create_texture_from_surface canvas.Draw.renderer visible in *)
+      (*     Draw.free_surface box; *)
+      (*     Draw.free_surface visible; *)
+      (*     render <- (Some tex); *)
+      (*     printd debug_graphics "Time for creating texture = %f s" (Unix.gettimeofday () -.  start_time); *)
+      (*     tex *)
+      (* in *)
 
-      (* finally we copy onto the canvas *)
-      let open Draw in
-      let area = geom_to_rect g in
-      Sdl.set_text_input_rect (Some area);
-      room_x <- g.x;
-      let text_blit = copy_tex_to_layer ~overlay:(Draw.Xoffset 0) ~voffset:g.voffset
-          canvas tex area (g.x + (Theme.scale_int left_margin))
-          (g.y + (Theme.scale_int bottom_margin)) in
-      (* we could instead have used a box surface of larger size, including margins,
-         and use tex_to_layer instead of copy_tex_to_layer *)
+      (* (\* finally we copy onto the canvas *\) *)
+      (* let open Draw in *)
+      (* let area = geom_to_rect g in *)
+      (* Sdl.set_text_input_rect (Some area); *)
+      (* room_x <- g.x; *)
+      (* let text_blit = copy_tex_to_layer ~voffset:g.voffset *)
+      (*     canvas tex area (g.x + (Theme.scale_int left_margin)) *)
+      (*     (g.y + (Theme.scale_int bottom_margin)) in *)
+      (* (\* we could instead have used a box surface of larger size, including margins, *)
+      (*    and use tex_to_layer instead of copy_tex_to_layer *\) *)
 
-      if active
-      then   (* (re...)compute cursor position *)
-        (* The cursor is an additional blit. We don't pre-blend the two textures
-           (text+cursor) into a single blit, because the SDL current blend modes
-           don't allow this...
-           http://www.adriancourreges.com/blog/2017/05/09/beware-of-transparent-pixels/
-        *)
-        let _,bh = tex_size tex in
-        let voff = Theme.scale_int 4 in
-        let cursor_g = { g with x = g.x + Theme.scale_int left_margin +
-                                    self#cursor_pos_px () - offset;
-                                y = g.y + bh - voff } in
-        [text_blit; tex_to_layer canvas cursor cursor_g]
-      else [text_blit]
+      (* if active *)
+      (* then   (\* (re...)compute cursor position *\) *)
+      (*   (\* The cursor is an additional blit. We don't pre-blend the two textures *)
+      (*      (text+cursor) into a single blit, because the SDL current blend modes *)
+      (*      don't allow this... *)
+      (*      http://www.adriancourreges.com/blog/2017/05/09/beware-of-transparent-pixels/ *)
+      (*   *\) *)
+      (*   let _,bh = tex_size tex in *)
+      (*   let voff = Theme.scale_int 4 in *)
+      (*   let cursor_g = { g with x = g.x + Theme.scale_int left_margin + *)
+      (*                               self#cursor_pos_px () - offset; *)
+      (*                           y = g.y + bh - voff } in *)
+      (*   [text_blit; tex_to_layer canvas cursor cursor_g], [] *)
+      (* else [text_blit], [] (\* TODO raylib *\) *)
+[]
 
     method shift_check_sel ~shift ~one ~right =
       let new_sel x =
@@ -444,7 +445,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
         let n1,n2 = min n1 n2, max n1 n2 in
         let _, tail = split_list (keys) n1 in
         let head, _ = split_list tail (n2-n1) in
-        GLFW.setClipboardString ~window:() ~string:(String.concat "" head)
+        Raylib.set_clipboard_text (String.concat "" head)
       | _ -> ()
 
     (* copy and kill *)
@@ -454,31 +455,35 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
 
     (* paste from clipboard *)
     method paste =
-      let text = GLFW.getClipboardString ~window:() in
-      let list = Utf8.split text in
-      self#insert list
+      match Raylib.get_clipboard_text () with
+      | None -> ()
+      | Some text ->
+        Utf8.split text
+        |> self#insert
 
     method handle_key k =
+      let open GLFW in
       match k with
-      | c, Event.[Ctrl] -> begin match c with
-          | c when c = Sdl.K.a -> self#select_all
-          | c when c = Sdl.K.c -> self#copy (* : desactivate this for debugging the emacs problem *)
-          | c when c = Sdl.K.x -> self#kill
-          | c when c = Sdl.K.v -> self#paste
+      | c, Event.[Control] -> begin
+          match c with
+          | A -> self#select_all
+          | C -> self#copy (* : desactivate this for debugging the emacs problem *)
+          | X -> self#kill
+          | V -> self#paste
           | _ -> ()
         end
       | _, [] | _, [Event.Shift] -> begin
           let shift = (snd k = [Event.Shift]) in
           match k with
-          | c,[] when c = Sdl.K.backspace -> self#delete ~right:false
-          | c,[] when c = Sdl.K.delete -> self#delete ~right:true
-          | c,_ when c = Sdl.K.left -> self#left ~shift
-          | c,_ when c = Sdl.K.right -> self#right ~shift
-          | c,_ when c = Sdl.K.up -> self#home ~shift
-          | c,_ when c = Sdl.K.home -> self#home ~shift
-          | c,_ when c = Sdl.K.down -> self#last ~shift
-          | c,_ when c = Sdl.K.kend -> self#last ~shift
-          | c,_ when c = Sdl.K.return -> self#stop
+          | Backspace,[] -> self#delete ~right:false
+          | Delete,[] -> self#delete ~right:true
+          | Left,_ -> self#left ~shift
+          | Right,_ -> self#right ~shift
+          | Up,_ -> self#home ~shift
+          | Home,_ -> self#home ~shift
+          | Down,_ -> self#last ~shift
+          | End,_ -> self#last ~shift
+          | Enter,_ -> self#stop
           | _ -> ()
         end
       | _ -> ()

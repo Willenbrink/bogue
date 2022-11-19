@@ -6,18 +6,17 @@
    Layout.background *)
 
 open Base
-open Utils
 
-let default_size = (256,64)
-
-class ['a] t ?(size = default_size) () =
+class ['a] t () =
   object (self)
-    inherit ['a] w size "Box" Cursor.Arrow
+    inherit ['a] w "Box" Cursor.Arrow
+
+    method min_size = (0,0)
 
     method execute await _ =
       await#forever
 
-    method display geom =
+    method render geom =
       (* TODO: make sure hoffset <= h *)
       let img = Raylib.gen_image_color geom.w geom.h Raylib.Color.blank in
       let tex = Raylib.load_texture_from_image img in

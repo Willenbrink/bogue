@@ -1,7 +1,6 @@
 open Bogue
 open Main
 module W = Widget
-module L = Layout
 
 let example () =
   let sl = new Slider.t in

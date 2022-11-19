@@ -1,5 +1,3 @@
-open Interop
-open Utils
 open Base
 
 (* TODO consider this problem. How can we get single value precision without complicating
@@ -28,20 +26,21 @@ open Base
 
 class t ?(init = 0) ?(length = 200) ?(live = false)
     ?(thickness = 20) ?w ?h ?(tick_size = 50) ?(max = 100) ?(step = Stdlib.max 1 (max / 100)) () =
-  let size = default w length, default h thickness in
-  let thickness =  snd size in
   (* Slider can take values from 0 to max, both included. Must be non zero. *)
   let () = assert (max > 0) in
 
   object (self)
-    inherit [int] w size "Slider" Cursor.Hand as super
+    inherit [int] w "Slider" Cursor.Hand
     inherit [int] stateful init
+
+    method min_size =
+      (200, 20)
 
     val mutable thickness = thickness(* in pixels *)
     val mutable tick_size = tick_size(* in pixel Size of the handle *)
     method tick_size = tick_size
     method set_tick_size x =
-      tick_size <- imax 25 x
+      tick_size <- Stdlib.max 25 x
 
     (* we store here the room position (unscaled) *)
     val mutable room_x = 0
@@ -52,7 +51,7 @@ class t ?(init = 0) ?(length = 200) ?(live = false)
     (* Compute the pre-value (in principle between 0 and max, but sometimes can be
        outside if the tick is large) from the mouse position *)
     method compute_value (x,y) offset =
-      let w,h = size in
+      let w,h = self#min_size in
       if tick_size = w then 0 (* the value should be undefined here *)
       else offset + (max * (x - tick_size/2 - room_x)) / (w - tick_size)
 
@@ -98,17 +97,13 @@ class t ?(init = 0) ?(length = 200) ?(live = false)
         yield state;
         self#execute await yield
 
-    method! resize (w,h) =
-      super#resize (w,h);
-      thickness <- h
-
     method private x_pos =
-      room_x + state * (fst self#size - tick_size) / max
+      room_x + state * (fst self#min_size - tick_size) / max
 
     method private y_pos =
-      room_y + fst self#size - tick_size - state * (fst self#size - tick_size) / max
+      room_y + fst self#min_size - tick_size - state * (fst self#min_size - tick_size) / max
 
-    method display geom =
+    method render geom =
       let open Draw in
       room_x <- geom.x;
       room_y <- geom.y;

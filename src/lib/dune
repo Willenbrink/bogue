@@ -1,6 +1,6 @@
 (library
  (name lib)
- (libraries str sdl widget)
+ (libraries str widget)
  (preprocess
   (pps ppx_deriving.show ppx_effects))
   (wrapped false)

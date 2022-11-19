@@ -9,63 +9,65 @@
 *)
 
 open Base
-open Utils
 
+(* splits a list after the xth element *)
+let split_list_rev list x =
+  let rec loop head tail i =
+    if i >= x
+    then (head, tail)
+    else match tail with
+      | [] -> raise Not_found
+      | a::rest -> loop (a::head) rest (i+1) in
+  loop [] list 0
+
+let split_list list x =
+  let daeh, tail = split_list_rev list x in
+  List.rev daeh, tail
+
+(* Point marks the cursors position. *)
+(* Area (x,y) is the selection starting at pos x and ending at pos y *)
+(* x is therefore the first value temporally, but not necessarily to the left of y*)
 type selection =
   | Point of int
-  (* Area (x,y) is the selection starting at pos x and ending at pos y
-     x is therefore the first value temporally, but not necessarily smaller than y*)
   | Area of (int * int)
 
-let render_key font key color =
-  let color = Draw.create_color color in
-  let surf = Draw.ttf_render font key color in
-  incr Draw.ttf_surfaces_in_memory;
-  go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_none);
-  (* If we use blend, the semitransparent pixels will acquire the color of the
-         surface on which we blit (usually black, even if its alpha=0), which is not
-         good because that's not the final blitting. *)
-  go (Sdl.set_surface_rle surf true);
-  (* "If RLE is enabled, color key and alpha blending blits are much faster, but
-         the surface must be locked before directly accessing the pixels." (SDL
-         doc) *)
-  surf
+(* let render_key font key color = *)
+(*   let color = Draw.create_color color in *)
+(*   let surf = Draw.ttf_render font key color in *)
+(*   incr Draw.ttf_surfaces_in_memory; *)
+(*   go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_none); *)
+(*   (\* If we use blend, the semitransparent pixels will acquire the color of the *)
+(*          surface on which we blit (usually black, even if its alpha=0), which is not *)
+(*          good because that's not the final blitting. *\) *)
+(*   go (Sdl.set_surface_rle surf true); *)
+(*   (\* "If RLE is enabled, color key and alpha blending blits are much faster, but *)
+(*          the surface must be locked before directly accessing the pixels." (SDL *)
+(*          doc) *\) *)
+(*   surf *)
 
 let text_dims font text =
-  if text = ""
-  then (print_endline "ERROR: text empty !"; 0,0) (* OK ? or use 1,1 ?? *)
-  else
-    let w,h = Label.physical_size_text font text in
-    printd debug_graphics "Size of '%s' = (%d,%d)." text w h;
-    w,h
+    10,10 (* FIXME obviously wrong *)
 
 let text_width font s =
   let w,_ = text_dims font s in w
 
-(* TODO max_size is not respected *)
-class t ?(max_size = 2048) ?(prompt = "Enter text")
-    ?(font_size = Theme.text_font_size)
-    ?(font = Theme.text_font) text =
-  let size = (0,font_size) (* TODO missing calculation *) in
+let split string = Str.split (Str.regexp "\b") string
+
+class t ?(prompt = "Enter text") text =
   object (self)
-    inherit [string] w size "TextInput" Cursor.Ibeam
+    inherit [string] w "TextInput" Cursor.Ibeam
 
-    val mutable keys = Utf8.split text
+    val mutable keys = split text
 
-    initializer Draw.ttf_init ()
-    val mutable cursor = None
-    val cursor_char = Theme.fa_symbol "tint"
-    val mutable render = None
+    val mutable cursor_pos = None
+      (* TODO Use font awesome "tint" *)
+    val cursor_char = "|"
     val mutable offset = 0
-    method font = Draw.get_font font (Theme.scale_int font_size)
 
     val mutable selection = Point 0
     val mutable active = false
 
     method stop =
-      printd debug_event "Stopping text input";
-      if Sdl.is_text_input_active ()
-      then Sdl.stop_text_input ();
       active <- false
 
     val mutable room_x = 0
@@ -84,11 +86,9 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
       selection <- sel
 
     method start_input =
-      Sdl.start_text_input ();
       active <- true
 
     method stop_input =
-      Sdl.stop_text_input ();
       active <- false
 
     method execute await yield =
@@ -123,7 +123,7 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
         | Key_press (GLFW.Tab, []), _ | Key_press (GLFW.Enter, []), _ ->
           ()
         | Codepoint c, _ ->
-          self#insert [c];
+          self#insert c;
           raise Repeat
         | Key_press (k,mods), _ ->
           self#handle_key (k,mods);
@@ -137,7 +137,7 @@ class t ?(max_size = 2048) ?(prompt = "Enter text")
 
     method state = String.concat "" keys
 
-    method set_text x = keys <- Utf8.split x
+    method set_text x = keys <- Str.split (Str.regexp "\b") x
 
     (************* display ***********)
 
@@ -177,20 +177,6 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
      * let cursor_height = 9 *)
     (* let cursor_thickness = 2 *)
 
-    method get_render_key = render_key
-
-    method! size = (* TODO *)
-      let w,h =
-        match render with
-        | Some tex -> Draw.tex_size tex
-        | None -> text_dims self#font prompt (* Estimate due to kerning *)
-      in
-      let w,h = Draw.unscale_size (w,h) in
-      (w + 2*left_margin (* this should probably be left_margin + cursor_width/2 *),
-       h + 2*bottom_margin)
-    (* The bottom margin is also added at the top, in order to keep the text
-       vertically centered. *)
-
     method cursor_pos =
       match selection with
       | Point x -> x
@@ -202,21 +188,17 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
         | None -> self#cursor_pos
       in
       let head, _ = split_list keys x in
-      List.fold_left (fun s key -> s + text_width (self#font) key) 0 head
+      List.fold_left (fun s key -> s + 10 (* TODO Text width *)) 0 head
 
     (** Return cursor_pos corresponding to the x position *)
     method px_to_ind x0 =
-      let char_offset = font_size/3 in
-      (* TODO, this should be roughly the half size of a char *)
-      let x0 = x0 - room_x - (Theme.scale_int (left_margin + char_offset))
-               + (offset) in
+      let x0 = x0 - room_x - left_margin + offset in
       let rec loop list cx n =
         match list with
         | [] -> n
         | key::rest ->
           if cx >= x0 then n else
-            let advance, _ = text_dims (self#font) key in
-            loop rest (cx + advance) (n+1) in
+            loop rest (cx + 10 (* TODO text width *)) (n+1) in
       loop (keys) 0 0
 
     method kill_selection =
@@ -233,10 +215,11 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
       let l = List.length keys in
       selection <- Area (0,l)
 
-    method insert list =
+    method insert string =
       self#kill_selection;
       let x = self#cursor_pos in
       let head, tail = split_list keys x in
+      let list = split string in
       selection <- Point (x + (List.length list));
       keys <- List.flatten [head; list; tail];
 
@@ -263,36 +246,34 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
     (*     Active (n-left, n+right) *)
 
     (* render letter by letter so that x position is precise *)
-    method draw_keys ?fg font keys =
-      let color = if keys = [] then Draw.(transp faint_color) (* inutile ? *)
-        else default fg (10,11,12,255) in
-      printd debug_graphics "Renders keys";
-      let rec loop keys surfs w h =
-        match keys with
-        | [] -> surfs, w, h
-        | key::rest -> let surf = render_key font key color in
-          let dw,h = Sdl.get_surface_size surf in
-          loop rest ((surf, w) :: surfs) (w+dw) h in
-      let keys = if keys = [] then [" "] else keys in
-      let surfs, tw, h = loop keys [] 0 0 in
-      let surf, _ = List.hd surfs in
-      printd debug_graphics "Create total surface";
-      let total_surf = Draw.create_surface ~like:surf tw h in
-      printd debug_graphics "Blit the letters on the surface";
-      let rec draw_loop = function
-        | [] -> ()
-        | (surf, w) :: rest ->
-          let dst_rect = Sdl.Rect.create ~x:w ~y:0 ~w:0 ~h:0 in
-          go (Sdl.blit_surface ~src:surf None ~dst:total_surf (Some dst_rect));
-          draw_loop rest in
-      draw_loop surfs;
-      total_surf
+    (* method draw_keys ?fg font keys = *)
+    (*   let color = if keys = [] then Draw.(transp faint_color) (\* inutile ? *\) *)
+    (*     else default fg (10,11,12,255) in *)
+    (*   printd debug_graphics "Renders keys"; *)
+    (*   let rec loop keys surfs w h = *)
+    (*     match keys with *)
+    (*     | [] -> surfs, w, h *)
+    (*     | key::rest -> let surf = render_key font key color in *)
+    (*       let dw,h = Sdl.get_surface_size surf in *)
+    (*       loop rest ((surf, w) :: surfs) (w+dw) h in *)
+    (*   let keys = if keys = [] then [" "] else keys in *)
+    (*   let surfs, tw, h = loop keys [] 0 0 in *)
+    (*   let surf, _ = List.hd surfs in *)
+    (*   printd debug_graphics "Create total surface"; *)
+    (*   let total_surf = Draw.create_surface ~like:surf tw h in *)
+    (*   printd debug_graphics "Blit the letters on the surface"; *)
+    (*   let rec draw_loop = function *)
+    (*     | [] -> () *)
+    (*     | (surf, w) :: rest -> *)
+    (*       let dst_rect = Sdl.Rect.create ~x:w ~y:0 ~w:0 ~h:0 in *)
+    (*       go (Sdl.blit_surface ~src:surf None ~dst:total_surf (Some dst_rect)); *)
+    (*       draw_loop rest in *)
+    (*   draw_loop surfs; *)
+    (*   total_surf *)
 
-    (* REMARK: instead of blitting surfaces, one could also use textures and SDL
-       RenderTarget ? *)
-    method display g =
-      (* Option.iter Draw.forget_texture render; *)
-      (* render <- None; *)
+    method min_size = (10 * String.length text, 10)
+
+    method render geom =
       (* let cursor = match cursor with *)
       (*   | Some s -> s *)
       (*   | None -> *)
@@ -306,81 +287,78 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
       (*     tex *)
       (* in *)
       (* let cw, _ = Draw.tex_size cursor in *)
-      (* let tex = match render with *)
-      (*   | Some t -> t *)
-      (*   | None -> *)
-      (*     let start_time = Unix.gettimeofday () in (\* =for debug only *\) *)
-      (*     let keys = keys in *)
-      (*     let fg = if keys <> [] then Draw.(opaque text_color) else *)
-      (*         (\* if active then Draw.(opaque pale_grey) else *\) Draw.(opaque faint_color) in *)
-      (*     let keys = if keys = [] && not active then [prompt] else keys in *)
-      (*     let surf = self#draw_keys (self#font) keys ~fg in *)
-      (*     (\* TODO: draw only the relevent text, not everything. *\) *)
-      (*     let tw,th = Sdl.get_surface_size surf in *)
-      (*     (\* we need to make a slightly larger surface in order to have room for *)
+      (* let tex = *)
+      (*   let start_time = Unix.gettimeofday () in (\* =for debug only *\) *)
+      (*   let keys = keys in *)
+      (*   let fg = if keys <> [] then Draw.(opaque text_color) else *)
+      (*       (\* if active then Draw.(opaque pale_grey) else *\) Draw.(opaque faint_color) in *)
+      (*   let keys = if keys = [] && not active then [prompt] else keys in *)
+      (*   let surf = self#draw_keys (self#font) keys ~fg in *)
+      (*   (\* TODO: draw only the relevent text, not everything. *\) *)
+      (*   let tw,th = Sdl.get_surface_size surf in *)
+      (*   (\* we need to make a slightly larger surface in order to have room for *)
       (*        underline and cursor *\) *)
-      (*     let box = Draw.create_surface ~like:surf *)
-      (*         (tw + cw + cw/2) (th + Theme.scale_int bottom_margin) in *)
-      (*     go (Sdl.set_surface_blend_mode box Sdl.Blend.mode_none); *)
+      (*   let box = Draw.create_surface ~like:surf *)
+      (*       (tw + cw + cw/2) (th + Theme.scale_int bottom_margin) in *)
+      (*   go (Sdl.set_surface_blend_mode box Sdl.Blend.mode_none); *)
 
-      (*     (\* draw text on the larger surface, at (0,0) (upper-left corner) *)
+      (*   (\* draw text on the larger surface, at (0,0) (upper-left corner) *)
       (*        preserving transparency information *\) *)
-      (*     let rect = Draw.rect_translate (Sdl.get_clip_rect surf) (cw/2, 0) in *)
-      (*     go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_none); *)
-      (*     go (Sdl.blit_surface ~src:surf None ~dst:box (Some rect)); *)
+      (*   let rect = Draw.rect_translate (Sdl.get_clip_rect surf) (cw/2, 0) in *)
+      (*   go (Sdl.set_surface_blend_mode surf Sdl.Blend.mode_none); *)
+      (*   go (Sdl.blit_surface ~src:surf None ~dst:box (Some rect)); *)
 
-      (*     (\* draw selection background: this will erase the corresponding text... *\) *)
-      (*     (match selection with *)
-      (*      | Area (n1,n2) -> *)
-      (*        let n1, n2 = min n1 n2, max n1 n2 in *)
-      (*        let x1 = self#cursor_pos_px ~n:n1 () in *)
-      (*        let x2 = self#cursor_pos_px ~n:n2 () in *)
-      (*        let sel_rect = Sdl.Rect.create ~x:x1 ~y:0 ~w:(x2-x1) ~h:th in *)
-      (*        let sel_rect_cw = Draw.rect_translate sel_rect (cw/2, 0) in *)
-      (*        Draw.fill_rect box (Some sel_rect_cw) Draw.(opaque sel_bg_color); *)
-      (*        (\* now we reblit the text on the selection rectangle, this time with *)
+      (*   (\* draw selection background: this will erase the corresponding text... *\) *)
+      (*   (match selection with *)
+      (*    | Area (n1,n2) -> *)
+      (*      let n1, n2 = min n1 n2, max n1 n2 in *)
+      (*      let x1 = self#cursor_pos_px ~n:n1 () in *)
+      (*      let x2 = self#cursor_pos_px ~n:n2 () in *)
+      (*      let sel_rect = Sdl.Rect.create ~x:x1 ~y:0 ~w:(x2-x1) ~h:th in *)
+      (*      let sel_rect_cw = Draw.rect_translate sel_rect (cw/2, 0) in *)
+      (*      Draw.fill_rect box (Some sel_rect_cw) Draw.(opaque sel_bg_color); *)
+      (*      (\* now we reblit the text on the selection rectangle, this time with *)
       (*           blending *\) *)
-      (*        let sel = self#draw_keys (self#font) keys ~fg:Draw.(opaque sel_fg_color) in *)
-      (*        (\* TODO: draw only the relevent text, not everything. *\) *)
-      (*        go (Sdl.set_surface_blend_mode sel Sdl.Blend.mode_blend); *)
-      (*        go (Sdl.blit_surface ~src:sel (Some sel_rect) ~dst:box (Some sel_rect_cw)) *)
-      (*      | Point _ -> ()); *)
+      (*      let sel = self#draw_keys (self#font) keys ~fg:Draw.(opaque sel_fg_color) in *)
+      (*      (\* TODO: draw only the relevent text, not everything. *\) *)
+      (*      go (Sdl.set_surface_blend_mode sel Sdl.Blend.mode_blend); *)
+      (*      go (Sdl.blit_surface ~src:sel (Some sel_rect) ~dst:box (Some sel_rect_cw)) *)
+      (*    | Point _ -> ()); *)
 
-      (*     Draw.free_surface surf; *)
-      (*     if active then begin *)
-      (*       (\* draw underline *\) *)
-      (*       let thick = Theme.scale_int 1 in *)
-      (*       let hline = Sdl.Rect.create ~x:(cw/2) ~y:(th (\*+ bmargin - thick*\)) ~w:tw ~h:thick in *)
-      (*       (\* Sdl.fill_rect : If the color value contains an alpha *)
+      (*   Draw.free_surface surf; *)
+      (*   if active then begin *)
+      (*     (\* draw underline *\) *)
+      (*     let thick = Theme.scale_int 1 in *)
+      (*     let hline = Sdl.Rect.create ~x:(cw/2) ~y:(th (\*+ bmargin - thick*\)) ~w:tw ~h:thick in *)
+      (*     (\* Sdl.fill_rect : If the color value contains an alpha *)
       (*          component then the destination is simply filled with that *)
       (*          alpha information, no blending takes place. *\) *)
-      (*       Draw.fill_rect box (Some hline) Draw.(transp grey); *)
+      (*     Draw.fill_rect box (Some hline) Draw.(transp grey); *)
 
-      (*       (\* move the offset to have the cursor in the visible area *\) *)
-      (*       let cx = self#cursor_pos_px () in *)
-      (*       let _offset = offset in *)
-      (*       let _offset = if cx <= _offset+cw then max 0 (cx-cw) *)
-      (*         else if cx - _offset >= g.Draw.w - cw - cw/2 *)
-      (*         then min tw (cx - g.Draw.w + cw + cw/2) *)
-      (*         else _offset in *)
-      (*       offset <- _offset *)
-      (*     end; *)
-      (*     (\* we extract the visible part and save it as a texture, with all *)
-      (*        transparency info (no blending) *\) *)
-      (*     (\* note: if we don't clip to the visible part, it is easy to reach the max *)
-      (*        allowed texure width = 4096 *\) *)
-      (*     let bw, bh = Sdl.get_surface_size box in *)
+      (*     (\* move the offset to have the cursor in the visible area *\) *)
+      (*     let cx = self#cursor_pos_px () in *)
       (*     let _offset = offset in *)
-      (*     let rect_b = Sdl.Rect.create ~x:_offset ~y:0 ~w:(min g.Draw.w (bw - _offset)) ~h:bh in *)
-      (*     let visible = Draw.create_surface ~like:box ~color:Draw.none (Sdl.Rect.w rect_b) bh in *)
-      (*     (\* this surface (converted to texture) will be *blended* on the canvas *\) *)
-      (*     go (Sdl.blit_surface ~src:box (Some rect_b) ~dst:visible None); *)
-      (*     let tex = Draw.create_texture_from_surface canvas.Draw.renderer visible in *)
-      (*     Draw.free_surface box; *)
-      (*     Draw.free_surface visible; *)
-      (*     render <- (Some tex); *)
-      (*     printd debug_graphics "Time for creating texture = %f s" (Unix.gettimeofday () -.  start_time); *)
-      (*     tex *)
+      (*     let _offset = if cx <= _offset+cw then max 0 (cx-cw) *)
+      (*       else if cx - _offset >= g.Draw.w - cw - cw/2 *)
+      (*       then min tw (cx - g.Draw.w + cw + cw/2) *)
+      (*       else _offset in *)
+      (*     offset <- _offset *)
+      (*   end; *)
+      (*   (\* we extract the visible part and save it as a texture, with all *)
+      (*        transparency info (no blending) *\) *)
+      (*   (\* note: if we don't clip to the visible part, it is easy to reach the max *)
+      (*        allowed texure width = 4096 *\) *)
+      (*   let bw, bh = Sdl.get_surface_size box in *)
+      (*   let _offset = offset in *)
+      (*   let rect_b = Sdl.Rect.create ~x:_offset ~y:0 ~w:(min g.Draw.w (bw - _offset)) ~h:bh in *)
+      (*   let visible = Draw.create_surface ~like:box ~color:Draw.none (Sdl.Rect.w rect_b) bh in *)
+      (*   (\* this surface (converted to texture) will be *blended* on the canvas *\) *)
+      (*   go (Sdl.blit_surface ~src:box (Some rect_b) ~dst:visible None); *)
+      (*   let tex = Draw.create_texture_from_surface canvas.Draw.renderer visible in *)
+      (*   Draw.free_surface box; *)
+      (*   Draw.free_surface visible; *)
+      (*   printd debug_graphics "Time for creating texture = %f s" (Unix.gettimeofday () -.  start_time); *)
+      (*   tex *)
       (* in *)
 
       (* (\* finally we copy onto the canvas *\) *)
@@ -458,8 +436,7 @@ The "cursor_xpos" is computed wrt the origin of the surface "surf"
       match Raylib.get_clipboard_text () with
       | None -> ()
       | Some text ->
-        Utf8.split text
-        |> self#insert
+        self#insert text
 
     method handle_key k =
       let open GLFW in

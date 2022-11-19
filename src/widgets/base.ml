@@ -1,7 +1,13 @@
 include Interop
-open Utils
 
-type bottom = Utils.bottom = |
+type bottom = |
+
+module Cursor = struct
+  type t =
+    | Arrow
+    | Hand
+    | Ibeam
+end
 
 exception Repeat
 exception Reset
@@ -87,24 +93,36 @@ class virtual ['a] stateful init =
     method state = state
   end
 
-class virtual ['a] w ?id size name cursor =
-  let id = match id with None -> fresh_int () | Some id -> id in
+class virtual ['a] w name cursor =
   object (self)
-    method id : int = id
     method name : string = name
 
-    val mutable size : int * int = size
-    method size = size
-    method resize x =
-      size <- x
+    method virtual min_size : int * int
 
-    val mutable _cursor : Cursor.t = cursor
-    method cursor = _cursor
-    method set_cursor x = _cursor <- x
+    val mutable cursor : Cursor.t = cursor
+    method cursor = cursor
+    method set_cursor x = cursor <- x
 
     method virtual execute : <f:'b. 'b await; forever: bottom> -> ('a -> unit) -> bottom
 
-    method virtual display : Draw.geometry -> (Draw.geometry * Raylib.Texture.t) list
+    method virtual render : Draw.geometry -> (Draw.geometry * Raylib.Texture.t) list
+
+    (* Can be unset by execute if a render must be forced *)
+    val mutable render_cache : (Draw.geometry * (Draw.geometry * Raylib.Texture.t) list) option = None
+
+    (* Caches the result of self#render *)
+    method display geometry =
+      let rerender () =
+        let blits = self#render geometry in
+        (* render_cache <- Some (geometry, blits); *)
+        blits
+      in
+      match render_cache with
+      | Some (geom, blits) when geom = geometry -> blits
+      | Some (geom, blits) ->
+        List.iter (fun (_, tex) -> Raylib.unload_texture tex) blits;
+        rerender ()
+      | _ -> rerender ()
   end
 
 let gen w = (w :> 'a w)

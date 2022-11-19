@@ -23,33 +23,27 @@ class ['a] discontinuation k =
     method discontinue exn : 'a = EffectHandlers.Deep.discontinue k exn
   end
 
-class t ?(flip = false) ?(sep = Theme.room_margin)
+class t ?(flip = false) ?(sep = 0)
     ?(align) ?(name = if flip then "Col" else "Row") (children : bottom w list)
   =
-  let children' =
-    let f (x,cs) c =
-      ((x + (if flip then snd else fst) c#size + sep), (x, (c :> 'b w))::cs)
+  let min_x, min_y, children =
+    let f (x,y,cs) c =
+      let x', y' = c#min_size in
+      (if flip then max x x' else x + x' + sep),
+      (if flip then y + y' + sep else max y y'),
+      (x, y, (c :> 'b w))::cs
     in
-    let res = List.fold_left f (0,[]) children |> snd in
-    assert (List.length res > 0);
-    res
+    List.fold_left f (0,0,[]) children
   in
-  let size =
-    let f (x,y) c =
-      let (x_c,y_c) = c#size in
-      if flip
-      then (max x x_c, y+y_c)
-      else (x+x_c, max y y_c)
-    in
-    List.fold_left f (0,0) children
-  in
-  let children = children' in
   object
-    inherit [bottom] w size name Cursor.Arrow
+    inherit [bottom] w name Cursor.Arrow
+
+    method min_size =
+      min_x, min_y
 
     method execute await yield =
       let module Await = Await (struct type t = bottom end) in
-      let exec_child (o, (c : _ w)) =
+      let exec_child (x, y, (c : _ w)) =
         match c#execute Await.await Await.yield with
         | _ -> .
         | [%effect? Await.Await triggers, k]  ->
@@ -61,34 +55,32 @@ class t ?(flip = false) ?(sep = Theme.room_margin)
       let _ = List.map exec_child children in
       await#forever
 
-    method display geom =
-      let f (x,c) =
+    method render geom =
+      let f (x, y, c) =
         c#display Draw.{geom with x = geom.x + (if flip then 0 else x);
-                                               y = geom.y + (if flip then x else 0);
-                                               w = min geom.w (fst c#size);
-                                               h = min geom.h (snd c#size);
-                                    }
+                                  y = geom.y + (if flip then x else 0);
+                       }
       in
       let blits = List.concat_map f children in
       blits
   end
 
-class ['l,'r,'res] pair ?(flip = false) ?(sep = Theme.room_margin)
+class ['l,'r,'res] pair ?(flip = false) ?(sep = 0)
     ?(align) ?(name = if flip then "VPair" else "HPair")
     ?(logic = fun self await yield -> fun res -> ()) (left : 'left #w) (right : 'right #w)
   =
   let left = (left :> 'left w) in
   let right = (right :> 'right w) in
-  let offset = (if flip then snd else fst) left#size in
-  let size =
-    let lx,ly = left#size in
-    let rx,ry = right#size in
-    if flip
-    then (max lx rx, ly + ry)
-    else (lx + rx, max ly ry)
-  in
+  let offset = (if flip then snd else fst) left#min_size in
   object (self)
-    inherit ['res] w size name Cursor.Arrow
+    inherit ['res] w name Cursor.Arrow
+
+    method min_size =
+      let w_l, h_l = left#min_size in
+      let w_r, h_r = right#min_size in
+      if flip
+      then max w_l w_r, h_l + h_r
+      else w_l + w_r, max h_l h_r
 
     method private ev_targets_lr (ts_l, ts_r) ((ev : Event.t_rich), (g : Draw.geometry)) =
       match ev with
@@ -153,8 +145,8 @@ class ['l,'r,'res] pair ?(flip = false) ?(sep = Theme.room_margin)
             let ts_l, cc_l =
               if l
               then cc_l#continue ev Draw.{geom with
-                                         w = min geom.w (fst right#size);
-                                         h = min geom.h (snd right#size)}
+                                         w = min geom.w (fst right#min_size);
+                                         h = min geom.h (snd right#min_size)}
               else ts_l, cc_l
             in
             let ts_r, cc_r =
@@ -162,8 +154,8 @@ class ['l,'r,'res] pair ?(flip = false) ?(sep = Theme.room_margin)
               then cc_r#continue ev Draw.{geom with
                                          x = geom.x + (if flip then 0 else offset);
                                          y = geom.y + (if flip then offset else 0);
-                                         w = min geom.w (fst right#size);
-                                         h = min geom.h (snd right#size)}
+                                         w = min geom.w (fst right#min_size);
+                                         h = min geom.h (snd right#min_size)}
               else ts_r, cc_r
             in
             loop ts_l ts_r cc_l cc_r
@@ -172,23 +164,23 @@ class ['l,'r,'res] pair ?(flip = false) ?(sep = Theme.room_margin)
         loop ts_l ts_r cc_l cc_r
       ) (logic self await yield) left right
 
-    method display geom =
+    method render geom =
       let blitr_l =
         left#display Draw.{geom with
-                                        w = min geom.w (fst left#size);
-                                        h = min geom.h (snd left#size)}
+                                        w = min geom.w (fst left#min_size);
+                                        h = min geom.h (snd left#min_size)}
       in
       let blitr_r =
         right#display Draw.{geom with
                                          x = geom.x + (if flip then 0 else offset);
                                          y = geom.y + (if flip then offset else 0);
-                                         w = min geom.w (fst right#size);
-                                         h = min geom.h (snd right#size)}
+                                         w = min geom.w (fst right#min_size);
+                                         h = min geom.h (snd right#min_size)}
       in
       blitr_l @ blitr_r
   end
 
-class ['a] pair_id ?(flip = false) ?(sep = Theme.room_margin)
+class ['a] pair_id ?(flip = false) ?(sep = 0)
     ?(align) ?(name = if flip then "VPair" else "HPair")
     ?(logic = fun self await yield res -> yield res) (left : 'a #w) (right : 'a #w)
   =
@@ -203,4 +195,4 @@ class ['a] pair_id ?(flip = false) ?(sep = Theme.room_margin)
     inherit ['a,'a,'a] pair ~flip ~sep ~align ~name ~logic left right
   end
 
-let x : string w = new pair_id (new Text_input.t "Test") (new Empty.t (0,0))
+let x : string w = new pair_id (new Text_input.t "Test") (new Empty.t)

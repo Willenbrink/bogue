@@ -70,8 +70,8 @@ let strip (ev : t_rich) : t = match ev with
   | Key_release _ -> `Key_release
   | Codepoint _ -> `Codepoint
   | Mouse_motion _ -> `Mouse_motion
-  | Mouse_enter _ -> `Mouse_enter
-  | Mouse_leave _ -> `Mouse_leave
+  | Mouse_enter -> `Mouse_enter
+  | Mouse_leave -> `Mouse_leave
   | Mouse_press _ -> `Mouse_press
   | Mouse_release _ -> `Mouse_release
   | Scroll _ -> `Scroll
@@ -81,13 +81,6 @@ type t_win = [
   | `Exit
   | `Resize of int * int
 ]
-
-module E = Sdl.Event
-
-let pointer_pos ev =
-    let x = E.(get ev mouse_button_x) in
-    let y = E.(get ev mouse_button_y) in
-    Theme.(unscale_int x, unscale_int y)
 
 let cursor_pos = ref (0,0)
 
@@ -100,17 +93,8 @@ let wait () =
   res
 
 let init () =
-  let window =
-    match Raylib.get_window_handle () with
-    | None -> failwith "Raylib not initialized"
-    | Some win_ptr ->
-      (* GLFW does not use Ctypes so we need to convert a fat ctypes pointer to the GLFW bindings format. *)
-      (* The bindings use a C integer + 1, i.e. the normal OCaml representation for ints. *)
-      let raw = Ctypes.raw_address_of_ptr win_ptr in
-      let raw' = Int64.of_nativeint raw |> Int64.to_int in
-      GLFW.window_magic (Obj.magic raw' : GLFW.window)
-  in
   let open GLFW in
+  let window = Draw.window () in
   Queue.push (Either.right `Init) inputs;
   setWindowSizeCallback ~window ~f:(Some (fun _ w h ->
       Queue.push (Either.right (`Resize (w,h))) inputs

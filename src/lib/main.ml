@@ -1,5 +1,4 @@
-open Interop
-open Interop.Utils
+open Widget
 
 module A = Widget.Await (struct type t = Widget.bottom end)
 
@@ -9,7 +8,7 @@ let display widget =
   Raylib.begin_drawing ();
   begin
     let blits = widget#display !geometry in
-    Raylib.clear_background Raylib.Color.green;
+    Raylib.clear_background Raylib.Color.white;
 
     let draw (Draw.{x; y; _}, tex) =
       Raylib.draw_texture tex x y Raylib.Color.blue;
@@ -29,7 +28,7 @@ let display widget =
 
 (** The main function that loops indefinitely *)
 let run ?title (widget : bottom Widget.t) =
-  let w,h = widget#size in
+  let w,h = widget#min_size in
   Draw.init ?title ~w ~h ();
   Event.init ();
   geometry :=  Draw.{x=0; y=0; w; h; voffset=0};
@@ -76,8 +75,5 @@ let run ?title (widget : bottom Widget.t) =
       flush_all ();
     done
   with
-  | Exit -> flush_log ()
-  | e ->
-    let sdl_error = Sdl.get_error () in
-    if sdl_error <> "" then print_endline ("SDL ERROR: " ^ sdl_error);
-    raise e
+  | Exit ->
+    flush_all ()

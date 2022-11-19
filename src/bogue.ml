@@ -7,12 +7,10 @@
 
 module Main = Main
 module Bogue = Main
-module Layout = Layout
 module Widget = Widget
 module Mixer = Mixer
 module Selection = Selection
 module Image = Image
-module Style = Style
 module Box = Box
 module Label = Label
 module Button = Button

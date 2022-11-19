@@ -1,5 +1,0 @@
-(library
- (name sdl)
- (libraries tsdl tsdl-image tsdl-ttf)
-   (wrapped false)
-)

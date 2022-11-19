@@ -84,20 +84,20 @@ class t ?(switch = false) ?border_r ?border_c
         else box_off
       in
       (*let margin = if self#state b then 0 else button_margin in*)
-      (*  Draw.box canvas.Draw.renderer ~bg (x+margin) (y+margin) (w-2*margin) (h-2*margin); *)
+      (*  box canvas.renderer ~bg (x+margin) (y+margin) (w-2*margin) (h-2*margin); *)
       let box_blit_ray = box#display
-          Draw.( { geom with
+          { geom with
                    x = geom.x (* + margin *);
                    y = geom.y (* + margin *);
-                   voffset = geom.voffset } ) in
+                   voffset = geom.voffset } in
       let label_blit_ray =
         (if self#state then label_on else label_off)#display
-          Draw.( { geom with
+          { geom with
                    x = geom.x + bm + dx;
                    y = geom.y + bm + dy;
                    w = geom.w - 2*bm;
                    h = geom.h - 2*bm;
-                   } )
+                   }
       in
       List.concat [box_blit_ray; label_blit_ray]
   end

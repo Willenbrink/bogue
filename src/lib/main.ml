@@ -2,7 +2,7 @@ open Widget
 
 module A = Widget.Await (struct type t = Widget.bottom end)
 
-let geometry = ref Draw.{x=0; y=0; w=0; h=0; voffset=0}
+let geometry = ref {x=0; y=0; w=0; h=0; voffset=0}
 
 let display widget =
   Raylib.begin_drawing ();
@@ -10,7 +10,7 @@ let display widget =
     let blits = widget#display !geometry in
     Raylib.clear_background Raylib.Color.white;
 
-    let draw (Draw.{x; y; _}, tex) =
+    let draw ({x; y; _}, tex) =
       Raylib.draw_texture tex x y Raylib.Color.blue;
       (* Raylib.unload_texture tex; *)
     in
@@ -28,10 +28,18 @@ let display widget =
 
 (** The main function that loops indefinitely *)
 let run ?title (widget : bottom Widget.t) =
+  (* TODO To initialize raylib we need the window size. I believe this is not a technical limitation. *)
+  (* Perhaps picking apart raylib/replacing it completely with GLFW would solve this. *)
+  (* Commented because we need initialized raylib to check size of labels (i.e. text) *)
   let w,h = widget#min_size in
-  Draw.init ?title ~w ~h ();
+  (* let w,h = 600,400 in *)
+  Window.init ?title ~w ~h ();
+
+  let open Font.State.Let in
+  let* () = Font.default () in
+  Font.set_default ();
   Event.init ();
-  geometry :=  Draw.{x=0; y=0; w; h; voffset=0};
+  geometry :=  {x=0; y=0; w; h; voffset=0};
 
   let triggers = ref [] in
   let cont = ref (fun _ _ -> ()) in
@@ -40,7 +48,7 @@ let run ?title (widget : bottom Widget.t) =
     | _ -> . (* Root widget never terminates *)
     | [%effect? (A.Await triggers'), k] ->
       triggers := triggers';
-      cont := fun ev geom -> EffectHandlers.Deep.continue k (ev,geom)
+      cont := fun ev geom -> Eff.continue k (ev,geom)
   end;
   let handle_widget (ev : (Event.t_rich, Event.t_win) Either.t) =
     match ev with
@@ -53,7 +61,7 @@ let run ?title (widget : bottom Widget.t) =
     | Either.Right `Exit -> raise Exit
     | Either.Left ev ->
 
-      (* let w,h = Sdl.get_window_size @@ (self :> 'a t)#canvas.Draw.window in *)
+      (* let w,h = Sdl.get_window_size @@ (self :> 'a t)#canvas.window in *)
       (* Printf.printf "geom: %iw,%ih\n" w h; *)
       if List.mem (Event.strip ev) !triggers
       then
@@ -67,13 +75,18 @@ let run ?title (widget : bottom Widget.t) =
         end
   in
 
+  let rec loop () =
+    Event.wait ()
+    |> List.iter handle_widget;
+    display widget;
+    flush_all ();
+    loop ()
+  in
+  loop ()
+
+let enter ?title (widget : bottom Widget.t) =
   try
-    while true do
-      Event.wait ()
-      |> List.iter handle_widget;
-      display widget;
-      flush_all ();
-    done
+    run ?title widget
   with
   | Exit ->
     flush_all ()

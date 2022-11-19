@@ -1,11 +1,3 @@
-type geometry = {
-  x : int;
-  y : int;
-  w : int;
-  h : int;
-  voffset : int;
-}
-
 let window () =
   match Raylib.get_window_handle () with
   | None -> failwith "Raylib not initialized"
@@ -25,6 +17,8 @@ let init ?(title="BOGUE Window") ?x ?y ~w ~h () =
   GLFW.setWindowSizeLimits ~window
     ~minWidth:(Some w) ~minHeight:(Some h)
     ~maxWidth:None ~maxHeight:None;
+
+  Font.init ();
   ()
 
 let quit () =

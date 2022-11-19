@@ -2,5 +2,5 @@
  (name interop)
  (libraries str raylib glfw-ocaml)
  (preprocess
-  (pps ppx_deriving.enum ppx_deriving.show))
+  (pps ppx_deriving.enum ppx_deriving.show ppx_effects))
 )

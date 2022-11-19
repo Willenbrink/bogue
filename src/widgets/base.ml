@@ -2,6 +2,14 @@ include Interop
 
 type bottom = |
 
+type geometry = {
+  x : int;
+  y : int;
+  w : int;
+  h : int;
+  voffset : int;
+}
+
 module Cursor = struct
   type t =
     | Arrow
@@ -17,34 +25,34 @@ module type R = sig type t end
 module type A = functor (Result : R) -> sig
   type res = Result.t
   type _ EffectHandlers.eff +=
-      Await : Event.t list -> (Event.t_rich * Draw.geometry) EffectHandlers.eff
+      Await : Event.t list -> (Event.t_rich * geometry) EffectHandlers.eff
   type _ EffectHandlers.eff +=
       Yield : res -> unit EffectHandlers.eff
-  val await : Event.t list -> (Event.t_rich * Draw.geometry -> 'a) -> 'a
+  val await : Event.t list -> (Event.t_rich * geometry -> 'a) -> 'a
   val yield : res -> unit
 end
 
-type 'a t = { f: Event.t_rich * Draw.geometry -> 'a }
+type 'a t = { f: Event.t_rich * geometry -> 'a }
 
 type 'a await =
   Event.t list ->
-  (Event.t_rich * Draw.geometry -> 'a) -> 'a
+  (Event.t_rich * geometry -> 'a) -> 'a
 
 (* module type Await_sig = sig *)
 (*   type res *)
 (*   type _ EffectHandlers.eff += *)
-(*       Await : Event.t list * res option -> (Event.t_rich * Draw.geometry) EffectHandlers.eff *)
+(*       Await : Event.t list * res option -> (Event.t_rich * geometry) EffectHandlers.eff *)
 (*   val await : < f : 'b. (res, 'b) await > *)
 (* end *)
 
 module Await
   (* : R -> Await_sig *)
   = functor (Result: R) -> struct
-    exception%effect Await : Event.t list -> (Event.t_rich * Draw.geometry)
+    exception%effect Await : Event.t list -> (Event.t_rich * geometry)
     exception%effect Yield : Result.t -> unit
     (* module M = struct *)
     (*   type t *)
-    (*   exception%effect Await : Event.t list * t -> (Event.t_rich * Draw.geometry) *)
+    (*   exception%effect Await : Event.t list * t -> (Event.t_rich * geometry) *)
 
     let await = object (self)
       method f : 'a. 'a await =
@@ -105,10 +113,10 @@ class virtual ['a] w name cursor =
 
     method virtual execute : <f:'b. 'b await; forever: bottom> -> ('a -> unit) -> bottom
 
-    method virtual render : Draw.geometry -> (Draw.geometry * Raylib.Texture.t) list
+    method virtual render : geometry -> (geometry * Raylib.Texture.t) list
 
     (* Can be unset by execute if a render must be forced *)
-    val mutable render_cache : (Draw.geometry * (Draw.geometry * Raylib.Texture.t) list) option = None
+    val mutable render_cache : (geometry * (geometry * Raylib.Texture.t) list) option = None
 
     (* Caches the result of self#render *)
     method display geometry =

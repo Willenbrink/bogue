@@ -104,7 +104,6 @@ class t ?(init = 0) ?(length = 200) ?(live = false)
       room_y + fst self#min_size - tick_size - state * (fst self#min_size - tick_size) / max
 
     method render geom =
-      let open Draw in
       room_x <- geom.x;
       room_y <- geom.y;
 

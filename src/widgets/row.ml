@@ -10,7 +10,7 @@ open Base
 (* We use objects to model the recursive nature of continue *)
 class ['a] continuation k =
   object
-    method continue (ev : Event.t_rich) (geom : Draw.geometry)
+    method continue (ev : Event.t_rich) (geom : geometry)
       : 'a * 'a continuation
       =
       EffectHandlers.Deep.continue k (ev,geom)
@@ -57,7 +57,7 @@ class t ?(flip = false) ?(sep = 0)
 
     method render geom =
       let f (x, y, c) =
-        c#display Draw.{geom with x = geom.x + (if flip then 0 else x);
+        c#display {geom with x = geom.x + (if flip then 0 else x);
                                   y = geom.y + (if flip then x else 0);
                        }
       in
@@ -82,7 +82,7 @@ class ['l,'r,'res] pair ?(flip = false) ?(sep = 0)
       then max w_l w_r, h_l + h_r
       else w_l + w_r, max h_l h_r
 
-    method private ev_targets_lr (ts_l, ts_r) ((ev : Event.t_rich), (g : Draw.geometry)) =
+    method private ev_targets_lr (ts_l, ts_r) ((ev : Event.t_rich), (g : geometry)) =
       match ev with
       | Scroll _ -> failwith "Scroll not implemented" (* TODO *)
       (* Events that can affect both childs *)
@@ -144,14 +144,14 @@ class ['l,'r,'res] pair ?(flip = false) ?(sep = 0)
             (* Printf.printf "Received event:\n\tl: %b #ev %s\n\tr: %b #ev %s\n%!" l tss_l r tss_r; *)
             let ts_l, cc_l =
               if l
-              then cc_l#continue ev Draw.{geom with
+              then cc_l#continue ev {geom with
                                          w = min geom.w (fst right#min_size);
                                          h = min geom.h (snd right#min_size)}
               else ts_l, cc_l
             in
             let ts_r, cc_r =
               if r
-              then cc_r#continue ev Draw.{geom with
+              then cc_r#continue ev {geom with
                                          x = geom.x + (if flip then 0 else offset);
                                          y = geom.y + (if flip then offset else 0);
                                          w = min geom.w (fst right#min_size);
@@ -166,12 +166,12 @@ class ['l,'r,'res] pair ?(flip = false) ?(sep = 0)
 
     method render geom =
       let blitr_l =
-        left#display Draw.{geom with
+        left#display {geom with
                                         w = min geom.w (fst left#min_size);
                                         h = min geom.h (snd left#min_size)}
       in
       let blitr_r =
-        right#display Draw.{geom with
+        right#display {geom with
                                          x = geom.x + (if flip then 0 else offset);
                                          y = geom.y + (if flip then offset else 0);
                                          w = min geom.w (fst right#min_size);

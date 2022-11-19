@@ -32,7 +32,7 @@ let example () =
               (comb (new Button.t "Hold") (l "Init"))
           end
   in
-  run layout
+  enter layout
 
 (* let _ = *)
 (*   run @@ fun () -> *)
@@ -50,10 +50,10 @@ let _ =
   (*   signal sigint handler |> ignore; *)
   (*   signal sigsegv handler |> ignore; *)
   (* ); *)
-  (try
-     example ();
-     Interop.Draw.quit ()
-   with
-   | e -> Printexc.print_backtrace stdout; Printexc.to_string e |> print_endline);
-
-  Stdlib.exit 0
+  try
+    example ()
+  with
+  | e ->
+    Printexc.print_backtrace stdout;
+    Printexc.to_string e
+    |> print_endline

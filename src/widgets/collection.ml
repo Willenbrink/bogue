@@ -9,7 +9,7 @@ class virtual ['a] t ?(name = "Collection") children =
     method render geom =
       let f ((x,y),c) =
         (* FIXME w/h is not correctly handled *)
-          c#display Draw.{geom with x = geom.x + x;
+          c#display {geom with x = geom.x + x;
                                     y = geom.y + y;
                          }
       in

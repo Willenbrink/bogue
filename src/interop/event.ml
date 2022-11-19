@@ -94,7 +94,7 @@ let wait () =
 
 let init () =
   let open GLFW in
-  let window = Draw.window () in
+  let window = Window.window () in
   Queue.push (Either.right `Init) inputs;
   setWindowSizeCallback ~window ~f:(Some (fun _ w h ->
       Queue.push (Either.right (`Resize (w,h))) inputs

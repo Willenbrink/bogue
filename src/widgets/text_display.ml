@@ -35,15 +35,14 @@ class ['a] t paragraphs =
       let x = paragraphs_of_string x in
       _paragraphs <- x
 
-    method min_size = (10 * String.length self#text, 20)
+    method min_size = (50 * String.length self#text, 50)
 
     method execute await _ =
       await#forever
 
     method render geom =
-      let open Draw in
       let img = Raylib.gen_image_color geom.w geom.h Raylib.Color.blank in
-      Raylib.image_draw_text (Raylib.addr img) (unsplit paragraphs) 0 0 14 Raylib.Color.black;
+      Font.draw_text (Raylib.addr img) (unsplit paragraphs) 0. 0.;
       let tex = Raylib.load_texture_from_image img in
       Raylib.unload_image img;
       [geom, tex]

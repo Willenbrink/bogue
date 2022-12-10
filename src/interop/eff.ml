@@ -1,15 +1,15 @@
-type _ EffectHandlers.eff +=
-    Register : ('a EffectHandlers.eff * ('a -> 'b)) -> unit EffectHandlers.eff
+type _ Effect.t +=
+    Register : ('a Effect.t * ('a -> 'b)) -> unit Effect.t
 
-let perform = EffectHandlers.perform
-let continue = EffectHandlers.Deep.continue
+let perform = Effect.perform
+let continue = Effect.Deep.continue
 
 module State (V : sig type t end) = struct
   type t = V.t
-  type _ EffectHandlers.eff +=
-      Get : t EffectHandlers.eff
-  type _ EffectHandlers.eff +=
-      Set : t -> unit EffectHandlers.eff
+  type _ Effect.t +=
+      Get : t Effect.t
+  type _ Effect.t +=
+      Set : t -> unit Effect.t
 
   let get () = perform Get
   let set x = perform (Set x)

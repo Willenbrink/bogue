@@ -24,10 +24,10 @@ module type R = sig type t end
 
 module type A = functor (Result : R) -> sig
   type res = Result.t
-  type _ EffectHandlers.eff +=
-      Await : Event.t list -> (Event.t_rich * geometry) EffectHandlers.eff
-  type _ EffectHandlers.eff +=
-      Yield : res -> unit EffectHandlers.eff
+  type _ Effect.t +=
+      Await : Event.t list -> (Event.t_rich * geometry) Effect.t
+  type _ Effect.t +=
+      Yield : res -> unit Effect.t
   val await : Event.t list -> (Event.t_rich * geometry -> 'a) -> 'a
   val yield : res -> unit
 end
@@ -40,8 +40,8 @@ type 'a await =
 
 (* module type Await_sig = sig *)
 (*   type res *)
-(*   type _ EffectHandlers.eff += *)
-(*       Await : Event.t list * res option -> (Event.t_rich * geometry) EffectHandlers.eff *)
+(*   type _ Effect.t += *)
+(*       Await : Event.t list * res option -> (Event.t_rich * geometry) Effect.t *)
 (*   val await : < f : 'b. (res, 'b) await > *)
 (* end *)
 
@@ -59,7 +59,7 @@ module Await
         fun triggers handler ->
         try handler @@
           (* (fun (ev,g) -> print_endline (Event.show_t_rich ev); (ev,g)) @@ *)
-          EffectHandlers.perform (Await triggers) with
+          Effect.perform (Await triggers) with
         | Repeat
         (* TODO This might catch other failures.
            Also the match statements are (obviously) shown as incomplete
@@ -68,11 +68,11 @@ module Await
         | Match_failure _ -> self#f triggers handler
 
       method forever : bottom =
-        match EffectHandlers.perform (Await []) with
+        match Effect.perform (Await []) with
         | _ -> failwith "Empty trigger list was resumed"
     end
 
-    let yield result = EffectHandlers.perform (Yield result)
+    let yield result = Effect.perform (Yield result)
   end
 
 (* Note that the type system is not smart enough

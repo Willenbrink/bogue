@@ -13,14 +13,14 @@ class ['a] continuation k =
     method continue (ev : Event.t_rich) (geom : geometry)
       : 'a * 'a continuation
       =
-      EffectHandlers.Deep.continue k (ev,geom)
+      Effect.Deep.continue k (ev,geom)
       (* TODO *)
-      (* method discontinue exn = EffectHandlers.Deep.discontinue k exn *)
+      (* method discontinue exn = Effect.Deep.discontinue k exn *)
   end
 
 class ['a] discontinuation k =
   object
-    method discontinue exn : 'a = EffectHandlers.Deep.discontinue k exn
+    method discontinue exn : 'a = Effect.Deep.discontinue k exn
   end
 
 class t ?(flip = false) ?(sep = 0)
@@ -122,7 +122,7 @@ class ['l,'r,'res] pair ?(flip = false) ?(sep = 0)
             triggers, new continuation k
           | [%effect? A.Yield res, k] ->
             logic (Either.left res);
-            EffectHandlers.Deep.continue k ()
+            Effect.Deep.continue k ()
         in
         let ts_r, cc_r =
           let module A = Await (struct type t = b end) in
@@ -132,7 +132,7 @@ class ['l,'r,'res] pair ?(flip = false) ?(sep = 0)
             triggers, new continuation k
           | [%effect? A.Yield res, k] ->
             logic (Either.right res);
-            EffectHandlers.Deep.continue k ()
+            Effect.Deep.continue k ()
         in
 
         let rec loop ts_l ts_r cc_l cc_r =
